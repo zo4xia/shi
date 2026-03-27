@@ -3,7 +3,7 @@
   "version": "0.3.0",
   "description": "UCLAW - AI-powered personal assistant with local web UI",
   "private": true,
-  "packageManager": "npm@10",
+  "packageManager": "npm@10.0.0",
   "type": "module",
   "author": {
     "name": "UCLAW"
