@@ -436,8 +436,8 @@ input:focus {
 
   /* 文字色 - 温暖大地色 */
   --text-pearl-primary: #5A5248;
-  --text-pearl-secondary: #5A5248;  /* P0-2: 提高对比度至 WCAG AA 标准 (≥4.5:1) */
-  --text-pearl-muted: #8B8A87;
+  --text-pearl-secondary: #7A7065;
+  --text-pearl-muted: #9A9085;
 
   /* 渐变色系 - 紫橙渐变 */
   --gradient-warm-primary: linear-gradient(135deg, #A78BFA 0%, #F59E0B 100%);
@@ -608,7 +608,7 @@ input:focus {
 }
 
 /* =========================================
-   Sidebar Container Styles - 珍珠白侧边栏
+   Sidebar Container Styles - ��珠白侧边栏
    ========================================= */
 
 .sidebar-pearl {
@@ -1109,18 +1109,18 @@ input:focus {
     inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
-/* 玻璃卡片 - 高透明磨砂 (P0-1: 提高亮色模式对比度) */
+/* 玻璃卡片 - 高透明磨砂 */
 .card-glass {
-  background: rgba(255, 254, 252, 0.95);  /* 从 0.4 提升至 0.95，确保内容清晰可读 */
+  background: rgba(255, 254, 252, 0.4);
   backdrop-filter: blur(20px) saturate(220%);
   -webkit-backdrop-filter: blur(20px) saturate(220%);
-  border: 1px solid rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.5);
   border-radius: 24px;
   padding: 20px 24px;
   box-shadow:
     0 4px 16px rgba(180, 170, 160, 0.1),
     0 12px 48px rgba(180, 170, 160, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.7);
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
   transition: all 250ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 

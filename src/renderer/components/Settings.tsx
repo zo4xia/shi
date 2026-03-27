@@ -1753,7 +1753,7 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
               </div>
               {showCoworkContinuityNote && (
                 <div className="rounded-lg dark:bg-claude-darkSurfaceInset bg-claude-surfaceInset px-3 py-3 text-xs leading-5 dark:text-claude-darkTextSecondary text-claude-textSecondary">
-                  {'短期共享线程负责当天交接，长期记忆负责跨天延续。热缓存空了，就尝试从长期记忆里把“今天的第一棒”接回来。'}
+                  {'短期共享线程负责当天交接，长期记忆负责跨天延续。热缓存空了，就尝试从长期记忆里把“今���的第一棒”接回来。'}
                 </div>
               )}
             </div>

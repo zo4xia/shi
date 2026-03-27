@@ -303,7 +303,7 @@ class CoworkService {
     this.streamListenerCleanups.push(messageUpdateCleanup);
 
     // Permission request listener
-    // {标记} 待评估-可能波及: 当前审批弹窗仍消费 window.electron 流式 permission 事件形状。
+    // {标记} 待评估-可��波及: 当前审批弹窗仍消费 window.electron 流式 permission 事件形状。
     const permissionCleanup = cowork.onStreamPermission(({ sessionId, request }) => {
       store.dispatch(enqueuePendingPermission({
         sessionId,

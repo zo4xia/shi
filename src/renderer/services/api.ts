@@ -453,7 +453,7 @@ class ApiService {
       throw new ApiError('API key is not configured. Please set your API key in the settings menu.');
     }
 
-    // 根据 API 协议格式决定调用方式：
+    // 根据 API ���议格式决定调用方式：
     // - anthropic: Anthropic 兼容协议 (/v1/messages)
     // - openai: OpenAI 兼容协议 (OpenAI provider uses /v1/responses)
     const normalizedApiFormat = this.normalizeApiFormat(effectiveConfig.apiFormat);
