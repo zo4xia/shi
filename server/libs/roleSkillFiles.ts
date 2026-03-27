@@ -109,6 +109,7 @@ export function ensureRoleRuntimeDirs(userDataPath: string): void {
 }
 
 function loadSkillBindings(store: Pick<StoreLike, 'getDatabase'>, options?: { enabledOnly?: boolean }): SkillBindingRow[] {
+  // {FLOW} ROLE-SKILL-BINDINGS: skill_role_configs 是角色技能绑定主数据；后续 roles/<role>/skills.json 由这里投影生成。
   const whereClause = options?.enabledOnly ? 'WHERE enabled = 1' : '';
   const result = store.getDatabase().exec(
     `SELECT id, role_key, skill_id, skill_name, prefix, enabled, installed_at, updated_at
@@ -177,6 +178,7 @@ export function cleanupRoleSkillRuntimeState(
   store: StoreLike,
   skillManager: Pick<SkillManager, 'listSkills' | 'getSkillsRoot'>
 ): CleanupSummary {
+  // {FLOW} ROLE-SKILL-RUNTIME-CLEANUP: 先按运行时真实仓库清洗失效 binding，再清理 role 目录下遗留 config/secrets 噪音文件。
   ensureRoleRuntimeDirs(userDataPath);
 
   const db = store.getDatabase();
@@ -272,6 +274,7 @@ export function syncRoleSkillIndexes(
   store: StoreLike,
   skillManager: Pick<SkillManager, 'listSkills' | 'getSkillsRoot'>
 ): Array<{ roleKey: AgentRoleKey; path: string; skills: number }> {
+  // {FLOW} ROLE-SKILL-INDEX-TRUTH: roles/<role>/skills.json 是角色技能可见性真相索引；来源 = skill_role_configs + 运行时 SKILLs 仓库。
   ensureRoleRuntimeDirs(userDataPath);
 
   cleanupRoleSkillRuntimeState(userDataPath, store, skillManager);

@@ -40,6 +40,8 @@ function readMaybeNumber(result: any[]): number | null {
 export function setupRoleRuntimeRoutes(app: Router) {
   const router = Router();
 
+  // {路标} FLOW-ROUTE-ROLE-RUNTIME
+  // {FLOW} ROLE-RUNTIME-TRUTH-VIEW: 这里不是单纯配置写口，而是把 app_config、roles 文件、capability snapshot、DB统计汇总成角色真相视图。
   router.get('/', (req: Request, res: Response) => {
     try {
       const { store } = req.context as RequestContext;

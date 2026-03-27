@@ -37,6 +37,7 @@ import type { AgentRoleKey } from '../../shared/agentRoleConfig';
 // {路标} FLOW-SERVICE-COWORK
 // {标记} 兼容壳残留: 当前前端会话服务仍统一经由 window.electron.cowork.* 转接到 Web API。
 // {标记} 重构边界-待确认: 若迁移调用面，需与 electronShim / App.tsx / Settings / coworkSlice 成组推进。
+// {FLOW} COWORK-SERVICE-TRUNK: 页面层只应经由 coworkService 进入会话主链；不要在组件内直接绕过 service 打后端。
 
 const SCHEDULED_SESSION_PREFIX = '[定时] ';
 const API_CONFIG_CHECK_TTL_MS = 15_000;

@@ -7,6 +7,14 @@ export const RUNTIME_FLOW_TAGS = {
     label: '角色索引',
     line: '角色索引 -> roles/<role>/skills.json -> 当前角色能看见什么',
   },
+  appConfigRoleSettings: {
+    label: '角色设定真相',
+    line: 'app_config.agentRoles -> roles/<role>/role-settings.json(只读投影) -> 运行设定排查',
+  },
+  capabilitySnapshot: {
+    label: '角色能力快照',
+    line: 'skills.json + runtime MCP + native capabilities -> roles/<role>/role-capabilities.json -> 会话可用面核对',
+  },
   skillBindingRecovery: {
     label: '技能绑定恢复',
     line: '角色索引快照 -> skill_role_configs 修复 -> roles/<role>/skills.json / role-capabilities.json 重建',
@@ -18,6 +26,10 @@ export const RUNTIME_FLOW_TAGS = {
   customMcp: {
     label: '自定义MCP',
     line: '自定义MCP -> mcp_servers -> 按角色过滤 -> 会话运行时注入',
+  },
+  runtimeMcpTruth: {
+    label: '运行态MCP真相',
+    line: 'mcp_servers -> getEnabledServers -> getRuntimeEnabledServers -> legacy Memory compat 剔除后注入',
   },
   memoryStore: {
     label: '记忆落库',

@@ -92,6 +92,8 @@ const App: React.FC = () => {
 
   // 初始化应用
   useEffect(() => {
+    // {路标} FLOW-PAGE-APP-BOOT
+    // {FLOW} PAGE-BOOT-TRUNK: App 首屏先拉 config/theme/api，再后台补齐 IM；这里是前端页面层总入口。
     if (hasInitialized.current) {
       return;
     }

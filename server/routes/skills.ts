@@ -96,6 +96,8 @@ export function setupSkillsRoutes(app: Router) {
   const SKILL_MARKETPLACE_FROZEN = true;
 
   function syncRoleIndexes(req: Request): void {
+    // {路标} FLOW-SKILLS-SYNC-RUNTIME
+    // {FLOW} SKILLS-WAREHOUSE-SIDE-EFFECT: 技能仓库层一旦改动，需要立即重建 roles/*/skills.json 与 capability snapshot。
     const userDataPath = String(req.app.get('userDataPath') || '');
     if (!userDataPath) return;
     const { store, skillManager, mcpStore } = req.context as RequestContext;

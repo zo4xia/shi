@@ -199,6 +199,8 @@ export class HttpSessionExecutor implements SessionExecutor {
     options: TurnOptions,
     mode: 'start' | 'continue' | 'channel'
   ): Promise<void> {
+    // {路标} FLOW-EXECUTOR-HTTP-TURN
+    // {FLOW} EXECUTOR-HTTP-TURN: Web/Feishu 一期现役执行主干，负责状态切换、消息写入、模型请求、完成收尾。
     // 【1.0链路】HTTP-EXEC-TURN: 当前稳定执行主链，负责状态切换、消息写入、直连 OpenAI 兼容流式请求。
     if (this.activeSessions.has(sessionId)) {
       throw new Error(`Session ${sessionId} is already running`);
@@ -370,6 +372,8 @@ export class HttpSessionExecutor implements SessionExecutor {
     options: TurnOptions,
     mode: 'start' | 'continue' | 'channel'
   ): Promise<string> {
+    // {路标} FLOW-EXECUTOR-SYSTEM-PROMPT
+    // {FLOW} EXECUTOR-PROMPT-ASSEMBLY: system prompt 由显式提示、角色技能、native capabilities、连续性提示等拼装而成。
     // 【1.0链路】PROMPT-BUILD: 系统提示 = 显式 systemPrompt + 角色技能提示 + 连续性共享记忆提示。
     const session = this.store.getSession(sessionId);
     if (!session) {

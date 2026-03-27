@@ -163,6 +163,8 @@ export function syncRoleSettingsView(
   roleKey: AgentRoleKey,
   appConfig?: AppConfigLike | null,
 ): { roleKey: AgentRoleKey; path: string; payload: RoleSettingsViewFile } {
+  // {路标} FLOW-RUNTIME-SETTINGS-VIEW
+  // {FLOW} RUNTIME-SETTINGS-VIEW: 从 app_config 生成 roles/<role>/role-settings.json，只读视图，不是原始真相源。
   ensureRoleRuntimeDirs(userDataPath);
   ensureRoleNotesScaffold(userDataPath, roleKey);
 
@@ -336,6 +338,8 @@ export function syncRoleCapabilitySnapshot(
   skillManager: Pick<SkillManager, 'listSkills' | 'getSkillsRoot'>,
   mcpStore: Pick<McpStore, 'getRuntimeEnabledServers'>
 ): { roleKey: AgentRoleKey; path: string; snapshot: RoleCapabilitySnapshotFile } {
+  // {路标} FLOW-RUNTIME-CAPABILITY-SNAPSHOT
+  // {FLOW} RUNTIME-CAPABILITY-SNAPSHOT: 汇总 skill bindings、skills.json、runtime MCP、native capabilities，生成 role-capabilities.json。
   ensureRoleRuntimeDirs(userDataPath);
   cleanupRoleSkillRuntimeState(userDataPath, store, skillManager);
   syncRoleSkillIndexes(userDataPath, store, skillManager);

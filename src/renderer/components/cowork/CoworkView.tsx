@@ -81,6 +81,8 @@ const CoworkView: React.FC<CoworkViewProps> = ({ onRequestAppSettings, onShowSki
 
   useEffect(() => {
     const init = async () => {
+      // {路标} FLOW-PAGE-COWORK-INIT
+      // {FLOW} PAGE-COWORK-INIT: Cowork 页进入时先 init service，再校验 API 配置，再决定是否弹 Settings。
       await coworkService.init();
       setIsInitialized(true);
 

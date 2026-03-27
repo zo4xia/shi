@@ -237,6 +237,7 @@ export class McpStore {
    * 因为 CoworkRunner 会单独注入运行时记忆核心，避免重复挂两套记忆入口。
    */
   getRuntimeEnabledServers(agentRoleKey?: string): McpServerRecord[] {
+    // {FLOW} MCP-RUNTIME-TRUTH: 会话实际注入只看这里；它在 getEnabledServers 基础上再排除 legacy Memory compat 记录。
     return this.getEnabledServers(agentRoleKey).filter((server) => !this.isLegacyMemoryCompatServer(server));
   }
 

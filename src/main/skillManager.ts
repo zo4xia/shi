@@ -1050,6 +1050,7 @@ export class SkillManager {
   constructor(private getStore: () => SqliteStore) {}
 
   getSkillsRoot(): string {
+    // {FLOW} SKILL-WAREHOUSE-RUNTIME-ROOT: 当前运行时技能仓库根目录固定在 userData/SKILLs；这是真实扫描仓库，不等于角色已绑定结果。
     return path.resolve(app.getPath('userData'), SKILLS_DIR_NAME);
   }
 
@@ -1217,6 +1218,7 @@ export class SkillManager {
   }
 
   listSkills(): SkillRecord[] {
+    // {FLOW} SKILL-WAREHOUSE-LIST: 这里只回答“仓库里当前有哪些技能候选”；不负责角色绑定、不等于 roles/<role>/skills.json。
     const primaryRoot = this.ensureSkillsRoot();
     const state = this.loadSkillStateMap();
     const roots = this.getSkillRoots(primaryRoot);
@@ -1669,6 +1671,7 @@ export class SkillManager {
   }
 
   private loadBoundSkillIds(): Set<string> {
+    // {FLOW} SKILL-WAREHOUSE-BOUND-KEEPSET: 这里只读取已绑定 skill_id，目的是保留运行时镜像；绑定真相本身仍在 skill_role_configs。
     try {
       const result = this.getStore().getDatabase().exec(
         'SELECT skill_id FROM skill_role_configs WHERE enabled = 1'

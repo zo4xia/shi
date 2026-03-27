@@ -1,5 +1,8 @@
 import { Skill, MarketplaceSkill, MarketTag, LocalizedText, UploadedSkillPayload } from '../types/skill';
 
+// {路标} FLOW-SERVICE-SKILL
+// {FLOW} SKILL-SERVICE-TRUNK: 前端技能主链分三段——技能仓库、角色绑定、角色运行态；排错时不要把三层混成一层。
+
 export interface SkillRoleConfigEntry {
   id: string;
   roleKey: string;
@@ -510,6 +513,8 @@ class SkillService {
   }
 
   async getRoleRuntime(roleKey: string): Promise<RoleRuntimePayload | null> {
+    // {路标} FLOW-SERVICE-SKILL-RUNTIME
+    // {FLOW} SKILL-RUNTIME-SNAPSHOT: 角色运行态快照当前直接走 /api/role-runtime/:roleKey，不经过 window.electron.skillRoleConfigs。
     try {
       const response = await fetch(`/api/role-runtime/${encodeURIComponent(roleKey)}`);
       const payload = await response.json();

@@ -6,6 +6,9 @@
  * {标记} 状态: 源代码完整✅
  */
 
+// {路标} FLOW-FRONTEND-CONTRACT
+// {FLOW} CONTRACT-FIRST: 前端若要核对真实 HTTP 路径，先看这里，再对照 electronShim 与 server/src/index.ts 的挂载顺序。
+
 export const COWORK_WS_EVENTS = {
   message: 'cowork:stream:message',
   messageUpdate: 'cowork:stream:messageUpdate',

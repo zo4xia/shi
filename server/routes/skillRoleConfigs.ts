@@ -47,6 +47,8 @@ export function setupSkillRoleConfigRoutes(app: Router) {
   const validRoleKeys = ['organizer', 'writer', 'designer', 'analyst'] as const;
 
   function syncRoleIndexes(req: Request): void {
+    // {路标} FLOW-SKILL-BINDING-SYNC
+    // {FLOW} SKILL-BINDING-SIDE-EFFECT: 角色绑定层的增删改，不只写 DB，还会回写角色运行态文件与 capability snapshot。
     const userDataPath = String(req.app.get('userDataPath') || '');
     if (!userDataPath) return;
     const { store, skillManager, mcpStore } = req.context as RequestContext;

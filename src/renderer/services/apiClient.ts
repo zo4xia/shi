@@ -3,6 +3,9 @@
  * Replaces window.electron IPC calls with HTTP requests
  */
 
+// {路标} FLOW-FRONTEND-API-CLIENT
+// {FLOW} FRONTEND-HTTP-TRUNK: 前端凡是走 HTTP 的请求，最终都会在这里拼成 /api/* 再发往当前本地服务端。
+
 // {标记} P0修复: baseUrl 必须永远是 /api（本地后端），绝不能读外部API地址
 // VITE_API_BASE_URL 是给后端用的真实API转发地址，前端不能用
 const API_BASE = '/api';

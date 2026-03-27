@@ -400,6 +400,8 @@ const logRoleRuntimeHealthCheck = (): void => {
 
 const initStore = async (): Promise<SqliteStore> => {
   if (!store) {
+    // {路标} FLOW-REQUEST-CONTEXT-STORE
+    // {FLOW} STORE-SINGLETON-BOOT: 整个 Web 服务端的 SQLite 单例从这里创建，后续 routes/context 共用同一份 db 句柄。
     store = await SqliteStore.create(getUserDataPath(serverOptions.dataDir));
     // 注入 store getter 供 claudeSettings.resolveCurrentApiConfig 使用
     setStoreGetter(() => store as any);
@@ -974,9 +976,13 @@ const requestContextMiddleware = async (req: Request, res: Response, next: NextF
 };
 
 // Apply context middleware to all API routes
+// {路标} FLOW-API-CONTEXT-HYDRATE
+// {FLOW} API-CONTEXT-FIRST: 所有 /api/* 请求先注入 store/cowork/skills/mcp/scheduler，再进入具体 route。
 app.use('/api', requestContextMiddleware);
 
 // Setup API routes
+// {路标} FLOW-API-MOUNT-ORDER
+// {FLOW} API-MOUNT-TRUNK: 当前主链装配顺序以这里为准；核查“接口是否存在”先看这里再看 routes 文件。
 setupStoreRoutes(app);
 setupSkillsRoutes(app);
 setupMcpRoutes(app);

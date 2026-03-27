@@ -14,6 +14,9 @@ import {
 
 const IM_CONFIG_STORAGE_KEY = 'im_config';
 
+// {路标} FLOW-FRONTEND-IM
+// {FLOW} IM-BYPASS-FACADE: IM 服务当前不完全走 window.electron 兼容壳，而是本地存储 + 直连 /api/im/feishu/* 的混合链。
+
 type IMServiceResult<T = void> = {
   success: boolean;
   value?: T;

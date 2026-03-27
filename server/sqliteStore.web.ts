@@ -32,6 +32,8 @@ export class SqliteStore {
   }
 
   static async create(userDataPath?: string): Promise<SqliteStore> {
+    // {路标} FLOW-DB-BOOTSTRAP
+    // {FLOW} DB-PATH-RESOLVE: Web 服务端数据库固定落到 runtime userDataPath/uclaw.sqlite，不走 Electron userData 目录。
     const basePath = userDataPath || resolveRuntimeUserDataPath(undefined, getProjectRoot());
 
     // Ensure directory exists
@@ -427,6 +429,8 @@ export class SqliteStore {
   }
 
   flush(): void {
+    // {路标} FLOW-DB-FLUSH
+    // {FLOW} DB-FLUSH-TO-DISK: 所有 kv / cowork / mcp / scheduled_tasks / memories 变更最终都收口到这里落盘。
     if (this.pendingSaveTimer) {
       clearTimeout(this.pendingSaveTimer);
       this.pendingSaveTimer = null;

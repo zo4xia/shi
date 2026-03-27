@@ -383,6 +383,8 @@ const workspace = {
 // Cowork API
 // ============================================================================
 const cowork = {
+  // {路标} FLOW-SHIM-COWORK
+  // {FLOW} SHIM-COWORK-BRIDGE: Cowork 兼容壳把页面 service 调用统一桥接到 /api/cowork 与 cowork websocket 事件。
   async startSession(options: {
     prompt: string;
     cwd?: string;
