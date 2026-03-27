@@ -7,6 +7,7 @@
 - Build command: `npm run build`
 - Preflight command: `npm run deploy:check`
 - Start command: `npm start`
+- Optional frontend gateway: `npm run start:frontend-gateway`
 - Process manager: `systemd`
 
 ## Zeabur
@@ -86,12 +87,37 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now uclaw
 ```
 
+## Optional “looks like local” frontend gateway
+
+如果你要一个和本地开发更接近的双端口形态：
+
+- `3001` = 后端真服务
+- `5176` = 前端门面层
+
+不要继续在服务器上长期跑 Vite dev。改用仓库内置前端门面：
+
+```bash
+sudo cp deploy/linux/uclaw-frontend.env.example /etc/uclaw/uclaw-frontend.env
+sudo cp deploy/linux/uclaw-frontend.service /etc/systemd/system/uclaw-frontend.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now uclaw-frontend
+```
+
+这个门面层会：
+
+- 直接服务 `server/public`
+- 把 `5176/api/*` 回源到 `3001`
+- 把 `5176/ws` 回源到 `3001`
+- 避免 Vite HMR 端口与 `.vite` 缓存权限噪音
+
 ## Checks
 
 ```bash
 systemctl status uclaw
+journalctl -u uclaw-frontend -n 200 --no-pager
 journalctl -u uclaw -n 200 --no-pager
 curl http://127.0.0.1:3001/health
+curl http://127.0.0.1:5176/health
 ```
 
 ## Notes

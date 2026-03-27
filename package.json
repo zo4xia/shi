@@ -34,6 +34,7 @@
     "build:server": "tsc -p server/tsconfig.json && node -e \"require('fs').writeFileSync('server/dist/package.json','{\\\"type\\\":\\\"module\\\"}\\n')\" && node scripts/fix-imports.mjs && node -e \"require('fs').copyFileSync('server/shims/electron.cjs','server/dist/server/shims/electron.cjs')\"",
     "server:build": "tsc -p server/tsconfig.json && node -e \"require('fs').writeFileSync('server/dist/package.json','{\\\"type\\\":\\\"module\\\"}\\n')\" && node scripts/fix-imports.mjs && node -e \"require('fs').copyFileSync('server/shims/electron.cjs','server/dist/server/shims/electron.cjs')\"",
     "start": "node server/dist/server/src/cli.js --no-open --host 0.0.0.0",
+    "start:frontend-gateway": "node scripts/start-frontend-gateway.mjs",
     "start:local": "node server/dist/server/src/cli.js --host 127.0.0.1",
     "server:start": "node server/dist/server/src/cli.js --no-open --host 0.0.0.0",
     "deploy:check": "node scripts/preflight-deploy.mjs",

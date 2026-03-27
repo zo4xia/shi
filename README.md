@@ -62,6 +62,31 @@ npm start
 npm run start:local
 ```
 
+## 本地式双端口服务端
+
+如果你希望服务端长得和本地开发更像：
+
+- 后端：`3001`
+- 前端门面：`5176`
+
+可以在构建完成后额外启动：
+
+```bash
+npm run start:frontend-gateway
+```
+
+它不是 Vite dev server，也不是假预览，而是稳定门面层：
+
+- `5176` 静态托管 `server/public`
+- `5176/api/*` 回源代理到 `3001`
+- `5176/ws` 回源代理到 `3001`
+- 页面外观与访问入口更接近本地双端口体验
+
+推荐场景：
+
+- 你想给人看一个“像本地一样”的前端入口
+- 你又不想在服务器上长期跑带 HMR 的 Vite 开发服务
+
 ## 自动化部署必读
 
 - 构建命令：`npm ci && npm run build`
@@ -152,7 +177,9 @@ npm start
 `systemd` 模板和 env 模板：
 
 - `deploy/linux/uclaw.service`
+- `deploy/linux/uclaw-frontend.service`
 - `deploy/linux/uclaw.env.example`
+- `deploy/linux/uclaw-frontend.env.example`
 - `docs/DEPLOYMENT_STANDARD_LINUX.md`
 
 ## 文档入口
