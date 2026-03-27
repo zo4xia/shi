@@ -80,7 +80,7 @@ function listRuntimeSkills(skillsRoot: string): RuntimeSkillRecord[] {
 
   return fs.readdirSync(skillsRoot, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
-    .map((entry) => {
+    .map<RuntimeSkillRecord | null>((entry) => {
       const skillPath = path.join(skillsRoot, entry.name, 'SKILL.md');
       if (!fs.existsSync(skillPath)) {
         return null;
@@ -91,9 +91,9 @@ function listRuntimeSkills(skillsRoot: string): RuntimeSkillRecord[] {
         name: entry.name,
         enabled: true,
         skillPath,
-      } satisfies RuntimeSkillRecord;
+      };
     })
-    .filter((skill): skill is RuntimeSkillRecord => Boolean(skill));
+    .filter((skill): skill is RuntimeSkillRecord => skill !== null);
 }
 
 async function main(): Promise<void> {
@@ -187,7 +187,7 @@ async function main(): Promise<void> {
         return [];
       }
 
-      return result[0].values.map((row) => ({
+      return result[0].values.map((row: unknown[]) => ({
         id: String(row[0] ?? ''),
         name: String(row[1] ?? ''),
         transportType: String(row[2] ?? 'stdio'),
