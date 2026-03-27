@@ -106,7 +106,7 @@ const deliveryReadme = `
 ## 使用
 
 \`\`\`bash
-npm install
+npm ci
 npm run dev:web
 \`\`\`
 
@@ -163,13 +163,14 @@ const runbookDoc = `
 
 ## 环境
 
-- Node.js: \`>=24 <25\`
+- Node.js: \`>=20 <25\`
+- 推荐版本：\`.nvmrc\` 当前为 \`24\`，但标准部署兼容 Node \`20 / 22 / 24\`
 - 首次运行先复制 \`.env.example -> .env\`
 
 ## 开发
 
 \`\`\`bash
-npm install
+npm ci
 npm run dev:web
 \`\`\`
 

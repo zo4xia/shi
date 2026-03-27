@@ -47,8 +47,8 @@ function isInsideProjectRoot(candidatePath) {
 
 function main() {
   const nodeMajor = normalizeNodeMajor(process.version);
-  if (!Number.isFinite(nodeMajor) || nodeMajor < 24 || nodeMajor >= 25) {
-    fail(`Node.js ${process.version} is unsupported; expected >=24 <25.`);
+  if (!Number.isFinite(nodeMajor) || nodeMajor < 20 || nodeMajor >= 25) {
+    fail(`Node.js ${process.version} is unsupported; expected >=20 <25.`);
   }
 
   for (const key of requiredEnvKeys) {

@@ -163,9 +163,14 @@ const Sidebar: React.FC<SidebarProps> = ({
     >
       {/* ── 顶部：主导航 ── */}
       <div className="pt-3 pb-3">
-        <div className="draggable sidebar-header-drag h-8 flex items-center justify-between px-3">
-          <div className={`${isMac ? 'pl-[68px]' : ''}`}>
-            {updateBadge}
+        <div className="draggable sidebar-header-drag flex items-center justify-between gap-3 px-3">
+          <div className={`min-w-0 ${isMac ? 'pl-[68px]' : ''}`}>
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/78 px-3 py-1.5 text-[12px] font-semibold tracking-[0.14em] text-[#4f453d] shadow-[0_10px_28px_rgba(194,170,145,0.14)] backdrop-blur-md dark:border-white/10 dark:bg-white/[0.06] dark:text-claude-darkText">
+              <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br from-amber-300 via-violet-300 to-violet-400 text-[#5b4338] shadow-[inset_0_1px_0_rgba(255,255,255,0.6)] dark:text-[#2d211b]">
+                <StarIcon className="h-3.5 w-3.5" />
+              </span>
+              <span className="truncate">UCLAW</span>
+            </div>
           </div>
           <button
             type="button"
@@ -176,6 +181,11 @@ const Sidebar: React.FC<SidebarProps> = ({
             <SidebarToggleIcon className="h-4 w-4" isCollapsed={isCollapsed} />
           </button>
         </div>
+        {updateBadge ? (
+          <div className={`mt-2 px-3 ${isMac ? 'pl-[calc(68px+0.75rem)]' : ''}`}>
+            {updateBadge}
+          </div>
+        ) : null}
         <div className="mt-3 space-y-3 px-3">
           <div>
             <div className="mb-2 px-2 text-[10px] font-semibold uppercase tracking-[0.18em] dark:text-claude-darkTextSecondary/85 text-claude-textSecondary/85">

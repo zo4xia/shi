@@ -106,6 +106,16 @@ blockquote {
   background-attachment: fixed;
 }
 
+/* 亮色模式次要文字统一收口，避免 tailwind token 与 pearl token 漂移 */
+.light .text-claude-textSecondary,
+.light blockquote {
+  color: #5A5248;
+}
+
+.light .placeholder\:text-claude-textSecondary::placeholder {
+  color: #6B6258;
+}
+
 /* 全局背景渐变类 - 温暖色系 */
 .bg-gradient-main {
   background: linear-gradient(180deg, #FEFDFB 0%, #F9F6F2 50%, #F5F1EC 100%);
@@ -558,7 +568,7 @@ input:focus {
     0 1px 2px var(--shadow-warm-1),
     0 4px 12px var(--shadow-warm-2),
     inset 0 1px 0 rgba(255, 255, 255, 0.5);
-  transition: all 150ms ease-out;
+  transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* 用户气泡 - 暖调珍珠 */
@@ -595,7 +605,7 @@ input:focus {
     0 1px 2px var(--shadow-warm-1),
     0 4px 12px var(--shadow-warm-2),
     inset 0 1px 0 rgba(255, 255, 255, 0.6);
-  transition: all 150ms ease-out;
+  transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .input-pearl:focus,
@@ -695,6 +705,8 @@ input:focus {
   box-shadow: 
     0 2px 4px rgba(200, 160, 140, 0.3),
     0 4px 12px rgba(200, 160, 140, 0.2);
+  transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
 }
 
 .btn-pearl-primary:hover {
@@ -721,7 +733,7 @@ input:focus {
   box-shadow: 
     0 1px 2px var(--shadow-warm-1),
     0 4px 8px var(--shadow-warm-2);
-  transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
   cursor: pointer;
 }
 
@@ -743,7 +755,7 @@ input:focus {
   border: 1px solid transparent;
   border-radius: 12px;
   padding: 10px 12px;
-  transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
   cursor: pointer;
 }
 
@@ -1136,21 +1148,21 @@ input:focus {
 
 /* 暗色模式玻璃卡片 */
 .dark .card-glass {
-  background: rgba(26, 22, 17, 0.3);
-  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(36, 32, 27, 0.68);
+  border-color: rgba(255, 255, 255, 0.16);
   box-shadow:
-    0 4px 16px rgba(0, 0, 0, 0.3),
-    0 12px 48px rgba(0, 0, 0, 0.35),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    0 6px 18px rgba(0, 0, 0, 0.34),
+    0 16px 52px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
 .dark .card-glass:hover {
-  background: rgba(26, 22, 17, 0.4);
-  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(36, 32, 27, 0.76);
+  border-color: rgba(255, 255, 255, 0.2);
   box-shadow:
-    0 8px 24px rgba(0, 0, 0, 0.35),
-    0 20px 64px rgba(0, 0, 0, 0.4),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    0 10px 28px rgba(0, 0, 0, 0.38),
+    0 24px 68px rgba(0, 0, 0, 0.44),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 
 /* 悬浮卡片 - 强悬浮感 */

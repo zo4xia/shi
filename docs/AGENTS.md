@@ -167,14 +167,14 @@ npm run build:web       # Vite → server/public/
 npm run build:server    # tsc → server/dist/
 
 # 启动生产
-npm start               # = node server/dist/src/cli.js
+npm start               # = node server/dist/server/src/cli.js --no-open --host 0.0.0.0
 
 # 测试
 npm run test:all
 npm run lint
 ```
 
-**环境要求**: Node.js >= 24 < 25
+**环境要求**: Node.js >= 20 < 25（推荐 `.nvmrc` 当前固定的 24，但标准部署兼容 20 / 22 / 24）
 
 ## 架构总览
 

@@ -2,13 +2,15 @@
 
 ## 环境
 
-- Node.js: `>=24 <25`
+- Node.js: `>=20 <25`
+- 推荐版本：`.nvmrc` 当前为 `24`，但标准部署兼容 Node `20 / 22 / 24`
 - 首次运行先复制 `.env.example -> .env`
+- 生产自动化部署优先使用 `deploy/linux/uclaw.env.example`
 
 ## 自动化部署基线
 
 - Root Directory: `delivery-mainline-1.0-clean`
-- Build Command: `npm install && npm run build`
+- Build Command: `npm ci && npm run build`
 - Start Command: `npm start`
 - Health Check Path: `/health`
 - `/health` 当前只代表进程存活，不代表模型配置就绪；仓库暂未提供 `/readyz`
@@ -26,7 +28,7 @@
 ## 开发
 
 ```bash
-npm install
+npm ci
 npm run dev:web
 ```
 

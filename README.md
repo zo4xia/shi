@@ -18,14 +18,16 @@
 
 ## 环境要求
 
-- Node.js：`>=24 <25`
-- npm：随 Node 24
+- Node.js：`>=20 <25`
+- 推荐版本：`.nvmrc` 当前固定为 `24`，但标准部署兼容 Node `20 / 22 / 24`
+- npm：`>=10`
 - 首次运行建议复制 `.env.example` 为 `.env`
+- 生产自动化部署优先使用 `deploy/linux/uclaw.env.example`
 
 ## 本地开发
 
 ```bash
-npm install
+npm ci
 npm run dev:web
 ```
 
@@ -37,7 +39,7 @@ npm run dev:web
 ## 生产构建
 
 ```bash
-npm install
+npm ci
 npm run build
 ```
 
@@ -62,7 +64,7 @@ npm run start:local
 
 ## 自动化部署必读
 
-- 构建命令：`npm install && npm run build`
+- 构建命令：`npm ci && npm run build`
 - 启动命令：`npm start`
 - 健康检查：`GET /health`
 - `GET /health` 当前仅表示进程存活；仓库暂未提供 `/readyz` 业务就绪探针
@@ -83,6 +85,13 @@ npm run start:local
   - 启动命令：`npm start`
 - 如果 Zeabur 里已经配置过 `ZBPACK_OUTPUT_DIR=dist`，或服务被设置成静态站点，请删除该配置后重新部署
 - 当前日志里的 `COPY --from=build /src/dist /` 不是业务代码构建失败，而是平台把服务错判成了静态输出模式
+
+### Vercel
+
+- 当前仓库不支持作为全功能运行时直接部署到 Vercel
+- 直接原因不是单纯缺少 `dist`，而是运行模型依赖自管 `Express + WebSocket`
+- 仓库已加入 `vercel.json` 预检：如果误投到 Vercel，会直接报不支持，而不是继续陷在输出目录假问题里
+- 如果以后真的要上 Vercel，必须先拆分成“静态前端 + 独立 API/实时层”两套部署，不是改一个输出目录就能过
 
 ## 数据目录与持久化
 
@@ -148,6 +157,9 @@ npm start
 
 ## 文档入口
 
+- `docs/UCLAW_GUIDE_HANDBOOK_2026-03-27.md`
+- `docs/PROJECT_QUICK_GUIDE_2026-03-27.md`
+- `docs/PROJECT_RENOVATION_BLUEPRINT_2026-03-27.md`
 - `docs/AGENTS.md`
 - `docs/MAINLINE_1.0_BOUNDARY.md`
 - `docs/RUNBOOK_1.0.md`
