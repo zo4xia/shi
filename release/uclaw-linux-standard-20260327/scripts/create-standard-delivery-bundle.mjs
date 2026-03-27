@@ -1,5 +1,8 @@
+import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import path from 'node:path';
+import { pipeline } from 'node:stream/promises';
 import { fileURLToPath } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -7,6 +10,9 @@ const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, '..');
 const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
 const bundleRoot = path.join(projectRoot, 'release', `uclaw-linux-standard-${stamp}`);
+const bundleZip = `${bundleRoot}.zip`;
+const require = createRequire(import.meta.url);
+const { ZipFile } = require('yazl');
 
 const rootFiles = [
   '.env.example',
@@ -24,6 +30,7 @@ const rootFiles = [
   'tsconfig.node.json',
   'vite.config.web.ts',
   'index.html',
+  'zbpack.json',
 ];
 
 const rootDirs = [
@@ -80,16 +87,45 @@ async function writeManifest() {
   const manifest = `# Delivery Manifest
 
 - Bundle: \`${path.basename(bundleRoot)}\`
+- Zip: \`${path.basename(bundleZip)}\`
 - Standard: \`npm + systemd + env\`
 - Install: \`npm ci\`
 - Build: \`npm run build\`
 - Preflight: \`npm run deploy:check\`
 - Start: \`npm start\`
+- Zeabur: \`zbpack.json\`
 - Linux guide: \`docs/DEPLOYMENT_STANDARD_LINUX.md\`
 - Env template: \`deploy/linux/uclaw.env.example\`
 - Systemd unit: \`deploy/linux/uclaw.service\`
 `;
   await fs.writeFile(path.join(bundleRoot, 'DELIVERY_MANIFEST.md'), manifest, 'utf8');
+}
+
+async function zipBundle() {
+  await fs.rm(bundleZip, { force: true });
+
+  const zipFile = new ZipFile();
+  const output = fsSync.createWriteStream(bundleZip);
+
+  async function walk(relativeDir = '') {
+    const absoluteDir = path.join(bundleRoot, relativeDir);
+    const entries = await fs.readdir(absoluteDir, { withFileTypes: true });
+    for (const entry of entries) {
+      const nextRelative = path.join(relativeDir, entry.name);
+      const absolutePath = path.join(bundleRoot, nextRelative);
+      const archivePath = normalize(nextRelative);
+      if (entry.isDirectory()) {
+        zipFile.addEmptyDirectory(`${archivePath}/`);
+        await walk(nextRelative);
+        continue;
+      }
+      zipFile.addFile(absolutePath, archivePath);
+    }
+  }
+
+  await walk();
+  zipFile.end();
+  await pipeline(zipFile.outputStream, output);
 }
 
 async function main() {
@@ -111,8 +147,10 @@ async function main() {
   }
 
   await writeManifest();
+  await zipBundle();
 
   console.log(`[delivery-bundle] ready: ${bundleRoot}`);
+  console.log(`[delivery-bundle] ready: ${bundleZip}`);
 }
 
 main().catch((error) => {
