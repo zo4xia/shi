@@ -146,6 +146,23 @@ function buildWsUrl(backendOrigin: string): string {
   return `${toWsProtocol(url.protocol)}//${url.host}${trimTrailingSlash(url.pathname)}/ws`;
 }
 
+function buildSameOriginBrowserConfig(): RuntimeEndpointConfig {
+  if (typeof window === 'undefined') {
+    return {
+      apiBase: '/api',
+      wsUrl: '/ws',
+      backendOrigin: '',
+    };
+  }
+
+  const backendOrigin = `${window.location.protocol}//${window.location.host}`;
+  return {
+    backendOrigin,
+    apiBase: '/api',
+    wsUrl: `${toWsProtocol(window.location.protocol)}//${window.location.host}/ws`,
+  };
+}
+
 export interface RuntimeEndpointConfig {
   apiBase: string;
   wsUrl: string;
@@ -178,18 +195,34 @@ export function resolveRuntimeEndpointConfig(): RuntimeEndpointConfig {
     envKeys: ['VITE_PUBLIC_WS_URL', 'VITE_WS_URL'],
   });
 
-  const backendOrigin = normalizeBackendOrigin(
-    injectedBackendOrigin || explicitBackendOrigin || resolveDefaultBackendOrigin()
-  );
-  const apiBase = normalizeApiBase(
-    injectedApiBase || explicitApiBase || (backendOrigin ? buildApiBase(backendOrigin) : '/api')
+  const sameOriginConfig = buildSameOriginBrowserConfig();
+  const defaultBackendOrigin = resolveDefaultBackendOrigin();
+  const shouldPreferSameOrigin = Boolean(
+    typeof window !== 'undefined'
+    && !defaultBackendOrigin
+    && !explicitBackendOrigin
+    && !explicitApiBase
+    && !explicitWsUrl
   );
 
-  const sameOriginWsUrl = typeof window !== 'undefined'
-    ? `${toWsProtocol(window.location.protocol)}//${window.location.host}/ws`
-    : '/ws';
+  const backendOrigin = normalizeBackendOrigin(
+    explicitBackendOrigin
+    || (shouldPreferSameOrigin ? sameOriginConfig.backendOrigin : '')
+    || injectedBackendOrigin
+    || defaultBackendOrigin
+  );
+  const apiBase = normalizeApiBase(
+    explicitApiBase
+    || (shouldPreferSameOrigin ? sameOriginConfig.apiBase : '')
+    || injectedApiBase
+    || (backendOrigin ? buildApiBase(backendOrigin) : '/api')
+  );
+
   const wsUrl = normalizeWsUrl(
-    injectedWsUrl || explicitWsUrl || (backendOrigin ? buildWsUrl(backendOrigin) : sameOriginWsUrl)
+    explicitWsUrl
+    || (shouldPreferSameOrigin ? sameOriginConfig.wsUrl : '')
+    || injectedWsUrl
+    || (backendOrigin ? buildWsUrl(backendOrigin) : sameOriginConfig.wsUrl)
   );
 
   return {
