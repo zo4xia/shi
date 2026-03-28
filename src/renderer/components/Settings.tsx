@@ -1668,7 +1668,7 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
                     type="text"
                     value={conversationCacheDirectory}
                     onChange={(event) => setConversationCacheDirectory(event.target.value)}
-                    placeholder={'输入本地目录，例如 D:\\UCLAW\\conversation-cache'}
+                    placeholder={'输入缓存目录，例如 ./conversation-cache 或 /data/uclaw/conversation-cache'}
                     className="flex-1 rounded-lg border dark:border-claude-darkBorder border-claude-border dark:bg-claude-darkSurface bg-white px-3 py-2 text-sm dark:text-claude-darkText text-claude-text focus:outline-none focus:ring-2 focus:ring-claude-accent/50"
                   />
                   <button

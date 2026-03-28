@@ -215,6 +215,7 @@ interface RuntimeBootstrapPayload {
   backendOrigin: string;
   apiBase: string;
   wsUrl: string;
+  settingsAccessPassword?: string;
 }
 
 function getForwardedHeaderValue(raw: string | string[] | undefined): string {
@@ -244,11 +245,17 @@ function getRequestHost(req: Request): string {
 function buildRuntimeBootstrapPayload(req: Request): RuntimeBootstrapPayload {
   const protocol = getRequestProtocol(req);
   const host = getRequestHost(req);
+  const settingsAccessPassword = String(
+    process.env.UCLAW_SETTINGS_ACCESS_PASSWORD
+    || process.env.VITE_SETTINGS_ACCESS_PASSWORD
+    || ''
+  ).trim();
   if (!host) {
     return {
       backendOrigin: '',
       apiBase: '/api',
       wsUrl: '/ws',
+      settingsAccessPassword,
     };
   }
 
@@ -258,6 +265,7 @@ function buildRuntimeBootstrapPayload(req: Request): RuntimeBootstrapPayload {
     backendOrigin,
     apiBase: `${backendOrigin}/api`,
     wsUrl: `${wsProtocol}://${host}/ws`,
+    settingsAccessPassword,
   };
 }
 

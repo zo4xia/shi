@@ -37,11 +37,11 @@ import { EMBEDDED_BROWSER_OPEN_EVENT, type EmbeddedBrowserRequest } from './serv
 import { isWebBuild, isWindows, hasAppUpdate } from './utils/platform';
 import { normalizeSessionSourceFilter, type SessionSourceFilter } from './components/cowork/sessionRecordUtils';
 import { localStore } from './services/store';
+import { resolveSettingsAccessPassword } from './services/runtimeEndpoints';
 import {
   BROWSER_EYES_CURRENT_PAGE_STORE_KEY,
   type BrowserEyesCurrentPageState,
 } from '../shared/browserEyesState';
-
 const Settings = React.lazy(() => import('./components/Settings'));
 const SkillsView = React.lazy(() => import('./components/skills/SkillsView'));
 const ScheduledTasksView = React.lazy(() => import('./components/scheduledTasks/ScheduledTasksView'));
@@ -49,7 +49,6 @@ const McpView = React.lazy(() => import('./components/mcp/McpView'));
 const EmployeeStoreView = React.lazy(() => import('./components/employeeStore/EmployeeStoreView'));
 const SessionHistoryView = React.lazy(() => import('./components/cowork/SessionHistoryView'));
 const RoomView = React.lazy(() => import('./components/room/RoomView'));
-const SETTINGS_ACCESS_PASSWORD = '123@456';
 
 const App: React.FC = () => {
   const [showSettings, setShowSettings] = useState(false);
@@ -76,6 +75,7 @@ const App: React.FC = () => {
   const hasInitialized = useRef(false);
   const hasSkippedInitialModelSync = useRef(false);
   const dispatch = useDispatch();
+  const settingsAccessPassword = useMemo(() => resolveSettingsAccessPassword(), []);
   const selectedModel = useSelector((state: RootState) => state.model.selectedModel);
   const currentSessionId = useSelector((state: RootState) => state.cowork.currentSessionId);
   const pendingPermissions = useSelector((state: RootState) => state.cowork.pendingPermissions);
@@ -294,10 +294,19 @@ const App: React.FC = () => {
       initialTab: options?.initialTab,
       notice: options?.notice,
     });
+    if (!settingsAccessPassword) {
+      setSettingsOptions({
+        initialTab: options?.initialTab,
+        notice: options?.notice,
+      });
+      setShowSettings(true);
+      return;
+    }
+
     setSettingsPasswordInput('');
     setSettingsPasswordError(null);
     setShowSettingsAccessGate(true);
-  }, []);
+  }, [settingsAccessPassword]);
 
   const handleShowSkills = useCallback(() => {
     setMainView('skills');
@@ -529,7 +538,7 @@ const App: React.FC = () => {
   }, []);
 
   const handleConfirmSettingsAccessGate = useCallback(() => {
-    if (settingsPasswordInput !== SETTINGS_ACCESS_PASSWORD) {
+    if (settingsPasswordInput !== settingsAccessPassword) {
       setSettingsPasswordError('密码不对');
       return;
     }
@@ -539,7 +548,7 @@ const App: React.FC = () => {
     setSettingsPasswordInput('');
     setSettingsPasswordError(null);
     setShowSettings(true);
-  }, [pendingSettingsOptions, settingsPasswordInput]);
+  }, [pendingSettingsOptions, settingsAccessPassword, settingsPasswordInput]);
 
   const isShortcutInputActive = () => {
     const activeElement = document.activeElement;

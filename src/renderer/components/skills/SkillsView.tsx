@@ -39,7 +39,7 @@ const SkillsView: React.FC<SkillsViewProps> = ({ isSidebarCollapsed, onToggleSid
             </div>
           )}
           <h1 className={getResponsivePageTitleClass('dark:text-claude-darkText text-claude-text')}>
-            {'技能 skills'}
+            {'技能中心'}
           </h1>
         </div>
         <WindowTitleBar inline />

@@ -48,6 +48,7 @@ const SkillsManager: React.FC = () => {
   const [importTargetRoleKeys, setImportTargetRoleKeys] = useState<string[]>([]);
   const [showRuntimeHint, setShowRuntimeHint] = useState(false);
   const [showCompatHint, setShowCompatHint] = useState(false);
+  const [showSelectedSkillPath, setShowSelectedSkillPath] = useState(false);
   const [skillDisplayAlias, setSkillDisplayAlias] = useState('');
   const [selectedSkillLabels, setSelectedSkillLabels] = useState<string[]>([]);
   const [skillCategoryDraft, setSkillCategoryDraft] = useState('');
@@ -173,10 +174,12 @@ const SkillsManager: React.FC = () => {
     if (!selectedSkill) {
       setSkillCategoryDraft('');
       setIsSavingSkillCategory(false);
+      setShowSelectedSkillPath(false);
       return;
     }
     setSkillCategoryDraft(selectedSkill.category ?? '');
     setIsSavingSkillCategory(false);
+    setShowSelectedSkillPath(false);
   }, [selectedSkill]);
 
   const filteredSkills = useMemo(() => {
@@ -291,13 +294,13 @@ const SkillsManager: React.FC = () => {
   const getSkillSourceLabel = (skill: Skill) => {
     switch (skill.sourceType) {
       case 'user':
-        return '本机';
+        return '本地导入';
       case 'claude':
-        return 'Claude继承';
+        return '继承导入';
       case 'bundled':
-        return '预置仓库';
+        return '官方预装';
       default:
-        return skill.isBuiltIn ? '内置只读' : '本机';
+        return skill.isBuiltIn ? '系统内置' : '本地导入';
     }
   };
 
@@ -313,12 +316,6 @@ const SkillsManager: React.FC = () => {
       return RUNTIME_FLOW_TAGS.memorySkill.line;
     }
     return RUNTIME_FLOW_TAGS.skillFile.line;
-  };
-
-  const truncatePath = (value: string, maxLength = 72) => {
-    if (!value) return '';
-    if (value.length <= maxLength) return value;
-    return `...${value.slice(value.length - maxLength + 3)}`;
   };
 
   const handleToggleSkill = async (skillId: string) => {
@@ -963,19 +960,30 @@ const SkillsManager: React.FC = () => {
                 </div>
               )}
               <div className="flex items-center text-xs">
-                <span className="w-16 flex-shrink-0 dark:text-claude-darkTextSecondary text-claude-textSecondary">{'存放'}</span>
+                <span className="w-16 flex-shrink-0 dark:text-claude-darkTextSecondary text-claude-textSecondary">{'来源'}</span>
                 <span className="px-1.5 py-0.5 rounded dark:bg-claude-darkSurfaceHover bg-claude-surfaceHover dark:text-claude-darkText text-claude-text font-medium">
                   {getSkillSourceLabel(selectedSkill)}
                 </span>
               </div>
               <div className="flex items-start text-xs">
-                <span className="w-16 flex-shrink-0 pt-1 dark:text-claude-darkTextSecondary text-claude-textSecondary">{'总仓库'}</span>
-                <span
-                  className="px-1.5 py-0.5 rounded dark:bg-claude-darkSurfaceHover bg-claude-surfaceHover dark:text-claude-darkText text-claude-text font-medium break-all"
-                  title={selectedSkill.skillPath}
-                >
-                  {truncatePath(selectedSkill.skillPath)}
-                </span>
+                <span className="w-16 flex-shrink-0 pt-1 dark:text-claude-darkTextSecondary text-claude-textSecondary">{'位置'}</span>
+                <div className="min-w-0 flex-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowSelectedSkillPath((value) => !value)}
+                    className="inline-flex items-center rounded-lg px-2 py-1 text-left font-medium text-claude-accent transition-colors hover:bg-claude-accent/10"
+                  >
+                    {showSelectedSkillPath ? '收起路径' : '点击查看路径'}
+                  </button>
+                  {showSelectedSkillPath && (
+                    <div
+                      className="mt-2 rounded-xl dark:bg-claude-darkSurfaceHover bg-claude-surfaceHover px-2.5 py-2 dark:text-claude-darkText text-claude-text break-all"
+                      title={selectedSkill.skillPath}
+                    >
+                      {selectedSkill.skillPath}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -1062,7 +1070,7 @@ const SkillsManager: React.FC = () => {
                     {'真实运行状态'}
                   </div>
                   <div className="text-[11px] leading-5 text-slate-600 dark:text-slate-300/90">
-                    {'总仓库里已安装；只有上面已勾选的角色，会在运行时真正看见它。'}
+                    {'技能已经装入系统；只有上面已勾选的角色，在真实对话里才会看到它。'}
                   </div>
                   {getUnboundRoleLabels(selectedSkill).length > 0 && (
                     <div className="text-[11px] leading-5 text-amber-700 dark:text-amber-300">

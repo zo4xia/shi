@@ -14,7 +14,7 @@ const PLACEHOLDER_PATTERN = /^%[A-Z0-9_]+%$/i;
 
 declare global {
   interface Window {
-    __UCLAW_RUNTIME__?: Partial<RuntimeEndpointConfig>;
+    __UCLAW_RUNTIME__?: Partial<RuntimeBootstrapConfig>;
   }
 }
 
@@ -52,7 +52,7 @@ function readLocalStorage(key: string): string {
   }
 }
 
-function readInjectedRuntimeValue(key: keyof RuntimeEndpointConfig): string {
+function readInjectedRuntimeValue(key: keyof RuntimeBootstrapConfig): string {
   if (typeof window === 'undefined' || !window.__UCLAW_RUNTIME__) {
     return '';
   }
@@ -169,6 +169,10 @@ export interface RuntimeEndpointConfig {
   backendOrigin: string;
 }
 
+export interface RuntimeBootstrapConfig extends RuntimeEndpointConfig {
+  settingsAccessPassword?: string;
+}
+
 export function resolveRuntimeEndpointConfig(): RuntimeEndpointConfig {
   const injectedBackendOrigin = readInjectedRuntimeValue('backendOrigin');
   const injectedApiBase = readInjectedRuntimeValue('apiBase');
@@ -230,4 +234,15 @@ export function resolveRuntimeEndpointConfig(): RuntimeEndpointConfig {
     wsUrl,
     backendOrigin,
   };
+}
+
+export function resolveSettingsAccessPassword(): string {
+  const explicitPassword = getConfiguredValue({
+    queryKeys: ['settingsAccessPassword'],
+    storageKeys: ['uclaw.runtime.settingsAccessPassword'],
+    metaNames: ['uclaw-settings-access-password'],
+    envKeys: ['VITE_SETTINGS_ACCESS_PASSWORD'],
+  });
+
+  return explicitPassword || readInjectedRuntimeValue('settingsAccessPassword');
 }
