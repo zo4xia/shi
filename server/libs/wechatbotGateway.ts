@@ -525,6 +525,17 @@ function splitOutboundText(text: string): string[] {
   return chunks;
 }
 
+function buildWechatbotMirrorText(text: string): string {
+  return [
+    '[个人微信已发送]',
+    text.trim(),
+  ].join('\n');
+}
+
+function buildWechatbotMirrorFileNotice(fileName: string): string {
+  return `[个人微信已发送文件] ${fileName}`;
+}
+
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(resolve, ms);
@@ -845,7 +856,7 @@ class WechatBotGateway {
       });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      await this.sendTextReply(fromUserId, message.context_token, `处理失败：${errorMessage}`);
+      await this.sendTextReply(fromUserId, message.context_token, `处理失败：${errorMessage}`, session.id);
       return;
     }
 
@@ -862,12 +873,12 @@ class WechatBotGateway {
       .slice(0, MAX_ARTIFACT_FILES);
 
     if (replyText?.trim()) {
-      await this.sendTextReply(fromUserId, message.context_token, replyText);
+      await this.sendTextReply(fromUserId, message.context_token, replyText, session.id);
     }
 
     if (fileArtifacts.length > 0) {
       for (const artifact of fileArtifacts) {
-        await this.sendFileReply(fromUserId, message.context_token, artifact.path);
+        await this.sendFileReply(fromUserId, message.context_token, artifact.path, session.id);
       }
       return;
     }
@@ -882,11 +893,11 @@ class WechatBotGateway {
       .find((entry: any) => entry.type === 'system' && entry.content?.trim());
 
     if (systemErrorMessage?.content?.trim()) {
-      await this.sendTextReply(fromUserId, message.context_token, `处理失败：${systemErrorMessage.content.trim()}`);
+      await this.sendTextReply(fromUserId, message.context_token, `处理失败：${systemErrorMessage.content.trim()}`, session.id);
       return;
     }
 
-    await this.sendTextReply(fromUserId, message.context_token, '已收到消息，但这一轮没有生成可发送的文本结果。');
+    await this.sendTextReply(fromUserId, message.context_token, '已收到消息，但这一轮没有生成可发送的文本结果。', session.id);
   }
 
   private getOrCreateSession(binding: WechatBotAgentBinding, fromUserId: string): CoworkSession {
@@ -1047,7 +1058,50 @@ class WechatBotGateway {
     return results;
   }
 
-  private async sendTextReply(toUserId: string, contextToken: string | undefined, text: string): Promise<void> {
+  private mirrorOutboundText(sessionId: string | undefined, text: string): void {
+    const config = this.requireConfig();
+    const deps = this.requireDeps();
+    const normalizedText = text.trim();
+    if (!config.syncBotReplies || !sessionId || !normalizedText) {
+      return;
+    }
+
+    deps.coworkStore.addMessage(sessionId, {
+      type: 'system',
+      content: buildWechatbotMirrorText(normalizedText),
+      metadata: {
+        channel: 'wechatbot',
+        isTransportMirror: true,
+        mirrorKind: 'outbound_text',
+      },
+    });
+  }
+
+  private mirrorOutboundFile(sessionId: string | undefined, filePath: string): void {
+    const config = this.requireConfig();
+    const deps = this.requireDeps();
+    if (!config.syncBotReplies || !sessionId) {
+      return;
+    }
+
+    deps.coworkStore.addMessage(sessionId, {
+      type: 'system',
+      content: buildWechatbotMirrorFileNotice(path.basename(filePath)),
+      metadata: {
+        channel: 'wechatbot',
+        isTransportMirror: true,
+        mirrorKind: 'outbound_file',
+        fileName: path.basename(filePath),
+      },
+    });
+  }
+
+  private async sendTextReply(
+    toUserId: string,
+    contextToken: string | undefined,
+    text: string,
+    mirrorSessionId?: string,
+  ): Promise<void> {
     const config = this.requireConfig();
     const normalizedContextToken = String(contextToken || '').trim();
     if (!normalizedContextToken) {
@@ -1069,9 +1123,16 @@ class WechatBotGateway {
       this.status.lastOutboundAt = Date.now();
       this.status.lastEventAt = this.status.lastOutboundAt;
     }
+
+    this.mirrorOutboundText(mirrorSessionId, text);
   }
 
-  private async sendFileReply(toUserId: string, contextToken: string | undefined, filePath: string): Promise<void> {
+  private async sendFileReply(
+    toUserId: string,
+    contextToken: string | undefined,
+    filePath: string,
+    mirrorSessionId?: string,
+  ): Promise<void> {
     const config = this.requireConfig();
     const normalizedContextToken = String(contextToken || '').trim();
     if (!normalizedContextToken) {
@@ -1125,6 +1186,7 @@ class WechatBotGateway {
 
     this.status.lastOutboundAt = Date.now();
     this.status.lastEventAt = this.status.lastOutboundAt;
+    this.mirrorOutboundFile(mirrorSessionId, filePath);
   }
 
   private requireConfig(): WechatBotBridgeConfig {
