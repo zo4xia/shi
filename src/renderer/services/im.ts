@@ -43,6 +43,38 @@ type FeishuGatewayStatusResponse = {
   error?: string;
 };
 
+type WechatBotStatusResponse = {
+  success?: boolean;
+  status?: {
+    connected?: boolean;
+    configured?: boolean;
+    accountId?: string | null;
+    linkedUserId?: string | null;
+    error?: string | null;
+  };
+  error?: string;
+};
+
+type WechatBotQrLoginResponse = {
+  success?: boolean;
+  login?: {
+    sessionId: string;
+    phase: 'wait' | 'scanned' | 'confirmed' | 'expired' | 'error';
+    qrcodeUrl: string;
+    expiresAt: number;
+    usageTips?: string[];
+    lastError?: string | null;
+    result?: {
+      botAccountId: string;
+      linkedUserId: string;
+      botToken: string;
+      baseUrl: string;
+      messageForms: string[];
+    } | null;
+  };
+  error?: string;
+};
+
 const syncStoreConfig = () => {
   store.dispatch(hydrateIMState({ config: cachedConfig }));
 };
@@ -93,6 +125,32 @@ const syncFeishuRuntimeStatus = async (): Promise<void> => {
   }
 };
 
+const syncWechatBotRuntimeStatus = async (): Promise<void> => {
+  try {
+    const response = await fetch('/api/im/wechatbot/status');
+    const payload = await response.json() as WechatBotStatusResponse;
+    const status = payload.status;
+    const accountId = status?.accountId ?? null;
+    const linkedUserId = status?.linkedUserId ?? null;
+    const runtimeError = status?.error ?? payload.error ?? null;
+
+    store.dispatch(setPlatformStatus({
+      platform: 'wechatbot',
+      status: {
+        connected: status?.connected === true,
+        starting: false,
+        error: runtimeError,
+        lastError: runtimeError,
+        botAccount: accountId,
+        botId: accountId,
+        botUsername: linkedUserId,
+      },
+    }));
+  } catch {
+    // Keep status offline when backend route is unavailable.
+  }
+};
+
 // {埋点} 💾 IM持久化 (ID: im-persist-001) localStore.setItem('im_config', cachedConfig)
 const persistConfig = async () => {
   await localStore.setItem(IM_CONFIG_STORAGE_KEY, cachedConfig);
@@ -134,6 +192,7 @@ const ensureInitialized = async () => {
     isLoading: false,
   }));
   await syncFeishuRuntimeStatus();
+  await syncWechatBotRuntimeStatus();
 };
 
 // {埋点} 💾 IM配置更新 (ID: im-update-001) mergeIMConfig → persistConfig → syncStoreConfig
@@ -229,6 +288,24 @@ export const imService = {
         await syncFeishuRuntimeStatus();
       }
 
+      if (platform === 'wechatbot') {
+        try {
+          const response = await fetch('/api/im/wechatbot/bridge/start', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+          });
+          const payload = await response.json().catch(() => ({})) as { success?: boolean; error?: string };
+          if (!response.ok || payload.success === false) {
+            throw new Error(payload.error || '个人微信桥接启动失败');
+          }
+        } catch (error) {
+          setPlatformError(platform, error instanceof Error ? error.message : '个人微信桥接启动失败');
+          return false;
+        }
+
+        await syncWechatBotRuntimeStatus();
+      }
+
       return true;
     });
   },
@@ -246,6 +323,17 @@ export const imService = {
           // Keep UI honest-offline even if backend stop request failed.
         }
         await syncFeishuRuntimeStatus();
+      }
+      if (platform === 'wechatbot') {
+        try {
+          await fetch('/api/im/wechatbot/bridge/stop', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+          });
+        } catch {
+          // Keep UI offline even if backend stop request fails.
+        }
+        await syncWechatBotRuntimeStatus();
       }
       store.dispatch(setPlatformStatus({
         platform,
@@ -282,6 +370,9 @@ export const imService = {
         if (platform === 'feishu') {
           await syncFeishuRuntimeStatus();
         }
+        if (platform === 'wechatbot') {
+          await syncWechatBotRuntimeStatus();
+        }
       }
 
       return result;
@@ -292,6 +383,10 @@ export const imService = {
     await ensureInitialized();
     if (platform === 'feishu') {
       await syncFeishuRuntimeStatus();
+      return;
+    }
+    if (platform === 'wechatbot') {
+      await syncWechatBotRuntimeStatus();
     }
   },
 
@@ -342,6 +437,49 @@ export const imService = {
   },
   async setWecomConfig(value: Partial<IMGatewayConfig['wecom']>) {
     return setStoredState('wecom', value);
+  },
+  async getWechatBotConfig() {
+    return getStoredState('wechatbot');
+  },
+  async setWechatBotConfig(value: Partial<IMGatewayConfig['wechatbot']>) {
+    return setStoredState('wechatbot', value);
+  },
+  async startWechatBotQrLogin() {
+    try {
+      const response = await fetch('/api/im/wechatbot/login/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const payload = await response.json().catch(() => ({})) as WechatBotQrLoginResponse;
+      if (!response.ok || payload.success === false) {
+        return { success: false, error: payload.error || '个人微信官方扫码暂不可用。' };
+      }
+      return { success: true, value: payload.login };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : '个人微信官方扫码暂不可用。',
+      };
+    }
+  },
+  async waitWechatBotQrLogin(sessionId: string) {
+    try {
+      const response = await fetch('/api/im/wechatbot/login/wait', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId }),
+      });
+      const payload = await response.json().catch(() => ({})) as WechatBotQrLoginResponse;
+      if (!response.ok || payload.success === false) {
+        return { success: false, error: payload.error || '个人微信扫码状态获取失败。' };
+      }
+      return { success: true, value: payload.login };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : '个人微信扫码状态获取失败。',
+      };
+    }
   },
   async testConnectivity(platform: IMPlatform) {
     const result = await this.testGateway(platform);

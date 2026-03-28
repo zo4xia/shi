@@ -24,6 +24,7 @@ release/
 # Temp files
 .cowork-temp/
 .work/
+.worktrees/
 .work.env
 nul
 __pycache__/

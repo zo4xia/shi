@@ -1,5 +1,7 @@
+import fs from 'fs';
 import { Router, Request, Response } from 'express';
 import type { RequestContext } from '../src/index';
+import { resolveEnvSyncTargetPath } from './store';
 
 export function setupAppRoutes(app: Router) {
   const router = Router();
@@ -72,6 +74,17 @@ export function setupAppRoutes(app: Router) {
   router.get('/workspace', (req: Request, res: Response) => {
     const workspace = req.app.get('workspace') || process.env.HOME || '';
     res.json({ path: workspace });
+  });
+
+  // GET /api/app/runtimePaths - Get runtime paths that affect config writes
+  router.get('/runtimePaths', (req: Request, res: Response) => {
+    const workspace = String(req.app.get('workspace') || process.env.HOME || '');
+    const envSyncTargetPath = resolveEnvSyncTargetPath();
+    res.json({
+      workspacePath: workspace,
+      envSyncTargetPath,
+      envSyncTargetExists: fs.existsSync(envSyncTargetPath),
+    });
   });
 
   // Note: App update routes (appUpdate:download, appUpdate:install) are Electron-specific

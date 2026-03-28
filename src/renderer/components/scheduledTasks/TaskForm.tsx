@@ -20,6 +20,17 @@ interface TaskFormProps {
 
 type ScheduleMode = 'once' | 'daily' | 'weekly' | 'monthly';
 
+const SUPPORTED_NOTIFY_PLATFORMS = new Set<NotifyPlatform>([
+  'dingtalk',
+  'feishu',
+  'qq',
+  'telegram',
+  'discord',
+  'nim',
+  'xiaomifeng',
+  'wecom',
+]);
+
 const WEEKDAYS = [0, 1, 2, 3, 4, 5, 6] as const; // 0=Sunday
 
 // Parse existing schedule into UI state
@@ -77,7 +88,9 @@ const TaskForm: React.FC<TaskFormProps> = ({ mode, task, onCancel, onSaved }) =>
   const language = 'zh' as const;
 
   const visiblePlatforms = useMemo<NotifyPlatform[]>(() => {
-    return getVisibleIMPlatforms(language) as unknown as NotifyPlatform[];
+    return getVisibleIMPlatforms(language).filter(
+      (platform): platform is NotifyPlatform => SUPPORTED_NOTIFY_PLATFORMS.has(platform as NotifyPlatform)
+    );
   }, [language]);
 
   // Parse existing schedule for edit mode

@@ -850,6 +850,24 @@ const appInfo = {
   async getSystemLocale(): Promise<string> {
     return navigator.language || 'en-US';
   },
+
+  async getRuntimePaths(): Promise<{
+    workspacePath: string;
+    envSyncTargetPath: string;
+    envSyncTargetExists: boolean;
+  }> {
+    const result = await apiClient.get('/app/runtimePaths');
+    const data = result.data as {
+      workspacePath?: string;
+      envSyncTargetPath?: string;
+      envSyncTargetExists?: boolean;
+    } | undefined;
+    return {
+      workspacePath: data?.workspacePath || '',
+      envSyncTargetPath: data?.envSyncTargetPath || '',
+      envSyncTargetExists: data?.envSyncTargetExists === true,
+    };
+  },
 };
 
 // ============================================================================

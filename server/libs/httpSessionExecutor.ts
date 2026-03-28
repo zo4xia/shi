@@ -469,7 +469,7 @@ export class HttpSessionExecutor implements SessionExecutor {
     emitSessionMessage(sessionId, assistantMessage);
   }
 
-  private emitIntermediateAssistantMessage(
+  private emitPreToolStatusMessage(
     sessionId: string,
     content: string,
     metadata?: Record<string, unknown>
@@ -479,8 +479,8 @@ export class HttpSessionExecutor implements SessionExecutor {
       return;
     }
 
-    const assistantMessage = this.store.addMessage(sessionId, {
-      type: 'assistant',
+    const statusMessage = this.store.addMessage(sessionId, {
+      type: 'system',
       content: trimmed,
       metadata: {
         isFinal: false,
@@ -488,7 +488,7 @@ export class HttpSessionExecutor implements SessionExecutor {
         ...(metadata ?? {}),
       },
     });
-    emitSessionMessage(sessionId, assistantMessage);
+    emitSessionMessage(sessionId, statusMessage);
   }
 
   private async tryHandleNativeImaTurn(
@@ -953,8 +953,9 @@ export class HttpSessionExecutor implements SessionExecutor {
           throw new Error('上游返回了空响应，未产出最终 assistant 内容。');
         }
 
-        if (messageContent && messageContent.trim()) {
-          this.emitIntermediateAssistantMessage(sessionId, messageContent, {
+        const { assistantText: preToolStatusText } = splitAssistantToolTraceSections(messageContent ?? '');
+        if (preToolStatusText) {
+          this.emitPreToolStatusMessage(sessionId, preToolStatusText, {
             toolCallCount: toolCalls.length,
           });
         }
@@ -1676,6 +1677,7 @@ export class HttpSessionExecutor implements SessionExecutor {
       return;
     }
 
+    const { assistantText, traceText } = splitAssistantToolTraceSections(streamState.content);
     const metadata: CoworkMessageMetadata = {
       ...(streamState.metadata || {}),
       isStreaming: false,
@@ -1683,10 +1685,12 @@ export class HttpSessionExecutor implements SessionExecutor {
       ...(streamState.generatedImages.length > 0 ? { generatedImages: streamState.generatedImages } : {}),
     };
     this.store.updateMessage(sessionId, streamState.messageId, {
-      content: streamState.content,
+      content: assistantText,
       metadata,
     });
-    emitSessionMessageUpdate(sessionId, streamState.messageId, streamState.content);
+    emitSessionMessageUpdate(sessionId, streamState.messageId, assistantText);
+
+    void traceText;
   }
 
   private async buildOpenAIMessages(
@@ -1825,6 +1829,53 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => {
     setTimeout(resolve, ms);
   });
+}
+
+const TOOL_TRACE_SECTION_START_RE = /^Tool call:/i;
+const TOOL_TRACE_SECTION_DETAIL_RE = /^(?:[\u2022*-]\s+|Path:|•\s+|[-*]\s+)/i;
+
+function splitAssistantToolTraceSections(content: string): {
+  assistantText: string;
+  traceText: string | null;
+} {
+  const normalized = String(content || '').replace(/\r\n/g, '\n').trim();
+  if (!normalized) {
+    return {
+      assistantText: '',
+      traceText: null,
+    };
+  }
+
+  const sections = normalized
+    .split(/\n{2,}/)
+    .map((section) => section.trim())
+    .filter(Boolean);
+
+  const assistantSections: string[] = [];
+  const traceSections: string[] = [];
+
+  for (const section of sections) {
+    const lines = section
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    const isToolTrace = lines.length > 0
+      && lines.some((line) => TOOL_TRACE_SECTION_START_RE.test(line))
+      && lines.every((line) => TOOL_TRACE_SECTION_START_RE.test(line) || TOOL_TRACE_SECTION_DETAIL_RE.test(line));
+
+    if (isToolTrace) {
+      traceSections.push(section);
+      continue;
+    }
+
+    assistantSections.push(section);
+  }
+
+  return {
+    assistantText: assistantSections.join('\n\n').trim(),
+    traceText: traceSections.length > 0 ? traceSections.join('\n\n') : null,
+  };
 }
 
 async function normalizeConversationMessage(message: CoworkMessage): Promise<OpenAIMessage | null> {

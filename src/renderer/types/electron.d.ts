@@ -379,6 +379,11 @@ interface IElectronAPI {
   appInfo: {
     getVersion: () => Promise<string>;
     getSystemLocale: () => Promise<string>;
+    getRuntimePaths: () => Promise<{
+      workspacePath: string;
+      envSyncTargetPath: string;
+      envSyncTargetExists: boolean;
+    }>;
   };
   appUpdate: {
     download: (url: string) => Promise<{ success: boolean; filePath?: string; error?: string }>;

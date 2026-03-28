@@ -1,5 +1,5 @@
 // IM 平台分类
-export const CHINA_IM_PLATFORMS = ['feishu', 'wecom'] as const;
+export const CHINA_IM_PLATFORMS = ['feishu', 'wecom', 'wechatbot'] as const;
 export const GLOBAL_IM_PLATFORMS = ['telegram', 'discord'] as const;
 export const COMING_SOON_IM_PLATFORMS = [] as const;
 

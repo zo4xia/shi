@@ -14,6 +14,7 @@ import {
   type NimConfig,
   type QQConfig,
   type TelegramConfig,
+  type WechatBotConfig,
   type WecomConfig,
   type XiaomifengConfig,
 } from '../../types/im.ts';
@@ -101,6 +102,9 @@ const imSlice = createSlice({
     setWecomConfig: (state, action: PayloadAction<Partial<WecomConfig>>) => {
       applyPlatformConfigUpdate(state, 'wecom', action.payload);
     },
+    setWechatBotConfig: (state, action: PayloadAction<Partial<WechatBotConfig>>) => {
+      applyPlatformConfigUpdate(state, 'wechatbot', action.payload);
+    },
     setImaConfig: (state, action: PayloadAction<Partial<ImaConfig>>) => {
       state.config.ima = {
         ...state.config.ima,
@@ -131,6 +135,7 @@ export const {
   setNimConfig,
   setXiaomifengConfig,
   setWecomConfig,
+  setWechatBotConfig,
   setImaConfig,
   replaceIMConfig,
   clearError,

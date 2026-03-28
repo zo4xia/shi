@@ -4,6 +4,7 @@
  */
 
 import { COWORK_WS_EVENTS } from './webApiContract';
+import { resolveRuntimeEndpointConfig } from './runtimeEndpoints';
 
 type EventCallback<T = unknown> = (data: T) => void;
 type CleanupFn = () => void;
@@ -218,31 +219,4 @@ export const WS_EVENTS = {
   FILE_CHANGED: 'file:changed',
 } as const;
 
-// Singleton instance - URL will be configured based on environment
-const getDefaultWsUrl = (): string => {
-  const explicitWsUrl = typeof import.meta.env.VITE_WS_URL === 'string'
-    ? import.meta.env.VITE_WS_URL.trim()
-    : '';
-  if (explicitWsUrl) {
-    return explicitWsUrl;
-  }
-
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const configuredDevPort = typeof import.meta.env.VITE_DEV_PORT === 'string' && import.meta.env.VITE_DEV_PORT.trim()
-    ? import.meta.env.VITE_DEV_PORT.trim()
-    : '5176';
-  const isViteDevHost = import.meta.env.DEV && window.location.port === configuredDevPort;
-  // Dev mode talks to the backend WS directly to avoid Vite proxy drift breaking app bootstrap.
-  const backendHost = typeof import.meta.env.VITE_BACKEND_HOST === 'string' && import.meta.env.VITE_BACKEND_HOST.trim()
-    ? import.meta.env.VITE_BACKEND_HOST.trim()
-    : '127.0.0.1';
-  const backendPort = typeof import.meta.env.VITE_BACKEND_PORT === 'string' && import.meta.env.VITE_BACKEND_PORT.trim()
-    ? import.meta.env.VITE_BACKEND_PORT.trim()
-    : '3001';
-  const defaultDevHost = `${backendHost}:${backendPort}`;
-  const host = import.meta.env.VITE_WS_HOST || (isViteDevHost ? defaultDevHost : window.location.host);
-  const path = import.meta.env.VITE_WS_PATH || '/ws';
-  return `${protocol}//${host}${path}`;
-};
-
-export const webSocketClient = new WebSocketClient(getDefaultWsUrl());
+export const webSocketClient = new WebSocketClient(resolveRuntimeEndpointConfig().wsUrl);

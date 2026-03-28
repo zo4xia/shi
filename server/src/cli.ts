@@ -1,10 +1,46 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
+import os from 'os';
 import open from 'open';
 import { startServer } from './index.js';
 import { getProjectRoot } from '../../src/shared/runtimeDataPaths.js';
 
 const program = new Command();
+
+function collectAccessUrls(host: string, port: number): string[] {
+  const urls = new Set<string>();
+
+  const push = (value: string | null | undefined) => {
+    const next = typeof value === 'string' ? value.trim() : '';
+    if (next) {
+      urls.add(next);
+    }
+  };
+
+  const localhostUrl = `http://127.0.0.1:${port}`;
+
+  if (host === '127.0.0.1' || host === 'localhost') {
+    push(localhostUrl);
+    return Array.from(urls);
+  }
+
+  if (host === '0.0.0.0' || host === '::') {
+    push(localhostUrl);
+    const interfaces = os.networkInterfaces();
+    for (const entries of Object.values(interfaces)) {
+      for (const entry of entries ?? []) {
+        if (!entry || entry.internal || entry.family !== 'IPv4') {
+          continue;
+        }
+        push(`http://${entry.address}:${port}`);
+      }
+    }
+    return Array.from(urls);
+  }
+
+  push(`http://${host}:${port}`);
+  return Array.from(urls);
+}
 
 program
   .name('uclaw')
@@ -26,19 +62,28 @@ program
     console.log(`   Workspace: ${workspace}`);
 
     try {
-      await startServer({
+      const server = await startServer({
         port,
         host,
         dataDir: options.dataDir,
         workspace
       });
 
-      const url = `http://${host}:${port}`;
-      console.log(`\n✅ UCLAW is running at ${url}`);
+      const addressInfo = server.address();
+      const actualPort = typeof addressInfo === 'object' && addressInfo
+        ? addressInfo.port
+        : port;
+      const accessUrls = collectAccessUrls(host, actualPort);
+      const primaryUrl = accessUrls[0] || `http://${host}:${actualPort}`;
+
+      console.log(`\n✅ UCLAW is running`);
+      for (const url of accessUrls) {
+        console.log(`   ${url}`);
+      }
 
       if (options.open !== false) {
         console.log(`   Opening browser...`);
-        await open(url);
+        await open(primaryUrl);
       }
     } catch (error) {
       console.error('Failed to start server:', error);

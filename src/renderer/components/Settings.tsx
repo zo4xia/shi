@@ -454,6 +454,8 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
 
   // Workspace info (web build)
   const [workspacePath, setWorkspacePath] = useState<string>('');
+  const [envSyncTargetPath, setEnvSyncTargetPath] = useState<string>('');
+  const [envSyncTargetExists, setEnvSyncTargetExists] = useState<boolean | null>(null);
   const [_dataDirPath, _setDataDirPath] = useState<string>('');
 
   useEffect(() => {
@@ -462,9 +464,18 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
       appInfoApi.getVersion().then(setAppVersion).catch((error) => {
         console.error('Failed to load app version:', error);
       });
+      appInfoApi.getRuntimePaths().then((result) => {
+        if (result.workspacePath) {
+          setWorkspacePath(result.workspacePath);
+        }
+        setEnvSyncTargetPath(result.envSyncTargetPath || '');
+        setEnvSyncTargetExists(result.envSyncTargetExists);
+      }).catch((error) => {
+        console.error('Failed to load runtime paths:', error);
+      });
     }
 
-    // Load workspace and data directory paths (web build)
+    // Backward-compatible fallback if runtime path API is not available.
     if (window.electron?.workspace) {
       window.electron.workspace.getPath().then(result => {
         if (result.success && result.path) {
@@ -1390,10 +1401,26 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
             {workspacePath && (
               <div>
                 <h4 className="text-sm font-medium dark:text-claude-darkText text-claude-text mb-3">
-                  Workspace Path
+                  {'工作目录'}
                 </h4>
                 <div className="text-sm dark:text-claude-darkSecondaryText text-claude-textSecondary break-all font-mono">
                   {workspacePath}
+                </div>
+              </div>
+            )}
+
+            {envSyncTargetPath && (
+              <div>
+                <h4 className="text-sm font-medium dark:text-claude-darkText text-claude-text mb-3">
+                  {'环境同步目标文件'}
+                </h4>
+                <div className="text-sm dark:text-claude-darkSecondaryText text-claude-textSecondary break-all font-mono">
+                  {envSyncTargetPath}
+                </div>
+                <div className="mt-2 text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary">
+                  {envSyncTargetExists === false
+                    ? '当前目标文件不存在，设置保存时不会回写到环境文件。'
+                    : '设置页保存 API / IM 配置时，会同步写到这个环境文件。Linux 部署可通过 UCLAW_ENV_FILE 指向 /etc/uclaw/uclaw.env。'}
                 </div>
               </div>
             )}

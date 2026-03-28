@@ -49,10 +49,15 @@ const McpView = React.lazy(() => import('./components/mcp/McpView'));
 const EmployeeStoreView = React.lazy(() => import('./components/employeeStore/EmployeeStoreView'));
 const SessionHistoryView = React.lazy(() => import('./components/cowork/SessionHistoryView'));
 const RoomView = React.lazy(() => import('./components/room/RoomView'));
+const SETTINGS_ACCESS_PASSWORD = '123@456';
 
 const App: React.FC = () => {
   const [showSettings, setShowSettings] = useState(false);
   const [settingsOptions, setSettingsOptions] = useState<SettingsOpenOptions>({});
+  const [showSettingsAccessGate, setShowSettingsAccessGate] = useState(false);
+  const [pendingSettingsOptions, setPendingSettingsOptions] = useState<SettingsOpenOptions>({});
+  const [settingsPasswordInput, setSettingsPasswordInput] = useState('');
+  const [settingsPasswordError, setSettingsPasswordError] = useState<string | null>(null);
   const [mainView, setMainView] = useState<'cowork' | 'skills' | 'scheduledTasks' | 'mcp' | 'employeeStore' | 'resourceShare' | 'freeImageGen' | 'sessionHistory' | 'room'>('cowork');
   const [sessionHistorySourceFilter, setSessionHistorySourceFilter] = useState<SessionSourceFilter>('all');
   const [isInitialized, setIsInitialized] = useState(false);
@@ -285,11 +290,13 @@ const App: React.FC = () => {
     // {BREAKPOINT} SETTINGS-OPEN-MODAL-PATH
     // {FLOW} SETTINGS-OPEN-WITHOUT-VIEW-SWITCH: 打开设置当前只改 `showSettings/settingsOptions`，这里没有切 `mainView`。
     // {FLOW} UX-TRACE-SETTINGS-JUMP: 若用户体感像“跳转页面”，优先排查懒加载、弹层挂载、初始 tab 内容负载，不要先误判为真实路由跳转。
-    setSettingsOptions({
+    setPendingSettingsOptions({
       initialTab: options?.initialTab,
       notice: options?.notice,
     });
-    setShowSettings(true);
+    setSettingsPasswordInput('');
+    setSettingsPasswordError(null);
+    setShowSettingsAccessGate(true);
   }, []);
 
   const handleShowSkills = useCallback(() => {
@@ -515,6 +522,25 @@ const App: React.FC = () => {
     }
   };
 
+  const handleCancelSettingsAccessGate = useCallback(() => {
+    setShowSettingsAccessGate(false);
+    setSettingsPasswordInput('');
+    setSettingsPasswordError(null);
+  }, []);
+
+  const handleConfirmSettingsAccessGate = useCallback(() => {
+    if (settingsPasswordInput !== SETTINGS_ACCESS_PASSWORD) {
+      setSettingsPasswordError('密码不对');
+      return;
+    }
+
+    setSettingsOptions(pendingSettingsOptions);
+    setShowSettingsAccessGate(false);
+    setSettingsPasswordInput('');
+    setSettingsPasswordError(null);
+    setShowSettings(true);
+  }, [pendingSettingsOptions, settingsPasswordInput]);
+
   const isShortcutInputActive = () => {
     const activeElement = document.activeElement;
     if (!(activeElement instanceof HTMLElement)) return false;
@@ -674,7 +700,7 @@ const App: React.FC = () => {
     );
   }, [pendingPermission, handlePermissionResponse]);
 
-  const isOverlayActive = showSettings || showUpdateModal || pendingPermissions.length > 0 || embeddedBrowserRequest !== null;
+  const isOverlayActive = showSettings || showSettingsAccessGate || showUpdateModal || pendingPermissions.length > 0 || embeddedBrowserRequest !== null;
   const updateBadge = updateInfo && hasAppUpdate() ? (
     <AppUpdateBadge
       latestVersion={updateInfo.latestVersion}
@@ -693,6 +719,57 @@ const App: React.FC = () => {
       </div>
     </div>
   );
+  const settingsAccessGateModal = showSettingsAccessGate ? (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/45 px-4">
+      <div className="w-full max-w-sm rounded-[26px] border border-[#eadccf] bg-[#fff8f1] p-5 shadow-[0_24px_80px_rgba(194,170,145,0.22)] dark:border-white/10 dark:bg-[#26221e]">
+        <div className="text-[16px] font-semibold tracking-[-0.01em] text-[#4E453D] dark:text-claude-darkText">
+          进入设置
+        </div>
+        <div className="mt-2 text-[12px] leading-6 text-[#8B7D71] dark:text-claude-darkTextSecondary/80">
+          先输一下密码，避免别人直接看到配置参数。
+        </div>
+        <form
+          className="mt-4 space-y-3"
+          onSubmit={(event) => {
+            event.preventDefault();
+            handleConfirmSettingsAccessGate();
+          }}
+        >
+          <input
+            autoFocus
+            type="password"
+            value={settingsPasswordInput}
+            onChange={(event) => {
+              setSettingsPasswordInput(event.target.value);
+              if (settingsPasswordError) {
+                setSettingsPasswordError(null);
+              }
+            }}
+            placeholder="输入访问密码"
+            className="w-full rounded-2xl border border-[#e7d7c7] bg-white px-4 py-3 text-sm text-[#5b4e43] shadow-inner outline-none transition focus:border-amber-300 focus:ring-2 focus:ring-amber-200/70 dark:border-white/10 dark:bg-[#1b1815] dark:text-claude-darkText dark:focus:border-amber-300/30 dark:focus:ring-amber-300/10"
+          />
+          <div className="min-h-[20px] text-[11px] leading-5 text-red-500 dark:text-red-300">
+            {settingsPasswordError || ' '}
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={handleCancelSettingsAccessGate}
+              className="inline-flex flex-1 items-center justify-center rounded-2xl border border-[#e7d7c7] bg-white px-4 py-3 text-sm font-medium text-[#5b4e43] transition hover:bg-[#f8efe6] dark:border-white/10 dark:bg-[#1b1815] dark:text-claude-darkText dark:hover:bg-[#221e1a]"
+            >
+              取消
+            </button>
+            <button
+              type="submit"
+              className="inline-flex flex-1 items-center justify-center rounded-2xl bg-[#5f5248] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#554940] dark:bg-[#f2e7db] dark:text-[#453930] dark:hover:bg-[#f6ede4]"
+            >
+              进入设置
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  ) : null;
 
   if (!isInitialized) {
     return (
@@ -740,6 +817,7 @@ const App: React.FC = () => {
               />
             </Suspense>
           )}
+          {settingsAccessGateModal}
         </div>
       </div>
     );
@@ -919,6 +997,7 @@ const App: React.FC = () => {
           />
         </Suspense>
       )}
+      {settingsAccessGateModal}
       {showUpdateModal && updateInfo && (
         <AppUpdateModal
           updateInfo={updateInfo}

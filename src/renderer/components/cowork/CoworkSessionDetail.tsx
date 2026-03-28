@@ -80,6 +80,64 @@ const getToolResultDisplay = (message: CoworkMessage): string => {
   return '';
 };
 
+type AssistantSurfaceTone = 'reply' | 'thinking' | 'tool' | 'system' | 'error';
+
+const ASSISTANT_SURFACE_STYLES: Record<AssistantSurfaceTone, string> = {
+  reply: 'border-emerald-500/20 bg-emerald-500/[0.04] dark:border-emerald-400/20 dark:bg-emerald-400/[0.06]',
+  thinking: 'border-amber-500/25 bg-amber-500/[0.05] dark:border-amber-300/20 dark:bg-amber-300/[0.08]',
+  tool: 'border-sky-500/25 bg-sky-500/[0.05] dark:border-sky-300/20 dark:bg-sky-300/[0.08]',
+  system: 'border-slate-500/20 bg-slate-500/[0.05] dark:border-slate-300/15 dark:bg-slate-300/[0.06]',
+  error: 'border-red-500/25 bg-red-500/[0.05] dark:border-red-300/20 dark:bg-red-300/[0.08]',
+};
+
+const ASSISTANT_BADGE_STYLES: Record<AssistantSurfaceTone, string> = {
+  reply: 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:border-emerald-300/20 dark:bg-emerald-300/15 dark:text-emerald-200',
+  thinking: 'border-amber-500/25 bg-amber-500/10 text-amber-700 dark:border-amber-300/20 dark:bg-amber-300/15 dark:text-amber-200',
+  tool: 'border-sky-500/25 bg-sky-500/10 text-sky-700 dark:border-sky-300/20 dark:bg-sky-300/15 dark:text-sky-200',
+  system: 'border-slate-500/20 bg-slate-500/10 text-slate-700 dark:border-slate-300/20 dark:bg-slate-300/15 dark:text-slate-200',
+  error: 'border-red-500/25 bg-red-500/10 text-red-700 dark:border-red-300/20 dark:bg-red-300/15 dark:text-red-200',
+};
+
+const AssistantSectionBadge: React.FC<{
+  label: string;
+  tone: AssistantSurfaceTone;
+  detail?: string | null;
+  pulse?: boolean;
+}> = ({ label, tone, detail, pulse = false }) => (
+  <div className="mb-2 flex flex-wrap items-center gap-2">
+    <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-medium leading-none ${ASSISTANT_BADGE_STYLES[tone]}`}>
+      {pulse && <span className="h-1.5 w-1.5 rounded-full bg-current animate-pulse" />}
+      {label}
+    </span>
+    {detail ? (
+      <span className="text-[11px] leading-none dark:text-claude-darkTextSecondary/80 text-claude-textSecondary/80">
+        {detail}
+      </span>
+    ) : null}
+  </div>
+);
+
+const runWhenIdle = (task: () => void): (() => void) => {
+  const browserWindow = window as Window & {
+    requestIdleCallback?: (callback: () => void) => number;
+    cancelIdleCallback?: (handle: number) => void;
+  };
+
+  if (typeof browserWindow.requestIdleCallback === 'function') {
+    const handle = browserWindow.requestIdleCallback(task);
+    return () => {
+      if (typeof browserWindow.cancelIdleCallback === 'function') {
+        browserWindow.cancelIdleCallback(handle);
+      }
+    };
+  }
+
+  const fallbackHandle = window.setTimeout(task, 16);
+  return () => {
+    window.clearTimeout(fallbackHandle);
+  };
+};
+
 const getRenderableImageSrc = (image: CoworkRenderableImage): string | null => {
   if (image.base64Data && image.mimeType) {
     return `data:${image.mimeType};base64,${image.base64Data}`;
@@ -509,16 +567,24 @@ const ToolCallGroup: React.FC<{
   const isToolError = Boolean(toolResult?.metadata?.isError || toolResult?.metadata?.error);
   const [isExpanded, setIsExpanded] = useState(false);
   const resultLineCount = getToolResultLineCount(toolResultDisplay);
+  const toolTone: AssistantSurfaceTone = !toolResult ? 'tool' : (isToolError ? 'error' : 'tool');
+  const toolStatusText = !toolResult ? '工具执行中，不是最终回复' : (isToolError ? '工具执行失败' : '工具执行完成');
 
   // Check if this is a Bash-like tool that should show terminal style
   const isBashTool = toolName === 'Bash';
 
   return (
-    <div className="relative py-1">
+    <div className={`relative rounded-2xl border px-3 py-3 ${ASSISTANT_SURFACE_STYLES[toolTone]}`}>
       {/* Vertical connecting line to next tool group */}
       {!isLastInSequence && (
-        <div className="absolute left-[3.5px] top-[14px] bottom-[-8px] w-px dark:bg-claude-darkTextSecondary/30 bg-claude-textSecondary/30" />
+        <div className="absolute left-[14px] top-[42px] bottom-[-10px] w-px dark:bg-claude-darkTextSecondary/20 bg-claude-textSecondary/20" />
       )}
+      <AssistantSectionBadge
+        label={'工具执行'}
+        tone={toolTone}
+        detail={toolStatusText}
+        pulse={!toolResult}
+      />
       <button
         onClick={() => setIsExpanded(!isExpanded)}
         className="w-full flex items-start gap-2 text-left group relative z-10"
@@ -761,28 +827,71 @@ const AssistantMessageItem: React.FC<{
   const [isHovered, setIsHovered] = useState(false);
   const displayContent = mapDisplayText ? mapDisplayText(message.content) : message.content;
   const deferMarkdown = Boolean(message.metadata?.isStreaming);
+  const parsedContentBlocks = useMemo<SessionDetailHelpers.AssistantContentBlock[]>(() => (
+    deferMarkdown
+      ? [{ type: 'markdown', content: displayContent }]
+      : SessionDetailHelpers.splitAssistantContentBlocks(displayContent)
+  ), [deferMarkdown, displayContent]);
   const generatedImages = (((message.metadata as CoworkMessageMetadata)?.generatedImages ?? []) as CoworkRenderableImage[]);
   const cacheHit = Boolean(message.metadata?.cacheHit);
   const cacheSource = typeof message.metadata?.cacheSource === 'string' ? message.metadata.cacheSource : null;
 
   return (
     <div
-      className="relative"
+      className={`relative rounded-2xl border px-4 py-3 ${ASSISTANT_SURFACE_STYLES.reply}`}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
+      <AssistantSectionBadge
+        label={'正式回复'}
+        tone={'reply'}
+        detail={message.metadata?.isStreaming ? '正在输出给你' : '这是会发送给你的最终内容'}
+        pulse={Boolean(message.metadata?.isStreaming)}
+      />
       <div className="dark:text-claude-darkText text-claude-text">
         {cacheHit && (
           <div className="mb-2">
             <CacheHitBadge source={cacheSource} />
           </div>
         )}
-        <MarkdownContent
-          content={displayContent}
-          className="prose prose-sm dark:prose-invert max-w-none"
-          resolveLocalFilePath={resolveLocalFilePath}
-          deferMarkdown={deferMarkdown}
-        />
+        <div className="space-y-3">
+          {parsedContentBlocks.length > 0 ? parsedContentBlocks.map((block, index) => {
+            if (block.type === 'tool_trace') {
+              return (
+                <AssistantToolTraceBlock
+                  key={`tool-trace-${message.id}-${index}`}
+                  content={block.content}
+                />
+              );
+            }
+
+            if (block.type === 'html') {
+              return (
+                <AssistantHtmlBlock
+                  key={`html-${message.id}-${index}`}
+                  html={block.content}
+                />
+              );
+            }
+
+            return (
+              <MarkdownContent
+                key={`markdown-${message.id}-${index}`}
+                content={block.content}
+                className="prose prose-sm dark:prose-invert max-w-none"
+                resolveLocalFilePath={resolveLocalFilePath}
+                deferMarkdown={deferMarkdown}
+              />
+            );
+          }) : (
+            <MarkdownContent
+              content={displayContent}
+              className="prose prose-sm dark:prose-invert max-w-none"
+              resolveLocalFilePath={resolveLocalFilePath}
+              deferMarkdown={deferMarkdown}
+            />
+          )}
+        </div>
         {generatedImages.length > 0 && (
           <MessageImageGallery images={generatedImages} compact={!displayContent?.trim()} />
         )}
@@ -870,22 +979,26 @@ const ThinkingBlock: React.FC<{
   }, [isCurrentlyStreaming]);
 
   return (
-    <div className="rounded-lg border dark:border-claude-darkBorder/50 border-claude-border/50 overflow-hidden">
+    <div className={`rounded-2xl border overflow-hidden ${ASSISTANT_SURFACE_STYLES.thinking}`}>
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full flex items-center gap-2 px-3 py-2 text-left dark:hover:bg-claude-darkSurfaceHover/50 hover:bg-claude-surfaceHover/50 transition-colors"
+        className="w-full px-3 py-3 text-left dark:hover:bg-claude-darkSurfaceHover/30 hover:bg-claude-surfaceHover/40 transition-colors"
       >
-        <ChevronRightIcon
-          className={`h-3.5 w-3.5 dark:text-claude-darkTextSecondary text-claude-textSecondary flex-shrink-0 transition-transform duration-200 ${
-            isExpanded ? 'rotate-90' : ''
-          }`}
-        />
-        <span className="text-xs font-medium dark:text-claude-darkTextSecondary text-claude-textSecondary">
-          {'思考过程'}
-        </span>
-        {isCurrentlyStreaming && (
-          <span className="w-1.5 h-1.5 rounded-full bg-claude-accent animate-pulse" />
-        )}
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <AssistantSectionBadge
+              label={'思考过程'}
+              tone={'thinking'}
+              detail={isCurrentlyStreaming ? '内部思考中，不是最终回复' : '内部过程记录，不会直接发给你'}
+              pulse={isCurrentlyStreaming}
+            />
+          </div>
+          <ChevronRightIcon
+            className={`mt-1 h-3.5 w-3.5 dark:text-claude-darkTextSecondary text-claude-textSecondary flex-shrink-0 transition-transform duration-200 ${
+              isExpanded ? 'rotate-90' : ''
+            }`}
+          />
+        </div>
       </button>
       {isExpanded && (
         <div className="px-3 pb-3 max-h-64 overflow-y-auto">
@@ -897,6 +1010,77 @@ const ThinkingBlock: React.FC<{
     </div>
   );
 });
+
+const AssistantHtmlBlock: React.FC<{ html: string }> = React.memo(({ html }) => {
+  const deferredHtml = useDeferredValue(html);
+  const [sanitizedHtml, setSanitizedHtml] = useState<string>('');
+  const [isPreparingHtml, setIsPreparingHtml] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setIsPreparingHtml(true);
+
+    const cleanup = runWhenIdle(() => {
+      void import('dompurify').then((module) => {
+        if (cancelled) return;
+        const DOMPurify = module.default;
+        const nextHtml = DOMPurify.sanitize(deferredHtml, {
+          USE_PROFILES: { html: true },
+        });
+        startTransition(() => {
+          if (cancelled) return;
+          setSanitizedHtml(nextHtml);
+          setIsPreparingHtml(false);
+        });
+      }).catch((error) => {
+        console.error('Failed to load DOMPurify for assistant HTML block:', error);
+        startTransition(() => {
+          if (cancelled) return;
+          setSanitizedHtml('');
+          setIsPreparingHtml(false);
+        });
+      });
+    });
+
+    return () => {
+      cancelled = true;
+      cleanup();
+    };
+  }, [deferredHtml]);
+
+  return (
+    <div className="rounded-xl border border-claude-border/60 bg-white/55 px-4 py-3 shadow-sm dark:border-claude-darkBorder/60 dark:bg-claude-darkSurface/55">
+      <AssistantSectionBadge
+        label={'HTML 内容'}
+        tone={'reply'}
+        detail={isPreparingHtml ? '浏览器空闲时异步处理' : '按安全 HTML 块渲染'}
+      />
+      {isPreparingHtml ? (
+        <div className="rounded-lg border border-dashed border-claude-border/60 px-3 py-2 text-xs dark:border-claude-darkBorder/60 dark:text-claude-darkTextSecondary text-claude-textSecondary">
+          {'HTML 块正在异步整理...'}
+        </div>
+      ) : (
+        <div
+          className="prose prose-sm max-w-none dark:prose-invert"
+          dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
+        />
+      )}
+    </div>
+  );
+});
+
+const AssistantToolTraceBlock: React.FC<{ content: string }> = React.memo(({ content }) => (
+  <div className={`rounded-xl border px-4 py-3 ${ASSISTANT_SURFACE_STYLES.tool}`}>
+    <AssistantSectionBadge
+      label={'运行轨迹'}
+      tone={'tool'}
+      detail={'工具调用记录，已从正式回复中拆出'}
+    />
+    <pre className="overflow-x-auto whitespace-pre-wrap break-words font-mono text-xs leading-6 dark:text-sky-200/90 text-sky-900/90">
+      {content}
+    </pre>
+  </div>
+));
 
 const AssistantTurnBlock: React.FC<{
   turn: ConversationTurn;
@@ -919,9 +1103,24 @@ const AssistantTurnBlock: React.FC<{
       : (typeof message.metadata?.error === 'string' ? message.metadata.error : '');
     const content = mapDisplayText ? mapDisplayText(rawContent) : rawContent;
     if (!content.trim()) return null;
+    const stage = typeof message.metadata?.stage === 'string' ? message.metadata.stage : '';
+
+    if (stage === 'tool_trace') {
+      return <AssistantToolTraceBlock content={content} />;
+    }
+
+    const badgeLabel = stage === 'pre_tool' ? '执行前说明' : '系统提示';
+    const badgeDetail = stage === 'pre_tool'
+      ? '工具调用前的状态说明，不属于模型正式回复'
+      : '系统状态与提示，不属于模型正式回复';
 
     return (
-      <div className="rounded-lg border dark:border-claude-darkBorder/70 border-claude-border/70 dark:bg-claude-darkBg/40 bg-claude-bg/60 px-3 py-2">
+      <div className={`rounded-2xl border px-3 py-3 ${ASSISTANT_SURFACE_STYLES.system}`}>
+        <AssistantSectionBadge
+          label={badgeLabel}
+          tone={'system'}
+          detail={badgeDetail}
+        />
         <div className="flex items-start gap-2">
           <InformationCircleIcon className="h-4 w-4 mt-0.5 dark:text-claude-darkTextSecondary text-claude-textSecondary flex-shrink-0" />
           <div className="text-xs whitespace-pre-wrap dark:text-claude-darkTextSecondary text-claude-textSecondary">
@@ -938,7 +1137,12 @@ const AssistantTurnBlock: React.FC<{
     const isToolError = Boolean(message.metadata?.isError || message.metadata?.error);
     const resultLineCount = getToolResultLineCount(toolResultDisplay);
     return (
-      <div className="py-1">
+      <div className={`rounded-2xl border px-3 py-3 ${ASSISTANT_SURFACE_STYLES[isToolError ? 'error' : 'tool']}`}>
+        <AssistantSectionBadge
+          label={'工具结果'}
+          tone={isToolError ? 'error' : 'tool'}
+          detail={isToolError ? '工具失败返回，不是模型最终回复' : '工具返回结果，不是模型最终回复'}
+        />
         <div className="flex items-start gap-2">
           <span className={`mt-1.5 w-2 h-2 rounded-full flex-shrink-0 ${
             isToolError ? 'bg-red-500' : 'bg-claude-darkTextSecondary/50'
@@ -969,7 +1173,7 @@ const AssistantTurnBlock: React.FC<{
     <div className="px-4 py-2">
       <div className="max-w-3xl mx-auto">
         <div className="flex items-start gap-3">
-          <div className="flex-1 min-w-0 px-4 py-3 space-y-3">
+          <div className="flex-1 min-w-0 px-4 py-3 space-y-4">
             {visibleAssistantItems.map((item, index) => {
               if (item.type === 'assistant') {
                 if (item.message.metadata?.isThinking) {

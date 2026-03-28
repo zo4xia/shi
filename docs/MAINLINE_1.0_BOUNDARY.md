@@ -23,6 +23,10 @@
 - `modelId` 不是身份键
 - `all` 只是展示聚合
 - 记忆、skills、MCP、线程、任务上下文都只能按身份隔离
+- 环境变量不是默认安装主存储，只是部署兜底
+- 系统级密钥走共享 runtime secret，角色级密钥走角色目录，渠道运行时走 `channels/<channelId>/`
+- `SKILLs/` 只放定义与模板，不放运行时 secret
+- 渠道绑定只保存 `channel -> agentRoleKey`，不把渠道凭证混进身份配置
 
 ## 文档处理口径
 
