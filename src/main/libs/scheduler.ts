@@ -4,8 +4,8 @@
  * {标记} 用途：按计划自动执行 AI 任务（每日记忆抽取等）
  * {验证} 2026-03-17 复查：调度逻辑正常，身份绑定已修复 ✅
  * {警告} 修改此文件会影响所有定时任务的执行时机和身份绑定
- * {标记} 旧污染活口: 定时任务执行/停止仍直接依赖 CoworkRunner 语义
- * {标记} 重构边界-待确认: 后续若切轻链，必须成组核对 scheduledTask run/history/status/stop
+ * {标记} 旧污染残留: CoworkRunner 兼容代码仍在本文件里，但当前 server runtime 已优先改走轻执行器。
+ * {标记} 重构边界-待确认: 后续若继续切轻链，必须成组核对 scheduledTask run/history/status/stop
  */
 import { BrowserWindow } from '../electron';
 import { ScheduledTaskStore, ScheduledTask, ScheduledTaskRun, Schedule, NotifyPlatform } from '../scheduledTaskStore';
@@ -213,8 +213,8 @@ export class Scheduler {
     trigger: 'scheduled' | 'manual'
   ): Promise<void> {
     // {BUG} bug-scheduler-coworkrunner-fallback-001
-    // {说明} 定时任务当前应优先走 runTaskDirectly -> HttpSessionExecutor。
-    // {波及} 一旦 handled:false 或抛错，这里仍会掉回 CoworkRunner，继续污染连续性口径与结果形态。
+    // {说明} 定时任务当前必须走 runTaskDirectly -> HttpSessionExecutor。
+    // {修复} 当前 server runtime 不再允许 executeTask 在 handled:false 后静默掉回 CoworkRunner。
     if (this.activeTasks.has(task.id)) {
       console.log(`[Scheduler] Task ${task.id} already running, skipping`);
       return;
@@ -250,16 +250,16 @@ export class Scheduler {
     let error: string | null = null;
 
     try {
-      if (this.runTaskDirectly) {
-        const directResult = await this.runTaskDirectly(task);
-        if (directResult.handled) {
-          sessionId = directResult.sessionId ?? null;
-          success = true;
-          return;
-        }
+      if (!this.runTaskDirectly) {
+        throw new Error('Scheduler direct executor is missing; legacy CoworkRunner fallback is intentionally disabled.');
       }
 
-      sessionId = await this.startCoworkSession(task);
+      const directResult = await this.runTaskDirectly(task);
+      if (!directResult.handled) {
+        throw new Error('Scheduler direct executor returned handled:false; legacy CoworkRunner fallback is intentionally disabled.');
+      }
+
+      sessionId = directResult.sessionId ?? null;
       success = true;
     } catch (err: unknown) {
       error = err instanceof Error ? err.message : String(err);
@@ -271,7 +271,7 @@ export class Scheduler {
 
   private async startCoworkSession(task: ScheduledTask): Promise<string> {
     // {BUG} bug-scheduler-legacy-runner-entry-001
-    // {说明} 这是定时任务回退到 CoworkRunner 的旧兼容入口，不是现役推荐主链。
+    // {说明} 这是定时任务回退到 CoworkRunner 的旧兼容入口，当前 server runtime 已不允许 executeTask 命中这里。
     if (!this.getCoworkRunner) {
       throw new Error('Scheduler legacy CoworkRunner fallback is disabled in this runtime.');
     }

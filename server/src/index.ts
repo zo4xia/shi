@@ -746,6 +746,9 @@ const ensureDailyMemoryCatchupOnStartup = (): void => {
 
 const getScheduler = (): Scheduler => {
   if (!scheduler) {
+    // {BREAKPOINT} SCHEDULER-NO-RUNNER-INJECTION
+    // {FLOW} PHASE2-DIRECT-ONLY: 当前 server runtime 故意不再给 Scheduler 注入 getCoworkRunner。
+    // {标记} 主线边界: 定时任务执行必须直走 HttpSessionExecutor；旧 CoworkRunner 兼容口只留在代码层观察，不再接电。
     scheduler = new Scheduler({
       scheduledTaskStore: getScheduledTaskStore(),
       coworkStore: getCoworkStore(),
