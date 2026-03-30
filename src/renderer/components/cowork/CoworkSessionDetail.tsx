@@ -9,6 +9,7 @@ import MarkdownContent from '../MarkdownContent';
 import {
   CheckIcon,
   InformationCircleIcon,
+  SignalIcon,
   ShareIcon,
   ExclamationTriangleIcon,
   ChevronRightIcon,
@@ -842,6 +843,10 @@ const AssistantMessageItem: React.FC<{
   const generatedImages = (((message.metadata as CoworkMessageMetadata)?.generatedImages ?? []) as CoworkRenderableImage[]);
   const cacheHit = Boolean(message.metadata?.cacheHit);
   const cacheSource = typeof message.metadata?.cacheSource === 'string' ? message.metadata.cacheSource : null;
+  const continuitySource = typeof message.metadata?.continuitySource === 'string' ? message.metadata.continuitySource : null;
+  const promptTokens = typeof message.metadata?.promptTokens === 'number' ? message.metadata.promptTokens : null;
+  const completionTokens = typeof message.metadata?.completionTokens === 'number' ? message.metadata.completionTokens : null;
+  const totalTokens = typeof message.metadata?.totalTokens === 'number' ? message.metadata.totalTokens : null;
   const stage = getAssistantStage(message);
   const isFormalReply = isFinalAssistantMessage(message);
   const tone: AssistantSurfaceTone = isFormalReply
@@ -877,9 +882,15 @@ const AssistantMessageItem: React.FC<{
         pulse={Boolean(message.metadata?.isStreaming) && isFormalReply}
       />
       <div className="dark:text-claude-darkText text-claude-text">
-        {cacheHit && (
-          <div className="mb-2">
-            <CacheHitBadge source={cacheSource} />
+        {(cacheHit || continuitySource || Number.isFinite(promptTokens) || Number.isFinite(completionTokens) || Number.isFinite(totalTokens)) && (
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            {cacheHit && <CacheHitBadge source={cacheSource} />}
+            <ContinuitySourceBadge source={continuitySource} />
+            <TokenUsageBadge
+              promptTokens={promptTokens}
+              completionTokens={completionTokens}
+              totalTokens={totalTokens}
+            />
           </div>
         )}
         <div className="space-y-3">
@@ -1040,6 +1051,67 @@ const ThinkingBlock: React.FC<{
           </div>
         </div>
       )}
+    </div>
+  );
+});
+
+const ContinuitySourceBadge: React.FC<{ source?: string | null }> = React.memo(({ source }) => {
+  if (!source) {
+    return null;
+  }
+
+  const label = source === 'shared-thread'
+    ? '广播板命中'
+    : source === 'durable-memory'
+      ? '长期记忆回补'
+      : '无连续性命中';
+
+  const title = source === 'shared-thread'
+    ? '当前回复优先命中了 24h 广播板接力'
+    : source === 'durable-memory'
+      ? '当前回复由长期记忆兜底回补'
+      : '当前回复没有命中广播板或长期记忆';
+
+  const toneClass = source === 'shared-thread'
+    ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400'
+    : source === 'durable-memory'
+      ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300'
+      : 'bg-slate-500/10 text-slate-600 dark:text-slate-300';
+
+  return (
+    <div
+      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium ${toneClass}`}
+      title={title}
+    >
+      <InformationCircleIcon className="h-3.5 w-3.5" />
+      <span>{label}</span>
+    </div>
+  );
+});
+
+const TokenUsageBadge: React.FC<{
+  promptTokens?: number | null;
+  completionTokens?: number | null;
+  totalTokens?: number | null;
+}> = React.memo(({ promptTokens, completionTokens, totalTokens }) => {
+  const hasUsage = Number.isFinite(promptTokens) || Number.isFinite(completionTokens) || Number.isFinite(totalTokens);
+  if (!hasUsage) {
+    return null;
+  }
+
+  const parts = [
+    Number.isFinite(promptTokens) ? `输入 ${promptTokens}` : null,
+    Number.isFinite(completionTokens) ? `输出 ${completionTokens}` : null,
+    Number.isFinite(totalTokens) ? `总计 ${totalTokens}` : null,
+  ].filter(Boolean);
+
+  return (
+    <div
+      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-fuchsia-500/10 text-fuchsia-700 dark:text-fuchsia-300 text-[11px] font-medium"
+      title={parts.join(' / ')}
+    >
+      <SignalIcon className="h-3.5 w-3.5" />
+      <span>{parts.join(' · ')}</span>
     </div>
   );
 });

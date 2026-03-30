@@ -84,6 +84,11 @@ type AssistantOutput = {
   generatedImages: GeneratedImage[];
 };
 
+type BuiltSystemPromptResult = {
+  prompt: string;
+  continuitySource: 'shared-thread' | 'durable-memory' | 'none' | null;
+};
+
 type SkillPromptBuilder = (skillIds: string[]) => string | null | Promise<string | null>;
 
 type TurnOptions = {
@@ -259,7 +264,12 @@ export class HttpSessionExecutor implements SessionExecutor {
       }
 
       const mergedSkillIds = this.resolveMergedSkillIds(session, options);
-      const systemPrompt = await this.buildSystemPrompt(sessionId, session.systemPrompt || '', options, mode);
+      const builtSystemPrompt = await this.buildSystemPrompt(sessionId, session.systemPrompt || '', options, mode);
+      const systemPrompt = builtSystemPrompt.prompt;
+      streamState.metadata = {
+        ...(streamState.metadata || {}),
+        ...(builtSystemPrompt.continuitySource ? { continuitySource: builtSystemPrompt.continuitySource } : {}),
+      };
       const effectiveImageApiType = resolveSupportedDesignerImageApiType(apiConfig.imageApiType);
       if (apiConfig.agentRoleKey === 'designer' && effectiveImageApiType === 'google') {
         await this.runGoogleGenerateContent(sessionId, session, systemPrompt, apiConfig, streamState, abortController.signal);
@@ -395,7 +405,7 @@ export class HttpSessionExecutor implements SessionExecutor {
     baseSystemPrompt: string,
     options: TurnOptions,
     mode: 'start' | 'continue' | 'channel'
-  ): Promise<string> {
+  ): Promise<BuiltSystemPromptResult> {
     // {BREAKPOINT} continuity-system-prompt-assembly-001
     // {路标} FLOW-EXECUTOR-SYSTEM-PROMPT
     // {FLOW} EXECUTOR-PROMPT-ASSEMBLY: system prompt 由显式提示、角色技能、native capabilities、连续性提示等拼装而成。
@@ -405,7 +415,10 @@ export class HttpSessionExecutor implements SessionExecutor {
     // {波及} 这会造成“广播板数据明明在，但 agent 口头有时说看得到、有时说看不到”的不一致。
     const session = this.store.getSession(sessionId);
     if (!session) {
-      return baseSystemPrompt;
+      return {
+        prompt: baseSystemPrompt,
+        continuitySource: null,
+      };
     }
 
     const promptSections: string[] = [];
@@ -446,6 +459,7 @@ export class HttpSessionExecutor implements SessionExecutor {
       promptSections.push(preloadedPageObservation);
     }
 
+    let continuitySource: BuiltSystemPromptResult['continuitySource'] = null;
     if (session.agentRoleKey) {
       const runtimeMcpAwareness = this.buildRuntimeMcpAwareness(resolveRuntimeAgentRoleKey(session.agentRoleKey));
       if (runtimeMcpAwareness) {
@@ -458,6 +472,7 @@ export class HttpSessionExecutor implements SessionExecutor {
         agentRoleKey: session.agentRoleKey,
         stateStore: this.configStore,
       });
+      continuitySource = continuity.source;
       if (continuity.wakeupText.trim()) {
         promptSections.push(continuity.wakeupText.trim());
       }
@@ -478,7 +493,10 @@ export class HttpSessionExecutor implements SessionExecutor {
       }
     }
 
-    return promptSections.filter((section) => section.trim()).join('\n\n');
+    return {
+      prompt: promptSections.filter((section) => section.trim()).join('\n\n'),
+      continuitySource,
+    };
   }
 
   private buildBroadcastBoardOperatingPrompt(): string {
@@ -1102,6 +1120,13 @@ export class HttpSessionExecutor implements SessionExecutor {
         );
 
         if (toolCalls.length === 0) {
+          const usageMetadata = extractUsageMetadata(responsePayload);
+          if (usageMetadata) {
+            streamState.metadata = {
+              ...(streamState.metadata || {}),
+              ...usageMetadata,
+            };
+          }
           const output = extractAssistantOutput(responsePayload);
           if (output.text || output.generatedImages.length > 0) {
             this.appendAssistantOutput(sessionId, streamState, output);
@@ -1859,6 +1884,13 @@ export class HttpSessionExecutor implements SessionExecutor {
         return;
       }
       const parsed = tryParseJson(payload);
+      const usageMetadata = extractUsageMetadata(parsed);
+      if (usageMetadata) {
+        streamState.metadata = {
+          ...(streamState.metadata || {}),
+          ...usageMetadata,
+        };
+      }
       const output = extractAssistantOutput(parsed);
       if (output.text || output.generatedImages.length > 0) {
         this.appendAssistantOutput(sessionId, streamState, output);
@@ -2774,6 +2806,39 @@ function extractAssistantOutput(payload: any): AssistantOutput {
     text: textChunks.join(''),
     generatedImages: dedupedImages,
   };
+}
+
+function extractUsageMetadata(payload: any): {
+  promptTokens?: number;
+  completionTokens?: number;
+  totalTokens?: number;
+} | null {
+  const usage = payload?.usage;
+  if (!usage || typeof usage !== 'object') {
+    return null;
+  }
+
+  const promptTokens = Number((usage as any).prompt_tokens);
+  const completionTokens = Number((usage as any).completion_tokens);
+  const totalTokens = Number((usage as any).total_tokens);
+
+  const normalized: {
+    promptTokens?: number;
+    completionTokens?: number;
+    totalTokens?: number;
+  } = {};
+
+  if (Number.isFinite(promptTokens) && promptTokens >= 0) {
+    normalized.promptTokens = promptTokens;
+  }
+  if (Number.isFinite(completionTokens) && completionTokens >= 0) {
+    normalized.completionTokens = completionTokens;
+  }
+  if (Number.isFinite(totalTokens) && totalTokens >= 0) {
+    normalized.totalTokens = totalTokens;
+  }
+
+  return Object.keys(normalized).length > 0 ? normalized : null;
 }
 
 function extractGeneratedImage(value: unknown): GeneratedImage | null {
