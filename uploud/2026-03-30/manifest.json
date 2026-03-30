@@ -1,0 +1,23 @@
+{
+  "generatedAt": "2026-03-30T10:21:07.614Z",
+  "sessionCount": 6,
+  "roleFileCount": 2,
+  "files": [
+    "organizer-timeline.json",
+    "writer-timeline.json"
+  ],
+  "roleFiles": [
+    {
+      "role": "organizer",
+      "fileName": "organizer-timeline.json",
+      "entryCount": 43,
+      "sourceSessionCount": 3
+    },
+    {
+      "role": "writer",
+      "fileName": "writer-timeline.json",
+      "entryCount": 25,
+      "sourceSessionCount": 3
+    }
+  ]
+}
