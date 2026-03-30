@@ -52,3 +52,16 @@ pnpm-lock.yaml
 *.backup
 
 .dev-runtime.json
+
+# Runtime logs / local test artifacts
+tmp-*.log
+tmp-*.err.log
+.uclaw-server*.log
+.uclaw-server*.err.log
+
+# Local upload / attachment runtime data
+uploud/attachments/
+
+# Local archives
+*.zip
+*.7z

@@ -1,11 +1,9 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../store';
 import { scheduledTaskService } from '../../services/scheduledTask';
-import { imService } from '../../services/im';
 import { skillService } from '../../services/skill';
 import { showGlobalToast } from '../../services/toast';
-import { getVisibleIMPlatforms } from '../../utils/regionFilter';
 import type { ScheduledTask, Schedule, ScheduledTaskInput, NotifyPlatform } from '../../types/scheduledTask';
 import { getSkillDisplayName, type Skill } from '../../types/skill';
 // {标记} P0-BUG-FIX: 导入身份配置
@@ -19,17 +17,6 @@ interface TaskFormProps {
 }
 
 type ScheduleMode = 'once' | 'daily' | 'weekly' | 'monthly';
-
-const SUPPORTED_NOTIFY_PLATFORMS = new Set<NotifyPlatform>([
-  'dingtalk',
-  'feishu',
-  'qq',
-  'telegram',
-  'discord',
-  'nim',
-  'xiaomifeng',
-  'wecom',
-]);
 
 const WEEKDAYS = [0, 1, 2, 3, 4, 5, 6] as const; // 0=Sunday
 
@@ -81,17 +68,7 @@ function parseScheduleToUI(schedule: Schedule): {
 
 const TaskForm: React.FC<TaskFormProps> = ({ mode, task, onCancel, onSaved }) => {
   const coworkConfig = useSelector((state: RootState) => state.cowork.config);
-  const imConfig = useSelector((state: RootState) => state.im.config);
   const defaultWorkingDirectory = coworkConfig?.workingDirectory ?? '';
-
-  // Language is always zh
-  const language = 'zh' as const;
-
-  const visiblePlatforms = useMemo<NotifyPlatform[]>(() => {
-    return getVisibleIMPlatforms(language).filter(
-      (platform): platform is NotifyPlatform => SUPPORTED_NOTIFY_PLATFORMS.has(platform as NotifyPlatform)
-    );
-  }, [language]);
 
   // Parse existing schedule for edit mode
   const parsed = task ? parseScheduleToUI(task.schedule) : null;
@@ -108,30 +85,16 @@ const TaskForm: React.FC<TaskFormProps> = ({ mode, task, onCancel, onSaved }) =>
   const [expiresAt, setExpiresAt] = useState(task?.expiresAt ?? '');
   const [skillIds, setSkillIds] = useState<string[]>(task?.skillIds ?? []);
   const [notifyPlatforms, setNotifyPlatforms] = useState<NotifyPlatform[]>(task?.notifyPlatforms ?? []);
+  const [completionWebhookUrl, setCompletionWebhookUrl] = useState(task?.completionWebhookUrl ?? '');
   const [availableSkills, setAvailableSkills] = useState<Skill[]>([]);
   const [hasLoadedSkillCatalog, setHasLoadedSkillCatalog] = useState<boolean>(() => (task?.skillIds?.length ?? 0) > 0);
   const [isLoadingSkillCatalog, setIsLoadingSkillCatalog] = useState(false);
   const [workspacePath, setWorkspacePath] = useState('');
-  const [notifyDropdownOpen, setNotifyDropdownOpen] = useState(false);
-  const [hasLoadedNotifyConfig, setHasLoadedNotifyConfig] = useState<boolean>(() => (task?.notifyPlatforms?.length ?? 0) > 0);
-  const [isLoadingNotifyConfig, setIsLoadingNotifyConfig] = useState(false);
-  const notifyDropdownRef = useRef<HTMLDivElement>(null);
   // {标记} P0-新增：身份选择状态
   const [agentRoleKey, setAgentRoleKey] = useState<AgentRoleKey>(task?.agentRoleKey as AgentRoleKey || 'organizer');
   const [modelId] = useState(task?.modelId || '');
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (notifyDropdownRef.current && !notifyDropdownRef.current.contains(e.target as Node)) {
-        setNotifyDropdownOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
 
   useEffect(() => {
     if (!hasLoadedSkillCatalog) {
@@ -173,23 +136,6 @@ const TaskForm: React.FC<TaskFormProps> = ({ mode, task, onCancel, onSaved }) =>
   }, [hasLoadedSkillCatalog, isLoadingSkillCatalog, skillIds.length]);
 
   useEffect(() => {
-    if (!hasLoadedNotifyConfig) {
-      return;
-    }
-    if ((task?.notifyPlatforms?.length ?? 0) === 0) {
-      return;
-    }
-    if (isLoadingNotifyConfig) {
-      return;
-    }
-    // {标记} P1-LAZY-TASKFORM-NOTIFY: 任务表单默认不拉 IM 配置，只有查看通知渠道时才初始化。
-    setIsLoadingNotifyConfig(true);
-    void imService.init().finally(() => {
-      setIsLoadingNotifyConfig(false);
-    });
-  }, [hasLoadedNotifyConfig, isLoadingNotifyConfig, task?.notifyPlatforms?.length]);
-
-  useEffect(() => {
     let isActive = true;
     const loadWorkspacePath = async () => {
       try {
@@ -209,21 +155,11 @@ const TaskForm: React.FC<TaskFormProps> = ({ mode, task, onCancel, onSaved }) =>
     };
   }, []);
 
-  // Clean up selected platforms when visible list changes
-  useEffect(() => {
-    setNotifyPlatforms(prev => prev.filter(p => visiblePlatforms.includes(p)));
-  }, [visiblePlatforms]);
-
   useEffect(() => {
     setSkillIds((prev) => prev.filter((skillId) => availableSkills.some((skill) => skill.id === skillId)));
   }, [availableSkills]);
 
   const installedSkills = useMemo(() => availableSkills, [availableSkills]);
-
-  const isPlatformConfigured = (platform: NotifyPlatform): boolean => {
-    const platformConfig = imConfig[platform];
-    return platformConfig?.enabled ?? false;
-  };
 
   const buildSchedule = (): Schedule => {
     const [hour, min] = scheduleTime.split(':').map(Number);
@@ -275,6 +211,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ mode, task, onCancel, onSaved }) =>
         expiresAt: expiresAt || null,
         skillIds,
         notifyPlatforms,
+        completionWebhookUrl: completionWebhookUrl.trim() || null,
         enabled: task?.enabled ?? true,
         // {标记} P0-新增：身份绑定字段
         agentRoleKey,
@@ -339,22 +276,6 @@ const TaskForm: React.FC<TaskFormProps> = ({ mode, task, onCancel, onSaved }) =>
     }
     setIsLoadingSkillCatalog(true);
     setHasLoadedSkillCatalog(true);
-  };
-
-  const handleToggleNotifyDropdown = async () => {
-    if (notifyDropdownOpen) {
-      setNotifyDropdownOpen(false);
-      return;
-    }
-    if (!hasLoadedNotifyConfig) {
-      setIsLoadingNotifyConfig(true);
-      setHasLoadedNotifyConfig(true);
-      await imService.init().catch(() => {
-        showGlobalToast('加载 IM 通知配置失败');
-      });
-      setIsLoadingNotifyConfig(false);
-    }
-    setNotifyDropdownOpen(true);
   };
 
   const weekdayLabels = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
@@ -625,69 +546,33 @@ const TaskForm: React.FC<TaskFormProps> = ({ mode, task, onCancel, onSaved }) =>
             {'（可选）'}
           </span>
         </label>
-        <div className="relative" ref={notifyDropdownRef}>
-          <button
-            type="button"
-            onClick={() => { void handleToggleNotifyDropdown(); }}
-            className={inputClass + ' flex items-center justify-between cursor-pointer text-left'}
-          >
-            <span className={notifyPlatforms.length === 0 ? 'dark:text-claude-darkTextSecondary text-claude-textSecondary' : ''}>
-              {isLoadingNotifyConfig
-                ? '加载通知渠道中...'
-                : notifyPlatforms.length === 0
-                ? '无'
-                : notifyPlatforms.map((p) => {
-                    const notifyMap: Record<string, string> = {
-                      dingtalk: '钉钉', feishu: '飞书', qq: 'QQ', telegram: 'Telegram',
-                      discord: 'Discord', nim: '云信', xiaomifeng: '小蜜蜂', wecom: '企业微信', none: '无',
-                    };
-                    return notifyMap[p] || p;
-                  }).join(', ')}
-            </span>
-            <svg className={`w-4 h-4 ml-2 transition-transform ${notifyDropdownOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
-          {notifyDropdownOpen && (
-            <div className="absolute z-10 bottom-full mb-1 w-full rounded-lg border dark:border-claude-darkBorder border-claude-border dark:bg-claude-darkSurface bg-white shadow-lg py-1">
-              {visiblePlatforms.map((platform) => {
-                const checked = notifyPlatforms.includes(platform);
-                const configured = isPlatformConfigured(platform);
-                return (
-                  <label
-                    key={platform}
-                    className={`flex items-center gap-2 px-3 py-2 transition-colors ${
-                      configured ? 'cursor-pointer hover:bg-claude-surfaceHover dark:hover:bg-claude-darkSurfaceHover' : 'opacity-60 cursor-not-allowed'
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      disabled={!configured}
-                      onChange={() => {
-                        if (!configured) return;
-                        setNotifyPlatforms(
-                          checked
-                            ? notifyPlatforms.filter((p) => p !== platform)
-                            : [...notifyPlatforms, platform]
-                        );
-                      }}
-                      className="text-claude-accent focus:ring-claude-accent rounded disabled:cursor-not-allowed"
-                    />
-                    <span className="text-sm dark:text-claude-darkText text-claude-text">
-                      {({ dingtalk: '钉钉', feishu: '飞书', qq: 'QQ', telegram: 'Telegram', discord: 'Discord', nim: '云信', xiaomifeng: '小蜜蜂', wecom: '企业微信', none: '无' } as Record<string, string>)[platform] || platform}
-                    </span>
-                    {!configured && (
-                      <span className="text-xs text-yellow-600 dark:text-yellow-400 ml-auto">
-                        {'未配置'}
-                      </span>
-                    )}
-                  </label>
-                );
-              })}
-            </div>
-          )}
+        <div className={inputClass + ' min-h-[44px] flex items-center'}>
+          <span className="dark:text-claude-darkTextSecondary text-claude-textSecondary">
+            {'当前未接线。任务完成后不会自动发送 IM 通知。'}
+          </span>
         </div>
+        <p className="mt-1 text-xs dark:text-claude-darkTextSecondary/70 text-claude-textSecondary/70">
+          {'已保存的通知平台配置会暂时保留，但当前版本不会实际发送。建议后续改为 webhook 完成回调。'}
+        </p>
+      </div>
+
+      <div>
+        <label className={labelClass}>
+          {'完成回调 Webhook'}
+          <span className="text-xs font-normal dark:text-claude-darkTextSecondary text-claude-textSecondary ml-1">
+            {'（可选，仅文本）'}
+          </span>
+        </label>
+        <input
+          type="url"
+          value={completionWebhookUrl}
+          onChange={(e) => setCompletionWebhookUrl(e.target.value)}
+          className={inputClass}
+          placeholder={'https://api.day.app/.../{{这里面是回调的文字内容}} 或 企业微信机器人地址'}
+        />
+        <p className="mt-1 text-xs leading-5 dark:text-claude-darkTextSecondary/70 text-claude-textSecondary/70">
+          {'当前只发文本内容。两种用法：1）URL 中放 {{这里面是回调的文字内容}} 占位符；2）直接填写企业微信机器人 webhook 地址，系统会按 text 消息 POST。旧占位符仍兼容。'}
+        </p>
       </div>
 
       {/* Actions */}

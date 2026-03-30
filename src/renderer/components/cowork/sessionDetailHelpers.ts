@@ -363,10 +363,37 @@ export function getTodoWriteSummary(items: ParsedTodoItem[]): string {
  * @returns 摘要字符串
  */
 export function getToolInputSummary(
-  _toolName: string,
+  toolName: string,
   input: unknown,
   maxLength: number = 100
 ): string {
+  const normalizedToolName = normalizeToolName(toolName);
+  if (normalizedToolName === 'attachmentread' && input && typeof input === 'object') {
+    const record = input as Record<string, unknown>;
+    const sourceName = toTrimmedString(record.source_name) || toTrimmedString(record.file_path) || 'attachment';
+    const partNumber = typeof record.part_number === 'number' ? record.part_number : Number(record.part_number);
+    const totalParts = typeof record.total_parts === 'number' ? record.total_parts : Number(record.total_parts);
+    if (Number.isFinite(partNumber) && Number.isFinite(totalParts) && totalParts > 1) {
+      return `${sourceName} ${String(partNumber).padStart(2, '0')}/${String(totalParts).padStart(2, '0')}`;
+    }
+    return sourceName;
+  }
+
+  if (normalizedToolName === 'attachmentmanifest' && input && typeof input === 'object') {
+    const record = input as Record<string, unknown>;
+    const sourceName = toTrimmedString(record.source_name);
+    const sourceCount = typeof record.attachment_source_count === 'number'
+      ? record.attachment_source_count
+      : Number(record.attachment_source_count);
+    if (sourceName) {
+      return `manifest · ${sourceName}`;
+    }
+    if (Number.isFinite(sourceCount) && sourceCount > 0) {
+      return `manifest · ${sourceCount} sources`;
+    }
+    return 'manifest';
+  }
+
   if (input === null || input === undefined) {
     return '';
   }

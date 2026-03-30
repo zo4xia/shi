@@ -40,6 +40,16 @@ import { resolveContinuityBootstrap } from './continuityBootstrap';
 import { SessionTurnFinalizer } from './sessionTurnFinalizer';
 import { parseFile } from './fileParser';
 import {
+  buildAttachmentInlineManifestPrompt,
+  buildAttachmentManifestText,
+  buildAttachmentRuntimeContext,
+  buildAttachmentToolPrompt,
+  decorateAttachmentManifestInput,
+  decorateAttachmentReadInput,
+  formatAttachmentReadResult,
+  readAttachmentText,
+} from './attachmentRuntime';
+import {
   buildTurnCacheKey,
   getTurnCacheEntry,
   putTurnCacheEntry,
@@ -129,6 +139,7 @@ type ExecutorToolDefinition = {
       parameters: Record<string, unknown>;
     };
   };
+  decorateInput?: (args: Record<string, unknown>) => Record<string, unknown>;
   handler: (args: any) => Promise<{ text: string; isError?: boolean }>;
 };
 
@@ -138,7 +149,6 @@ const CACHE_REPLAY_CHUNK_DELAY_MS = 10;
 const FORWARDED_RAW_CONTEXT_MESSAGE_LIMIT = 3;
 const BOUNDED_LOOP_MAX_STEPS = 10;
 const BOUNDED_LOOP_MAX_DURATION_MS = 90_000;
-const ATTACHMENT_INPUT_LABEL = '输入文件';
 const MAX_PARSED_ATTACHMENT_COUNT = 4;
 const MAX_PARSED_ATTACHMENT_TOTAL_CHARS = 24000;
 const MAX_PARSED_ATTACHMENT_BYTES = 20 * 1024 * 1024;
@@ -390,6 +400,9 @@ export class HttpSessionExecutor implements SessionExecutor {
     // {路标} FLOW-EXECUTOR-SYSTEM-PROMPT
     // {FLOW} EXECUTOR-PROMPT-ASSEMBLY: system prompt 由显式提示、角色技能、native capabilities、连续性提示等拼装而成。
     // 【1.0链路】PROMPT-BUILD: 系统提示 = 显式 systemPrompt + 角色技能提示 + 连续性共享记忆提示。
+    // {BUG} bug-broadcast-visibility-chain-001
+    // {说明} 现役主链把 continuity 放进 system prompt；旧 CoworkRunner 则放进 prompt prefix。
+    // {波及} 这会造成“广播板数据明明在，但 agent 口头有时说看得到、有时说看不到”的不一致。
     const session = this.store.getSession(sessionId);
     if (!session) {
       return baseSystemPrompt;
@@ -453,6 +466,16 @@ export class HttpSessionExecutor implements SessionExecutor {
       }
 
       promptSections.push(this.buildBroadcastBoardOperatingPrompt());
+    }
+
+    const latestUserMessage = [...session.messages].reverse().find((message) => message.type === 'user');
+    if (latestUserMessage?.content) {
+      const attachmentPrompt = buildAttachmentToolPrompt(
+        buildAttachmentRuntimeContext(latestUserMessage.content)
+      );
+      if (attachmentPrompt) {
+        promptSections.push(attachmentPrompt);
+      }
     }
 
     return promptSections.filter((section) => section.trim()).join('\n\n');
@@ -585,6 +608,10 @@ export class HttpSessionExecutor implements SessionExecutor {
     }
 
     const latestUserMessage = [...session.messages].reverse().find((message) => message.type === 'user');
+    const attachmentContext = buildAttachmentRuntimeContext(latestUserMessage?.content || '');
+    if (attachmentContext.attachments.length > 0) {
+      return null;
+    }
     const resolvedTarget = this.resolveObservationTarget(latestUserMessage?.content || '');
     if (!resolvedTarget) {
       return null;
@@ -616,6 +643,11 @@ export class HttpSessionExecutor implements SessionExecutor {
     target: { mode: 'url' | 'file'; value: string };
     description: string;
   } | null {
+    const attachmentContext = buildAttachmentRuntimeContext(text);
+    if (attachmentContext.attachments.length > 0) {
+      return null;
+    }
+
     const explicitTarget = this.extractFirstObservationTarget(text);
     if (explicitTarget) {
       return {
@@ -641,6 +673,10 @@ export class HttpSessionExecutor implements SessionExecutor {
 
   private extractFirstObservationTarget(text: string): { mode: 'url' | 'file'; value: string } | null {
     const rawText = String(text || '');
+    const attachmentContext = buildAttachmentRuntimeContext(rawText);
+    const attachmentPaths = new Set(
+      attachmentContext.attachments.map((attachment) => path.resolve(attachment.path))
+    );
 
     const httpMatch = rawText.match(/https?:\/\/[^\s<>"')\]]+/i);
     if (httpMatch?.[0]) {
@@ -661,6 +697,10 @@ export class HttpSessionExecutor implements SessionExecutor {
 
     const htmlPathMatch = rawText.match(/(?:[A-Za-z]:\\|\/)[^\s"'<>]+\.html?\b/i);
     if (htmlPathMatch?.[0]) {
+      const resolvedPath = path.resolve(htmlPathMatch[0]);
+      if (attachmentPaths.has(resolvedPath)) {
+        return null;
+      }
       return { mode: 'file', value: htmlPathMatch[0] };
     }
 
@@ -1032,15 +1072,18 @@ export class HttpSessionExecutor implements SessionExecutor {
       return;
     }
 
+    const attachmentContext = buildAttachmentRuntimeContext(prompt);
+    const boundedLoopMaxSteps = attachmentContext.hasChunkedSources ? 24 : BOUNDED_LOOP_MAX_STEPS;
+    const boundedLoopMaxDurationMs = attachmentContext.hasChunkedSources ? 180_000 : BOUNDED_LOOP_MAX_DURATION_MS;
     const timeoutController = new AbortController();
     const timeoutId = setTimeout(() => {
       timeoutController.abort(new Error('bounded-tool-loop-timeout'));
-    }, BOUNDED_LOOP_MAX_DURATION_MS);
+    }, boundedLoopMaxDurationMs);
     const effectiveSignal = AbortSignal.any([signal, timeoutController.signal]);
 
     try {
       const messages = await this.buildOpenAIRequestMessages(session, systemPrompt);
-      for (let step = 1; step <= BOUNDED_LOOP_MAX_STEPS; step += 1) {
+      for (let step = 1; step <= boundedLoopMaxSteps; step += 1) {
         if (effectiveSignal.aborted) {
           throw abortReasonToError(effectiveSignal.reason, 'bounded tool loop aborted');
         }
@@ -1098,7 +1141,10 @@ export class HttpSessionExecutor implements SessionExecutor {
 
         for (const toolCall of toolCalls) {
           const resolvedTool = toolDefinitions.find((entry) => entry.name === toolCall.function.name);
-          const toolInput = tryParseJson(toolCall.function.arguments) ?? {};
+          const rawToolInput = tryParseJson(toolCall.function.arguments) ?? {};
+          const toolInput = resolvedTool?.decorateInput
+            ? resolvedTool.decorateInput(rawToolInput)
+            : rawToolInput;
           this.emitToolUseMessage(sessionId, toolCall, toolInput);
 
           if (!resolvedTool) {
@@ -1122,7 +1168,7 @@ export class HttpSessionExecutor implements SessionExecutor {
         }
       }
 
-      throw new Error(`工具回环超过 ${BOUNDED_LOOP_MAX_STEPS} 步，已按安全边界停止。`);
+      throw new Error(`工具回环超过 ${boundedLoopMaxSteps} 步，已按安全边界停止。`);
     } finally {
       clearTimeout(timeoutId);
     }
@@ -1214,7 +1260,11 @@ export class HttpSessionExecutor implements SessionExecutor {
     session: NonNullable<ReturnType<CoworkStore['getSession']>>,
     prompt: string
   ): ExecutorToolDefinition[] {
+    // {BUG} bug-tool-surface-routing-001
+    // {说明} 当前回合 agent 真正能看到哪些工具，是从这里收口的。
+    // {波及} 任何“为什么突然带了某个能力 / 为什么工具用错了”的问题，都先查这里，再查 app_config 与 role 房间清单。
     const roleKey = resolveRuntimeAgentRoleKey(session.agentRoleKey);
+    const attachmentContext = buildAttachmentRuntimeContext(prompt);
     const allowMemoryUserEdits = this.promptLikelyNeedsMemoryTool(prompt);
     const nativeCapabilityContext = {
       roleKey,
@@ -1304,6 +1354,63 @@ export class HttpSessionExecutor implements SessionExecutor {
         handler: async (args: { content: string }) => this.runBroadcastBoardWriteTool(args, session),
       },
     ];
+
+    if (attachmentContext.attachments.length > 0) {
+      tools.push({
+        name: 'attachment_manifest',
+        spec: {
+          type: 'function',
+          function: {
+            name: 'attachment_manifest',
+            description: 'List attachment sources and part counts for the current turn. Use this when the user uploaded chunked or multiple files and you need a grounded manifest before reading.',
+            parameters: {
+              type: 'object',
+              properties: {
+                source_name: { type: 'string' },
+              },
+              additionalProperties: false,
+            },
+          },
+        },
+        decorateInput: (args: Record<string, unknown>) => decorateAttachmentManifestInput(attachmentContext, args),
+        handler: async (args: { source_name?: string }) => ({
+          text: buildAttachmentManifestText(
+            attachmentContext,
+            typeof args.source_name === 'string' ? args.source_name.trim() : undefined
+          ),
+        }),
+      });
+
+      tools.push({
+        name: 'attachment_read',
+        spec: {
+          type: 'function',
+          function: {
+            name: 'attachment_read',
+            description: 'Read one attachment or one attachment part from the current turn. Use source_name + part_number for chunked files, or file_path for one exact file.',
+            parameters: {
+              type: 'object',
+              properties: {
+                source_name: { type: 'string' },
+                file_path: { type: 'string' },
+                part_number: { type: 'integer', minimum: 1 },
+                max_characters: { type: 'integer', minimum: 1000, maximum: 24000 },
+              },
+              additionalProperties: false,
+            },
+          },
+        },
+        decorateInput: (args: Record<string, unknown>) => decorateAttachmentReadInput(attachmentContext, args),
+        handler: async (args: {
+          source_name?: string;
+          file_path?: string;
+          part_number?: number;
+          max_characters?: number;
+        }) => ({
+          text: formatAttachmentReadResult(await readAttachmentText(attachmentContext, args)),
+        }),
+      });
+    }
 
     if (this.store.getConfig().memoryEnabled && allowMemoryUserEdits) {
       tools.push({
@@ -2858,29 +2965,6 @@ function extractImageAttachments(metadata: CoworkMessageMetadata | null | undefi
   });
 }
 
-function extractReferencedFilePaths(content: string): { promptText: string; filePaths: string[] } {
-  const lines = content.split(/\r?\n/);
-  const filePaths: string[] = [];
-  const promptLines: string[] = [];
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (trimmed.startsWith(`${ATTACHMENT_INPUT_LABEL}:`)) {
-      const filePath = trimmed.slice(ATTACHMENT_INPUT_LABEL.length + 1).trim();
-      if (filePath) {
-        filePaths.push(filePath);
-      }
-      continue;
-    }
-    promptLines.push(line);
-  }
-
-  return {
-    promptText: promptLines.join('\n').trim(),
-    filePaths,
-  };
-}
-
 function isLikelyImagePath(filePath: string): boolean {
   const ext = path.extname(filePath).toLowerCase();
   return ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'].includes(ext);
@@ -2892,9 +2976,15 @@ async function inlineAttachmentContent(content: string, hasInlineImagePayload: b
     return '';
   }
 
-  const { promptText, filePaths } = extractReferencedFilePaths(trimmed);
+  const attachmentContext = buildAttachmentRuntimeContext(trimmed);
+  const { promptText, attachments } = attachmentContext;
+  const filePaths = attachments.map((attachment) => attachment.path);
   if (filePaths.length === 0) {
     return trimmed;
+  }
+
+  if (attachmentContext.shouldPreferToolReading) {
+    return buildAttachmentInlineManifestPrompt(attachmentContext);
   }
 
   const parsedBlocks: string[] = [];

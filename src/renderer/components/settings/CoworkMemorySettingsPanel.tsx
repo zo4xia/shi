@@ -171,6 +171,9 @@ const CoworkMemorySettingsPanel: React.FC<CoworkMemorySettingsPanelProps> = ({
             <div className="text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary">
               {'这里展示 identity_thread_24h 的真实只读状态。它是接力板，不是全文仓库。'}
             </div>
+            <div className="text-[11px] dark:text-claude-darkTextSecondary text-claude-textSecondary">
+              {'如果 agent 口头说看不到广播板，不要先判板坏了；先看执行链是不是把 continuity 放在了不同提示层级。'}
+            </div>
           </div>
 
           {coworkBroadcastBoards.length === 0 ? (

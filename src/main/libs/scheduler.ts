@@ -29,6 +29,67 @@ interface ActiveTaskExecution {
   finalized: boolean;
 }
 
+function formatWebhookTimestamp(date: Date): string {
+  const pad = (value: number): string => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
+
+const WEBHOOK_TEXT_PLACEHOLDER = '{{这里面是回调的文字内容}}';
+
+function buildCompletionWebhookText(params: {
+  task: ScheduledTask;
+  success: boolean;
+  durationMs: number;
+  error: string | null;
+  sessionId: string | null;
+}): string {
+  const parts = [
+    `[定时任务${params.success ? '成功' : '失败'}] ${params.task.name}`,
+    `时间：${formatWebhookTimestamp(new Date())}`,
+    `状态：${params.success ? '成功' : '失败'}`,
+    `耗时：${params.durationMs}ms`,
+  ];
+
+  if (params.sessionId) {
+    parts.push(`会话ID：${params.sessionId}`);
+  }
+  if (params.error) {
+    parts.push(`错误：${params.error}`);
+  }
+
+  return parts.join('\n');
+}
+
+function applyCompletionWebhookTemplate(template: string, params: {
+  task: ScheduledTask;
+  success: boolean;
+  durationMs: number;
+  error: string | null;
+  sessionId: string | null;
+}): string {
+  const textContent = buildCompletionWebhookText(params);
+  const replacements: Record<string, string> = {
+    '{{时间-日期}}': formatWebhookTimestamp(new Date()),
+    '{{平台-成功或失败}}': `web-${params.success ? '成功' : '失败'}`,
+    '{{任务名}}': params.task.name,
+    '{{状态}}': params.success ? '成功' : '失败',
+    '{{耗时毫秒}}': String(params.durationMs),
+    '{{会话ID}}': params.sessionId || '',
+    '{{错误}}': params.error || '',
+    [WEBHOOK_TEXT_PLACEHOLDER]: textContent,
+  };
+
+  let resolved = template.trim();
+  for (const [token, value] of Object.entries(replacements)) {
+    resolved = resolved.split(token).join(encodeURIComponent(value));
+  }
+  return resolved;
+}
+
+function isWecomRobotWebhook(url: string): boolean {
+  return /^https:\/\/qyapi\.weixin\.qq\.com\/cgi-bin\/webhook\/send\?/i.test(url.trim());
+}
+
 export class Scheduler {
   private store: ScheduledTaskStore;
   private coworkStore: CoworkStore;
@@ -151,6 +212,9 @@ export class Scheduler {
     task: ScheduledTask,
     trigger: 'scheduled' | 'manual'
   ): Promise<void> {
+    // {BUG} bug-scheduler-coworkrunner-fallback-001
+    // {说明} 定时任务当前应优先走 runTaskDirectly -> HttpSessionExecutor。
+    // {波及} 一旦 handled:false 或抛错，这里仍会掉回 CoworkRunner，继续污染连续性口径与结果形态。
     if (this.activeTasks.has(task.id)) {
       console.log(`[Scheduler] Task ${task.id} already running, skipping`);
       return;
@@ -206,6 +270,8 @@ export class Scheduler {
   }
 
   private async startCoworkSession(task: ScheduledTask): Promise<string> {
+    // {BUG} bug-scheduler-legacy-runner-entry-001
+    // {说明} 这是定时任务回退到 CoworkRunner 的旧兼容入口，不是现役推荐主链。
     if (!this.getCoworkRunner) {
       throw new Error('Scheduler legacy CoworkRunner fallback is disabled in this runtime.');
     }
@@ -383,7 +449,69 @@ export class Scheduler {
       this.emitRunUpdate(updatedRun);
     }
 
+    void this.sendCompletionWebhook(updatedTask ?? latestTask, success, durationMs, error, sessionId);
+
     this.reschedule();
+  }
+
+  private async sendCompletionWebhook(
+    task: ScheduledTask,
+    success: boolean,
+    durationMs: number,
+    error: string | null,
+    sessionId: string | null
+  ): Promise<void> {
+    const rawWebhookUrl = task.completionWebhookUrl?.trim() || '';
+    if (!rawWebhookUrl) {
+      return;
+    }
+
+    const webhookText = buildCompletionWebhookText({
+      task,
+      success,
+      durationMs,
+      error,
+      sessionId,
+    });
+
+    try {
+      let response: Response;
+      if (rawWebhookUrl.includes(WEBHOOK_TEXT_PLACEHOLDER)) {
+        const webhookUrl = applyCompletionWebhookTemplate(rawWebhookUrl, {
+          task,
+          success,
+          durationMs,
+          error,
+          sessionId,
+        });
+        response = await fetch(webhookUrl, {
+          method: 'GET',
+          signal: AbortSignal.timeout(15_000),
+        });
+      } else if (isWecomRobotWebhook(rawWebhookUrl)) {
+        response = await fetch(rawWebhookUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            msgtype: 'text',
+            text: {
+              content: webhookText,
+            },
+          }),
+          signal: AbortSignal.timeout(15_000),
+        });
+      } else {
+        throw new Error(`Webhook URL 缺少 ${WEBHOOK_TEXT_PLACEHOLDER} 占位符，且不是企业微信机器人地址`);
+      }
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status} ${response.statusText}`);
+      }
+    } catch (webhookError) {
+      console.warn(`[Scheduler] Failed to send completion webhook for task ${task.id}:`, webhookError);
+    }
   }
 
   // --- Event Emission ---

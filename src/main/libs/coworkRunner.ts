@@ -1652,6 +1652,8 @@ export class CoworkRunner extends EventEmitter {
    * {标记} P0-5-FIX: 超过50条消息时压缩旧消息（保留最近20条完整+旧消息摘要）
    */
   private async buildSharedThreadXml(agentRoleKey: string): Promise<string> {
+    // {BUG} bug-broadcast-visibility-chain-001
+    // {说明} 旧链这里也会命中同一份 continuity，但后续不是进 system prompt，而是进 prompt prefix。
     try {
       coworkLog('INFO', 'buildSharedThreadXml', `Loading thread for ${agentRoleKey}`);
 
@@ -1697,6 +1699,9 @@ export class CoworkRunner extends EventEmitter {
       includeSharedThread?: boolean;
     } = {}
   ): Promise<string> {
+    // {BUG} bug-coworkrunner-prompt-prefix-001
+    // {说明} 旧链把 shared-thread continuity 注入到 prompt prefix。
+    // {波及} 它与 HttpSessionExecutor 的 system prompt 注入位阶不同，是广播板自述不一致的重要来源。
     const localTimePrompt = this.buildLocalTimeContextPrompt();
     const includeSharedThread = options.includeSharedThread !== false;
 

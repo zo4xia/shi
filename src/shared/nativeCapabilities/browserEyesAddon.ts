@@ -9,6 +9,14 @@ import type {
   NativeCapabilityRuntimeContext,
 } from './types';
 
+const ATTACHMENT_INPUT_LABEL = '输入文件:';
+
+function hasAttachedFileReference(text: string): boolean {
+  return String(text || '')
+    .split(/\r?\n/)
+    .some((line) => line.trim().startsWith(ATTACHMENT_INPUT_LABEL));
+}
+
 function listObservationWarnings(observation: Record<string, unknown>): string[] {
   const warnings = observation.warnings;
   return Array.isArray(warnings)
@@ -47,6 +55,10 @@ function detectBrowserEyesIntent(text: string): {
 } | null {
   const rawText = String(text || '').trim();
   if (!rawText) {
+    return null;
+  }
+
+  if (hasAttachedFileReference(rawText)) {
     return null;
   }
 

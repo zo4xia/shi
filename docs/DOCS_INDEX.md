@@ -5,6 +5,14 @@
 
 ## 总入口
 
+- `docs/2026-03-30_230300_PROJECT_ONE_SENTENCE_PRINCIPLE.md`
+  - 项目的一句话总纲：按需调用，异步加载，不要越做越重
+- `docs/2026-03-30_215514_PROJECT_INTENT_READ_ME_FIRST.md`
+  - 先讲这个项目为什么存在：保护连续性、保护 AI、让他们记录成长
+- `docs/2026-03-30_225432_ROLES_HOME_BOUNDARY.md`
+  - `.uclaw/web/roles` 不是普通配置目录，是每个 agent 各自的家
+- `docs/2026-03-30_230059_DIARY_RELAY_AND_ROOMS_BOUNDARY.md`
+  - 广播板空了怎么办、日记接力怎么接、信息进来时按什么优先级带
 - `docs/UCLAW_GUIDE_HANDBOOK_2026-03-27.md`
   - 最适合第一次接手的人/agent
 - `docs/PROJECT_QUICK_GUIDE_2026-03-27.md`
@@ -23,6 +31,10 @@
 
 ## 主链映射
 
+- `docs/2026-03-30_220305_BROADCAST_VISIBILITY_CHAIN_DIAGNOSIS.md`
+  - 广播板“看得到/看不到”不一致的细节判断与 Mermaid，不要再误判成广播板没了
+- `docs/2026-03-30_230410_REPAIR_BOARD_AND_MERMAID_MAP.md`
+  - 当前已经修好的板块和待修复板块总图，绿色/红色一眼看清
 - `docs/PAGE_SERVICE_ROUTE_MAP_2026-03-27.md`
   - 页面 → service → route 对照
 - `docs/DB_API_TRUNK_WALK_2026-03-27.md`

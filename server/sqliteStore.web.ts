@@ -160,6 +160,7 @@ export class SqliteStore {
         expires_at TEXT,
         skill_ids_json TEXT NOT NULL DEFAULT '[]',
         notify_platforms_json TEXT NOT NULL DEFAULT '[]',
+        completion_webhook_url TEXT,
         agent_role_key TEXT DEFAULT 'organizer',
         model_id TEXT DEFAULT '',
         next_run_at_ms INTEGER,
@@ -337,6 +338,7 @@ export class SqliteStore {
     this.migrateAddColumn('scheduled_tasks', 'schedule_json', "TEXT NOT NULL DEFAULT '{}'");
     this.migrateAddColumn('scheduled_tasks', 'skill_ids_json', "TEXT NOT NULL DEFAULT '[]'");
     this.migrateAddColumn('scheduled_tasks', 'notify_platforms_json', "TEXT NOT NULL DEFAULT '[]'");
+    this.migrateAddColumn('scheduled_tasks', 'completion_webhook_url', 'TEXT');
     this.migrateAddColumn('scheduled_tasks', 'agent_role_key', "TEXT DEFAULT 'organizer'");
     this.migrateAddColumn('scheduled_tasks', 'model_id', "TEXT DEFAULT ''");
     this.migrateAddColumn('scheduled_tasks', 'next_run_at_ms', 'INTEGER');

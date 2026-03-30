@@ -1,9 +1,12 @@
+import {
+  parseGeneratedTextChunkName,
+  type GeneratedTextChunkDescriptor,
+} from '../../shared/attachmentChunkMetadata';
+
 const DEFAULT_TEXT_SPLIT_TRIGGER_BYTES = 900 * 1024;
 const DEFAULT_TEXT_CHUNK_SIZE = 120_000;
 const DEFAULT_TEXT_CHUNK_OVERLAP = 2_000;
 const MAX_GENERATED_CHUNKS = 24;
-const GENERATED_TEXT_CHUNK_PATTERN = /^(?<source>.+)\.part-(?<part>\d+)-of-(?<total>\d+)(?<extension>\.[^.]+)?$/i;
-const GENERATED_EXTRACTED_CHUNK_PATTERN = /^(?<source>.+)\.extracted(?:\.part-(?<part>\d+)-of-(?<total>\d+))?\.txt$/i;
 
 const SPLITTABLE_TEXT_EXTENSIONS = new Set([
   '.txt',
@@ -58,42 +61,8 @@ function splitBaseName(fileName: string): { name: string; extension: string } {
   };
 }
 
-export type GeneratedTextChunkDescriptor = {
-  sourceName: string;
-  partNumber: number;
-  totalParts: number;
-  kind: 'text_split' | 'parsed_extract';
-};
-
-export function parseGeneratedTextChunkName(fileName: string): GeneratedTextChunkDescriptor | null {
-  const extractedMatch = GENERATED_EXTRACTED_CHUNK_PATTERN.exec(fileName);
-  if (extractedMatch?.groups?.source) {
-    const sourceName = extractedMatch.groups.source.trim();
-    const partNumber = Number.parseInt(extractedMatch.groups.part || '1', 10);
-    const totalParts = Number.parseInt(extractedMatch.groups.total || '1', 10);
-    return {
-      sourceName,
-      partNumber: Number.isFinite(partNumber) ? partNumber : 1,
-      totalParts: Number.isFinite(totalParts) ? totalParts : 1,
-      kind: 'parsed_extract',
-    };
-  }
-
-  const chunkMatch = GENERATED_TEXT_CHUNK_PATTERN.exec(fileName);
-  if (chunkMatch?.groups?.source) {
-    const sourceName = `${chunkMatch.groups.source.trim()}${chunkMatch.groups.extension || ''}`;
-    const partNumber = Number.parseInt(chunkMatch.groups.part || '1', 10);
-    const totalParts = Number.parseInt(chunkMatch.groups.total || '1', 10);
-    return {
-      sourceName,
-      partNumber: Number.isFinite(partNumber) ? partNumber : 1,
-      totalParts: Number.isFinite(totalParts) ? totalParts : 1,
-      kind: 'text_split',
-    };
-  }
-
-  return null;
-}
+export type { GeneratedTextChunkDescriptor } from '../../shared/attachmentChunkMetadata';
+export { parseGeneratedTextChunkName } from '../../shared/attachmentChunkMetadata';
 
 function isTextMimeType(mimeType: string): boolean {
   const normalized = mimeType.trim().toLowerCase();

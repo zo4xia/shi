@@ -176,16 +176,24 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ task, onRequestDelete }) => {
           <div>
             <div className={labelClass}>{'通知'}</div>
             <div className={valueClass}>
-              {task.notifyPlatforms && task.notifyPlatforms.length > 0
-                ? task.notifyPlatforms.map((p) => {
-                    const notifyMap: Record<string, string> = {
-                      dingtalk: '钉钉', feishu: '飞书', qq: 'QQ', telegram: 'Telegram',
-                      discord: 'Discord', nim: '云信', xiaomifeng: '小蜜蜂', wecom: '企业微信', none: '无',
-                    };
-                    return notifyMap[p] || p;
-                  }).join(', ')
-                : '无'}
+              {'当前未接线，不会自动发送 IM 通知'}
             </div>
+            {task.notifyPlatforms && task.notifyPlatforms.length > 0 && (
+              <div className="mt-1 text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary">
+                {'已保存的通知平台配置仍保留在任务数据中，但当前版本不会实际发送。'}
+              </div>
+            )}
+          </div>
+          <div className="col-span-2">
+            <div className={labelClass}>{'完成回调 Webhook'}</div>
+            <div className={valueClass + ' break-all font-mono text-xs'}>
+              {task.completionWebhookUrl?.trim() || '无'}
+            </div>
+            {task.completionWebhookUrl?.trim() && (
+              <div className="mt-1 text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary">
+                {'当前只发送文本内容；支持 {{这里面是回调的文字内容}} 占位符，也兼容企业微信机器人 text 回调。'}
+              </div>
+            )}
           </div>
           <div className="col-span-2">
             <div className={labelClass}>{'技能'}</div>

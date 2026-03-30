@@ -55,22 +55,40 @@ const resolveInlineAttachmentDirs = (
   cwd?: string,
   purpose: SaveInlineFilePurpose = 'attachment',
 ): { primaryDir: string; cacheDir: string | null } => {
+  // {BUG} bug-attachment-save-root-001
+  // {说明} 分片文件“明明切出来了却找不到”时，先看这里。
+  // {波及} 这里决定附件跟工作目录走、跟用户设置目录走，还是漂到 userData 黑箱目录。
   const appConfig = (req.context as RequestContext | undefined)?.store?.get('app_config');
   const conversationFileCache = resolveConversationFileCacheConfig(appConfig as Parameters<typeof resolveConversationFileCacheConfig>[0]);
   const cacheDir = conversationFileCache.directory.trim()
     ? path.join(path.resolve(conversationFileCache.directory.trim()), 'attachments', 'manual')
     : null;
+  const coworkConfigWorkingDirectory = (() => {
+    try {
+      const requestContext = req.context as RequestContext | undefined;
+      const raw = requestContext?.coworkStore?.getConfig()?.workingDirectory;
+      return typeof raw === 'string' ? raw.trim() : '';
+    } catch {
+      return '';
+    }
+  })();
+  const workspaceRoot = String(req.app.get('workspace') || getProjectRoot()).trim();
 
   if (purpose === 'export' && cacheDir) {
     // {标记} P1-FILE-PURPOSE-SPLIT: 导出产物优先落会话缓存目录，和运行态附件分流。
     return { primaryDir: cacheDir, cacheDir };
   }
 
-  const trimmed = typeof cwd === 'string' ? cwd.trim() : '';
-  if (trimmed) {
-    const resolved = path.resolve(trimmed);
+  const preferredWorkingDirectory = [
+    typeof cwd === 'string' ? cwd.trim() : '',
+    coworkConfigWorkingDirectory,
+  ].find((value) => Boolean(value)) || '';
+
+  if (preferredWorkingDirectory) {
+    const resolved = path.resolve(preferredWorkingDirectory);
     if (fs.existsSync(resolved) && fs.statSync(resolved).isDirectory()) {
       // {标记} P1-OPENCLAW-SKILL-COMPAT: 运行态附件主路径仍优先放工作目录，避免打断 skills 读取绝对路径。
+      // {标记} P1-ATTACHMENT-WORKDIR-TRUTH: 前端若一时未透传 cwd，后端继续以 coworkConfig.workingDirectory 为兜底真相源。
       return {
         primaryDir: path.join(resolved, '.cowork-temp', 'attachments', 'manual'),
         cacheDir,
@@ -81,6 +99,17 @@ const resolveInlineAttachmentDirs = (
   if (cacheDir) {
     // {标记} P1-CONVERSATION-CACHE-DIR: 没有工作目录时，缓存目录接管主落点。
     return { primaryDir: cacheDir, cacheDir };
+  }
+
+  if (workspaceRoot) {
+    const resolvedWorkspace = path.resolve(workspaceRoot);
+    if (fs.existsSync(resolvedWorkspace) && fs.statSync(resolvedWorkspace).isDirectory()) {
+      // {标记} P1-ATTACHMENT-WORKSPACE-FALLBACK: 连 coworkConfig 都缺失时，至少回到当前项目根，避免落进用户数据黑箱目录。
+      return {
+        primaryDir: path.join(resolvedWorkspace, '.cowork-temp', 'attachments', 'manual'),
+        cacheDir: null,
+      };
+    }
   }
 
   return {

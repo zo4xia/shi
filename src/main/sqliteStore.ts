@@ -200,6 +200,7 @@ export class SqliteStore {
         expires_at TEXT,
         skill_ids_json TEXT NOT NULL DEFAULT '[]',
         notify_platforms_json TEXT NOT NULL DEFAULT '[]',
+        completion_webhook_url TEXT,
         agent_role_key TEXT DEFAULT 'organizer',
         model_id TEXT DEFAULT '',
         next_run_at_ms INTEGER,
@@ -412,6 +413,11 @@ export class SqliteStore {
 
         if (!stColumns.includes('notify_platforms_json')) {
           this.db.run("ALTER TABLE scheduled_tasks ADD COLUMN notify_platforms_json TEXT NOT NULL DEFAULT '[]'");
+          this.save();
+        }
+
+        if (!stColumns.includes('completion_webhook_url')) {
+          this.db.run('ALTER TABLE scheduled_tasks ADD COLUMN completion_webhook_url TEXT');
           this.save();
         }
 

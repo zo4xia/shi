@@ -195,3 +195,213 @@
 - 身份锚点看 `agentRoleKey`，不是 `modelId`
 - 当前连续性、广播板、长期记忆、工具状态流，仍按 `writer / organizer / analyst / designer` 这四个角色桶来落
 - `modelId` 只代表角色当前挂的发动机，不代表“你是谁”
+
+## 附件阅读主链补丁
+
+### 这轮死守的边界
+
+- 不捂嘴：agent 仍可多次回复、多次工具调用、多轮连续阅读
+- 透明的是状态，不是限制：程序负责显示“读到第几片、哪一片已完成”，不是强制每片都停下来问用户
+- 大文件不再假装已经全部读完：优先给索引，再按需读取
+- 角色锚点不变：仍按 `writer / organizer / analyst / designer` 落身份与连续性，不按模型分桶
+- 广播板 / 长期记忆 / 最近 3 条正文这条连续性主链，本轮未改
+
+### 当前真实实现
+
+1. 抽出共享分片元信息解析
+   - 文件：`src/shared/attachmentChunkMetadata.ts`
+   - 作用：统一识别
+     - `xxx.part-01-of-12.ext`
+     - `xxx.extracted.part-01-of-12.txt`
+   - 原因：前端附件 chip、服务端附件运行时、后续别的项目都要共用这一层，不能再各写一套正则。
+
+2. 抽出服务端附件运行时
+   - 文件：`server/libs/attachmentRuntime.ts`
+   - 现有能力：
+     - `buildAttachmentRuntimeContext(...)`
+     - `attachment_manifest` 用到的 manifest 文本
+     - `attachment_read` 的按片读取
+     - 大文件/分片附件的 inline manifest prompt
+   - 目的：把附件索引、分片归组、按片读取、结果格式化从 `httpSessionExecutor.ts` 巨型文件里剥出去。
+
+3. 执行器新增两个内置附件工具
+   - 文件：`server/libs/httpSessionExecutor.ts`
+   - 新工具：
+     - `attachment_manifest`
+     - `attachment_read`
+   - 边界：
+     - 附件一旦存在，就给 agent 一个真实可调用的附件工具面
+     - 不再要求 agent 只靠 prompt 里被截断的附件正文瞎猜
+
+4. 分片/多文件 turn 不再默认全文内联
+   - 文件：`server/libs/httpSessionExecutor.ts`
+   - 改动点：`inlineAttachmentContent(...)`
+   - 新规则：
+     - 普通少量附件：保留原有“小文件直接解析内联”捷径
+     - 分片附件或多文件附件：改为返回 manifest，提示 agent 用 `attachment_manifest / attachment_read` 按需读
+   - 真实含义：
+     - 我们不再把“上传了很多片”硬塞成一大段 prompt 正文
+     - 也不再让模型口头假装“我已经看完全部”
+
+5. 给附件型回合放宽受控工具回环
+   - 文件：`server/libs/httpSessionExecutor.ts`
+   - 新规则：
+     - 普通回合：仍是 `10 步 / 90 秒`
+     - 检测到分片附件：放宽到 `24 步 / 180 秒`
+   - 原因：
+     - 前端文本分片上限本来就是 `24` 片
+     - 如果还用 `10` 步，很容易在“真正按片读文件”时再次撞到假性安全边界
+   - 注意：
+     - 这不是捂嘴，相反是给 agent 真实阅读空间
+     - 但仍保留受控边界，避免无限工具回环
+
+6. UI 工具摘要改成人能读懂的进度
+   - 文件：`src/renderer/components/cowork/sessionDetailHelpers.ts`
+   - 新行为：
+     - `attachment_read` 显示成 `源文件 03/12`
+     - `attachment_manifest` 显示成 `manifest · 3 sources`
+   - 目的：
+     - 让“程序已经实际读取到哪一片”在会话区直接可见
+     - 不再让用户盯着原始 JSON 猜到底读没读
+
+### 当前真实结果
+
+- agent 仍然自由，不是被限制成“一片一问”
+- 但附件阅读进度开始有程序层的可见锚点
+- 大文件处理从“全文塞 prompt”往“索引 + 按需读取”切过去了
+- 这条线和 `openclaw-lark` 的思路一致：过程状态透明，文件先引用再处理
+
+## 分片落盘路径事故记录
+
+### 事故现象
+
+- 用户反馈：大文件切片后，agent 经常只能看到第一片或前几片，像是“找不到后续文件”
+- 真实判断：这更像“分片文件挂载/保存目录链不稳定”，不是 agent 不愿意阅读
+
+### 实勘结果
+
+1. 当前对话工作目录真相源
+   - `GET /api/cowork/config` 返回：
+     - `workingDirectory = D:\\Users\\Admin\\Desktop\\3-main\\delivery-mainline-1.0-clean`
+
+2. 当前对话文件缓存目录配置
+   - `GET /api/store/app_config` 返回：
+     - `conversationFileCache.directory = ''`
+   - 说明：这次并没有用户自定义文件缓存目录接管保存。
+
+3. 当前测试分片真实落盘位置
+   - 文件：`探险的故事-世界的小居民有什么样的个性色彩呢.part-01-of-05 ... part-05-of-05`
+   - 实际落在：
+     - `D:\\Users\\Admin\\Desktop\\3-main\\delivery-mainline-1.0-clean\\.uclaw\\web\\attachments`
+   - 而不是预期优先落点：
+     - `D:\\Users\\Admin\\Desktop\\3-main\\delivery-mainline-1.0-clean\\.cowork-temp\\attachments\\manual`
+
+### 根因判断
+
+- `saveInlineFile` 后端原先只信前端透传的 `cwd`
+- 如果前端在某个时机没有稳定把 `cwd` 带上，保存链就会绕过当前工作目录
+- 最终退回到用户数据目录 `.uclaw\\web\\attachments`
+- 一旦分片落到这条旁路目录，后续消息挂载/读取链就更容易“只带到第一片或前几片”
+
+### 已做修复
+
+- 文件：`server/routes/dialog.ts`
+- 修复：`resolveInlineAttachmentDirs(...)` 现在的兜底顺序改成：
+  1. 前端显式 `cwd`
+  2. `coworkConfig.workingDirectory`
+  3. `workspaceRoot`
+  4. `conversationFileCache.directory`
+  5. 最后才退回 `userDataPath`
+
+### 当前边界
+
+- 系统内部确实有“对话文件保存目录”这条动态配置线，不能只看前端传参
+- 以后分片文件落盘必须优先跟随当前对话工作目录真相源
+- 这一步是为了解“分片后找不到文件”，不是为了限制 agent 阅读
+- 如果用户没有显式设置对话文件目录，默认应回到项目根目录下的 `uploud` 相对路径体系；部署到服务器时也必须守这个相对根约束，不能漂到不可预期的绝对路径黑箱里
+
+## 附件误走浏览器工具事故
+
+### 事故现象
+
+- 用户在过程信息里明确看到：
+  - `browser_observe_page`
+  - `{"file_path":"D:\\Users\\Admin\\Desktop\\3-main\\delivery-mainline-1.0-clean\\uploud\\attachments\\manual\\..."}`
+- 说明本地文本分片路径被误当成“页面/文件观察目标”交给了小眼睛工具。
+
+### 根因判断
+
+1. `browser_observe_page` 本身允许传 `file_path`
+   - 文件：`src/shared/nativeCapabilities/browserEyesAddon.ts`
+
+2. `HttpSessionExecutor` 的 organizer + 小眼睛链路，会在系统提示和预加载观察里优先鼓励页面观察
+   - 文件：`server/libs/httpSessionExecutor.ts`
+
+3. 当用户消息同时带有 `输入文件: 路径` 时，本地分片文件路径和 HTML 页面路径在模型视角里混成了一类
+   - 结果：模型把“读附件分片”错判成“观察本地页面文件”
+
+### 已做修复
+
+1. 执行器侧硬隔离
+   - 文件：`server/libs/httpSessionExecutor.ts`
+   - 修复：
+     - 只要当前用户消息里带附件引用，就不再触发 `buildPreloadedPageObservationPrompt(...)`
+     - `resolveObservationTarget(...)` / `extractFirstObservationTarget(...)` 也不会再把这些附件路径当浏览器观察目标
+
+2. 浏览器 addon 侧意图隔离
+   - 文件：`src/shared/nativeCapabilities/browserEyesAddon.ts`
+   - 修复：
+     - 只要消息里包含 `输入文件:`，`detectBrowserEyesIntent(...)` 直接返回 `null`
+   - 目的：
+     - 防止本地文件分片再次误命中 `browser_observe_page`
+
+### 当前边界
+
+- 附件分片路径不是网页，不应再被小眼睛当作 `file_path` 页面目标
+- 有附件时，优先走附件读取链，不让浏览器观察工具抢道
+
+### 用户实测补证
+
+- 过程信息中真实出现：
+  - `browser_observe_page`
+  - `{"file_path":"D:\\Users\\Admin\\Desktop\\3-main\\delivery-mainline-1.0-clean\\uploud\\attachments\\manual\\..."}`
+  - 执行结果：`小眼睛暂时没有观察到有效结果。`
+
+这条证据说明三件事：
+
+1. 分片文件并没有丢
+   - 文件真实存在
+   - 文件夹真实存在
+
+2. 当前回合也不是没拿到路径
+   - 路径已经正确传到 agent / 工具层
+   - 并且路径位于用户设置的目录：`uploud\\attachments\\manual`
+
+3. 真正错误点是“工具选错”
+   - 不是“不阅读”
+   - 不是“文件不存在”
+   - 不是“路径不对”
+   - 而是拿着正确的本地文本分片路径，去调用了 `browser_observe_page`
+
+### 当前事故定性
+
+- 这次问题已经收缩成：**附件路径进入 agent 后，被错误路由到网页观察工具**
+- 现在不是文件系统问题，而是工具调度问题
+
+## 本轮实测结论（成功）
+
+- 本地分片测试已成功
+- 关键成功条件：
+  1. 分片文件真实落盘
+  2. 文件路径真实传入当前回合
+  3. 附件任务不再误走 `browser_observe_page`
+  4. agent 能继续顺着分片往下读
+
+### 新增固定口径
+
+- 本地文件夹规则：
+  - 如果用户显式设置了对话文件保存目录，就优先走用户设置目录
+  - 如果用户没有设置，就默认读取/保存到**项目根目录相对路径**下的 `uploud` 文件夹对应路径
+- 原因：
+  - 部署到服务器时必须保持“相对项目根目录”的稳定性
+  - 避免再次漂到用户数据目录或其他不可见黑箱路径

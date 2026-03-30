@@ -47,6 +47,7 @@ export interface ScheduledTask {
   expiresAt: string | null;
   skillIds: string[];
   notifyPlatforms: NotifyPlatform[];
+  completionWebhookUrl: string | null;
   // {标记} P0-新增：身份绑定字段
   // The stored identity key may be any preserved agentRoleKey. Runtime execution can still map to the 4 main role slots.
   agentRoleKey: string;
@@ -80,6 +81,7 @@ export interface ScheduledTaskInput {
   expiresAt: string | null;
   skillIds: string[];
   notifyPlatforms: NotifyPlatform[];
+  completionWebhookUrl?: string | null;
   enabled: boolean;
   // {标记} P0-新增：身份绑定字段
   // The stored identity key may be any preserved agentRoleKey. Runtime execution can still map to the 4 main role slots.
@@ -102,6 +104,7 @@ interface TaskRow {
   expires_at: string | null;
   skill_ids_json: string;
   notify_platforms_json: string;
+  completion_webhook_url: string | null;
   // {标记} P0-新增：身份绑定字段
   agent_role_key: string;
   model_id: string;
@@ -221,10 +224,10 @@ export class ScheduledTaskStore {
       INSERT INTO scheduled_tasks
         (id, name, description, enabled, schedule_json, prompt,
          working_directory, system_prompt, execution_mode, expires_at,
-         skill_ids_json, notify_platforms_json,
+         skill_ids_json, notify_platforms_json, completion_webhook_url,
          agent_role_key, model_id,
          next_run_at_ms, consecutive_errors, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
     `, [
       id, input.name, input.description,
       input.enabled ? 1 : 0,
@@ -234,6 +237,7 @@ export class ScheduledTaskStore {
       input.expiresAt ?? null,
       JSON.stringify(input.skillIds ?? []),
       JSON.stringify(input.notifyPlatforms ?? []),
+      input.completionWebhookUrl?.trim() || null,
       input.agentRoleKey ?? 'organizer',  // 默认使用 organizer
       input.modelId ?? '',
       nextRunAtMs,
@@ -260,6 +264,9 @@ export class ScheduledTaskStore {
     const expiresAt = input.expiresAt !== undefined ? input.expiresAt : existing.expiresAt;
     const skillIds = input.skillIds !== undefined ? input.skillIds : existing.skillIds;
     const notifyPlatforms = input.notifyPlatforms !== undefined ? input.notifyPlatforms : existing.notifyPlatforms;
+    const completionWebhookUrl = input.completionWebhookUrl !== undefined
+      ? (input.completionWebhookUrl?.trim() || null)
+      : existing.completionWebhookUrl;
     // {标记} P0-BUG-FIX: 定时任务身份绑定 - 更新身份字段
     const agentRoleKey = input.agentRoleKey !== undefined ? input.agentRoleKey : existing.agentRoleKey;
     const modelId = input.modelId !== undefined ? input.modelId : existing.modelId;
@@ -277,7 +284,7 @@ export class ScheduledTaskStore {
       UPDATE scheduled_tasks
       SET name = ?, description = ?, enabled = ?, schedule_json = ?,
           prompt = ?, working_directory = ?, system_prompt = ?,
-          execution_mode = ?, expires_at = ?, skill_ids_json = ?, notify_platforms_json = ?,
+          execution_mode = ?, expires_at = ?, skill_ids_json = ?, notify_platforms_json = ?, completion_webhook_url = ?,
           agent_role_key = ?, model_id = ?,
           next_run_at_ms = ?, updated_at = ?
       WHERE id = ?
@@ -290,6 +297,7 @@ export class ScheduledTaskStore {
       expiresAt,
       JSON.stringify(skillIds),
       JSON.stringify(notifyPlatforms),
+      completionWebhookUrl,
       agentRoleKey, modelId,
       nextRunAtMs, now, id,
     ]);
@@ -569,6 +577,7 @@ export class ScheduledTaskStore {
       expiresAt: row.expires_at,
       skillIds,
       notifyPlatforms,
+      completionWebhookUrl: row.completion_webhook_url || null,
       // {标记} P0-新增：身份绑定字段
       agentRoleKey: row.agent_role_key || 'organizer',
       modelId: row.model_id || '',

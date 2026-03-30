@@ -901,6 +901,8 @@ class WechatBotGateway {
   }
 
   private getOrCreateSession(binding: WechatBotAgentBinding, fromUserId: string): CoworkSession {
+    // {BUG} bug-channel-binding-cross-wire-001
+    // {说明} 微信桥接如果出现串线、串角色、记忆忽有忽无，先查这里的 bindingKey / sourceType / agentRoleKey。
     const deps = this.requireDeps();
     const config = this.requireConfig();
     const scopeKey = `${WECHATBOT_SCOPE_PREFIX}${config.botAccountId}:${fromUserId}`;
