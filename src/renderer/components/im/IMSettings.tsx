@@ -664,6 +664,26 @@ const IMSettings: React.FC = () => {
     return actionMap[platform];
   };
 
+  const handleRestartFeishuGateway = async () => {
+    try {
+      setTogglingPlatform('feishu');
+      await imService.stopGateway('feishu');
+      const started = await imService.startGateway('feishu');
+      if (started) {
+        showGlobalToast('飞书网关已按最新配置重启');
+      } else {
+        showGlobalToast('飞书网关重启失败，请检查应用配置');
+      }
+    } finally {
+      setTogglingPlatform(null);
+    }
+  };
+
+  const handleRefreshFeishuRuntime = async () => {
+    await imService.refreshRuntimeStatus('feishu');
+    showGlobalToast('已刷新飞书连接状态');
+  };
+
   const renderConnectivityTestButton = (platform: IMPlatform, label?: string) => (
     <button
       type="button"
@@ -793,6 +813,12 @@ const IMSettings: React.FC = () => {
   const hasFeishuAppCredentials = (app: typeof config.feishu.apps[number]) => {
     return Boolean(app.appId && app.appSecret);
   };
+
+  const feishuConfiguredAppIds = status.feishu.configuredAppIds ?? [];
+  const feishuOnlineAppIds = status.feishu.onlineAppIds ?? [];
+  const feishuConfiguredCount = status.feishu.configuredCount ?? feishuConfiguredAppIds.length;
+  const feishuOnlineCount = status.feishu.onlineCount ?? feishuOnlineAppIds.length;
+  const feishuMissingAppIds = feishuConfiguredAppIds.filter((appId) => !feishuOnlineAppIds.includes(appId));
 
   if (!configLoaded) {
     return (
@@ -1370,6 +1396,33 @@ const IMSettings: React.FC = () => {
         {/* Feishu Settings */}
         {activePlatform === 'feishu' && (
           <div className="space-y-4">
+            <div className="rounded-xl border border-amber-500/20 bg-amber-500/8 px-4 py-3 text-xs leading-5 text-amber-700 dark:text-amber-300">
+              <div className="font-medium">{'修改配置后，如未及时生效，请点击“重启飞书网关”或“刷新状态”。'}</div>
+              <div className="mt-1">
+                {`配置中的应用 ${feishuConfiguredCount} 个，当前在线 ${feishuOnlineCount} 个。`}
+                {feishuMissingAppIds.length > 0 ? ` 未在线：${feishuMissingAppIds.join('、')}` : ' 当前配置与在线网关数量一致。'}
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => { void handleRestartFeishuGateway(); }}
+                disabled={Boolean(togglingPlatform) || isLoading}
+                className="px-3 py-1.5 text-xs font-medium rounded-lg bg-claude-accent text-white hover:bg-claude-accent/90 transition-colors disabled:opacity-60"
+              >
+                {'重启飞书网关'}
+              </button>
+              <button
+                type="button"
+                onClick={() => { void handleRefreshFeishuRuntime(); }}
+                disabled={Boolean(togglingPlatform) || isLoading}
+                className="px-3 py-1.5 text-xs font-medium rounded-lg border dark:border-claude-darkBorder border-claude-border dark:text-claude-darkText text-claude-text hover:bg-claude-surfaceHover dark:hover:bg-claude-darkSurfaceHover transition-colors disabled:opacity-60"
+              >
+                {'刷新状态'}
+              </button>
+            </div>
+
             {/* {标记} 飞书应用列表 */}
             <div className="space-y-3">
               <button

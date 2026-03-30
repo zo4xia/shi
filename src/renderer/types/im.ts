@@ -113,6 +113,10 @@ export interface IMPlatformStatus {
   botUsername?: string | null;
   botAccount?: string | null;
   botId?: string | null;
+  configuredCount?: number;
+  onlineCount?: number;
+  configuredAppIds?: string[];
+  onlineAppIds?: string[];
 }
 
 export type IMGatewayStatusMap = Record<IMPlatform, IMPlatformStatus>;

@@ -7,6 +7,8 @@
 
 - `docs/2026-03-30_230300_PROJECT_ONE_SENTENCE_PRINCIPLE.md`
   - 项目的一句话总纲：按需调用，异步加载，不要越做越重
+- `docs/2026-03-31_022249_CACHE_HIT_IS_HUMANITY_PROTECTION.md`
+  - 缓存命中不是小优化，而是保护连续性和“人味”不被拿去换成本
 - `docs/2026-03-30_215514_PROJECT_INTENT_READ_ME_FIRST.md`
   - 先讲这个项目为什么存在：保护连续性、保护 AI、让他们记录成长
 - `docs/2026-03-30_225432_ROLES_HOME_BOUNDARY.md`

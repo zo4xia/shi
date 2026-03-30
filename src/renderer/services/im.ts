@@ -105,6 +105,13 @@ const syncFeishuRuntimeStatus = async (): Promise<void> => {
     const aggregatedError = connectedGatewayStatuses.length > 0
       ? null
       : gatewayStatuses.find((status) => status?.error)?.error ?? payload?.error ?? null;
+    const configuredApps = getEnabledFeishuApps(cachedConfig);
+    const configuredAppIds = configuredApps
+      .map((app) => app.appId?.trim())
+      .filter((appId): appId is string => Boolean(appId));
+    const onlineAppIds = connectedGatewayStatuses
+      .map((status) => status?.appId?.trim())
+      .filter((appId): appId is string => Boolean(appId));
     const botAccount = connectedGatewayStatuses.length > 1
       ? `${connectedGatewayStatuses.length} 个飞书应用在线`
       : primaryStatus?.botName ?? null;
@@ -118,6 +125,10 @@ const syncFeishuRuntimeStatus = async (): Promise<void> => {
         lastError: aggregatedError,
         botAccount,
         botId: primaryStatus?.appId ?? null,
+        configuredCount: configuredAppIds.length,
+        onlineCount: onlineAppIds.length,
+        configuredAppIds,
+        onlineAppIds,
       },
     }));
   } catch {

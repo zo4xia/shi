@@ -26,6 +26,7 @@
 | P1 | 定时任务 IM 通知误导 | 定时任务表单 / 详情 | `TaskForm -> notifyPlatforms 保存 -> scheduler 不发送` | 用户能选，但不会发 | 定时任务用户 | 已止血 |
 | P1 | 定时任务 webhook 只是最小实现 | 定时任务完成回调 | `TaskForm completionWebhookUrl -> scheduler.sendCompletionWebhook` | 能发，但缺重试/回显/记录 | 定时任务通知 | 部分完成 |
 | P1 | native capability 开关前端认知不清 | 设置页 / 外挂能力 | `Settings -> NativeCapabilitiesSettings -> app_config.nativeCapabilities` | 用户以为没开，但系统真实开着 | 全部 role；尤其 IMA / Browser Eyes | 已定位，待验证交互是否足够清楚 |
+| P1 | 配置修改后生效反馈缺失 | 飞书配置 / gateway 状态 | `im_config.feishu.apps -> gateway/start/stop/status -> 在线 gateway 集合` | 用户改了配置但不知道是否生效，于是反复修改 | 飞书客户使用体验、配置稳定性 | 未收口 |
 | P2 | 广播板观察窗与对话页割裂 | 设置页 / 对话页 | `broadcast-boards API -> Settings only` | 设置页能看到板，对话页看不见“本轮是否命中” | 正在调试连续性的用户 | 未收口 |
 
 ---
