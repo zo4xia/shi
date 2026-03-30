@@ -391,8 +391,8 @@ export const defaultConfig: AppConfig = {
     volcengine: {
       enabled: false,
       apiKey: '',
-      baseUrl: 'https://ark.cn-beijing.volces.com/api/compatible',
-      apiFormat: 'anthropic',
+      baseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
+      apiFormat: 'openai',
       codingPlanEnabled: false,
       models: [
         { id: 'ark-code-latest', name: 'Auto', supportsImage: false },

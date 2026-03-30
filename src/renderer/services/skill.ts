@@ -517,8 +517,18 @@ class SkillService {
     // {FLOW} SKILL-RUNTIME-SNAPSHOT: 角色运行态快照当前直接走 /api/role-runtime/:roleKey，不经过 window.electron.skillRoleConfigs。
     try {
       const response = await fetch(`/api/role-runtime/${encodeURIComponent(roleKey)}`);
-      const payload = await response.json();
-      if (!response.ok || !payload?.success) {
+      const raw = await response.text();
+      if (!response.ok) {
+        if (raw.trim()) {
+          console.warn(`Failed to get role runtime (${response.status}):`, raw.slice(0, 300));
+        }
+        return null;
+      }
+      if (!raw.trim()) {
+        return null;
+      }
+      const payload = JSON.parse(raw);
+      if (!payload?.success) {
         return null;
       }
       return payload as RoleRuntimePayload;

@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import type { Database } from 'sql.js';
 
 const TURN_CACHE_SCHEMA_VERSION = 1;
-const TURN_CACHE_TTL_MS = 10 * 60 * 1000;
+const TURN_CACHE_TTL_MS = 30 * 60 * 1000;
 const initializedDatabases = new WeakSet<object>();
 
 type CacheableContentBlock =

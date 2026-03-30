@@ -134,6 +134,25 @@ export interface CoworkMemoryStats {
   implicit: number;
 }
 
+export interface CoworkBroadcastBoardEntry {
+  role: string;
+  content: string;
+  channelHint?: string;
+  channelLabel: string;
+  timestamp: number;
+  timeLabel: string;
+  channelSeq?: number;
+}
+
+export interface CoworkBroadcastBoardSnapshot {
+  agentRoleKey: string;
+  messageCount: number;
+  updatedAt: number;
+  expiresAt: number;
+  summaryText: string;
+  entries: CoworkBroadcastBoardEntry[];
+}
+
 // Cowork pending permission request
 export interface CoworkPermissionRequest {
   sessionId: string;

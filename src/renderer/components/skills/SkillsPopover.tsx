@@ -76,12 +76,6 @@ const SkillsPopover: React.FC<SkillsPopoverProps> = ({
   const currentSessionRoleKey = useSelector((state: RootState) => state.cowork.currentSession?.agentRoleKey);
   const currentRoleKey = roleKey || currentSessionRoleKey || ((coworkConfig as unknown as Record<string, unknown>).agentRoleKey as string) || 'organizer';
 
-  const truncatePath = (value: string, maxLength = 48) => {
-    if (!value) return '';
-    if (value.length <= maxLength) return value;
-    return `...${value.slice(value.length - maxLength + 3)}`;
-  };
-
   // Load role skill index when popover opens
   useEffect(() => {
     if (!isOpen) return;
@@ -106,8 +100,7 @@ const SkillsPopover: React.FC<SkillsPopoverProps> = ({
     .filter((item): item is { skill: Skill; entry: RoleSkillIndexFile['skills'][number] } => item !== null)
     .filter(({ skill, entry }) =>
       getSkillDisplayName(skill).toLowerCase().includes(searchQuery.toLowerCase()) ||
-      skillService.getLocalizedSkillDescription(skill.id, skill.name, skill.description).toLowerCase().includes(searchQuery.toLowerCase()) ||
-      entry.sourcePath.toLowerCase().includes(searchQuery.toLowerCase())
+      skillService.getLocalizedSkillDescription(skill.id, skill.name, skill.description).toLowerCase().includes(searchQuery.toLowerCase())
     );
 
   const filteredNativeCapabilities = runtimeNativeCapabilities.filter((capability) => {
@@ -345,12 +338,6 @@ const SkillsPopover: React.FC<SkillsPopoverProps> = ({
                   </div>
                   <p className="text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary truncate mt-0.5">
                     {skillService.getLocalizedSkillDescription(skill.id, skill.name, skill.description)}
-                  </p>
-                  <p
-                    className="text-[10px] dark:text-slate-400 text-slate-500 truncate mt-1"
-                    title={entry.sourcePath}
-                  >
-                    {truncatePath(entry.sourcePath)}
                   </p>
                 </div>
               </button>

@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import type { RequestContext } from '../src/index';
+import { probePlaywrightRuntime } from '../libs/playwrightRuntime';
 import { syncRoleCapabilitySnapshots } from '../libs/roleRuntimeViews';
 import { broadcastToAll } from '../websocket';
 
@@ -25,6 +26,27 @@ export function setupMcpRoutes(app: Router) {
       res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : 'Failed to list MCP servers',
+      });
+    }
+  });
+
+  router.get('/playwright-health', async (req: Request, res: Response) => {
+    try {
+      const { mcpStore } = req.context as RequestContext;
+      const servers = mcpStore.listServers();
+      const playwrightServer = servers.find((server) => (
+        server.registryId === 'playwright' || server.name === 'Playwright Browser'
+      )) || null;
+      const health = await probePlaywrightRuntime();
+      res.json({
+        success: true,
+        playwrightServer,
+        health,
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to inspect Playwright runtime',
       });
     }
   });

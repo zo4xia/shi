@@ -6,6 +6,7 @@ import { generateSessionTitle } from '../../src/main/libs/coworkUtil';
 import { resolveAgentRolesFromConfig, type AgentRoleKey as SharedAgentRoleKey } from '../../src/shared/agentRoleConfig';
 import { getProjectRoot } from '../../src/shared/runtimeDataPaths';
 import { getOrCreateWebSessionExecutor } from '../libs/httpSessionExecutor';
+import { listIdentityThreadBoardSnapshots } from '../libs/identityThreadHelper';
 import {
   getRoleSkillConfigPath,
   getRoleSkillSecretPath,
@@ -630,6 +631,26 @@ export function setupCoworkRoutes(app: Router) {
       res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : 'Failed to get memory stats',
+      });
+    }
+  });
+
+  // GET /api/cowork/memory/broadcast-boards - Observe 24h broadcast boards
+  // {路标} FLOW-ROUTE-COWORK-MEMORY
+  // {标记} P0-广播板可观测性: 只读导出 identity_thread_24h，先恢复“看得见”。
+  router.get('/memory/broadcast-boards', async (req: Request, res: Response) => {
+    try {
+      const { coworkStore } = req.context as RequestContext;
+      const { agentRoleKey, limit } = req.query;
+      const boards = listIdentityThreadBoardSnapshots(coworkStore.getDatabase(), {
+        agentRoleKey: typeof agentRoleKey === 'string' ? agentRoleKey : undefined,
+        limit: typeof limit === 'string' ? parseInt(limit, 10) : undefined,
+      });
+      res.json({ success: true, boards });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to load broadcast boards',
       });
     }
   });

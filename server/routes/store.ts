@@ -12,6 +12,7 @@ import {
   ENV_ALIAS_PAIRS,
   getEnvAliasKeysForPair,
   readEnvAliasPair,
+  readEnvAliasPairWithSuffix,
 } from '../../src/shared/envAliases';
 import {
   getSharedSkillSecretPath,
@@ -243,14 +244,63 @@ function resolveImaFallbackConfig(): { clientId: string; apiKey: string } {
   return { clientId: '', apiKey: '' };
 }
 
+function resolveFeishuFallbackConfig(): any {
+  const apps: Array<{
+    id: string;
+    name: string;
+    appId: string;
+    appSecret: string;
+    agentRoleKey: string;
+    enabled: boolean;
+    createdAt: number;
+  }> = [];
+
+  for (let index = 0; index < 10; index += 1) {
+    const suffix = index === 0 ? '' : `_${index}`;
+    const appId = readEnvAliasPairWithSuffix(ENV_ALIAS_PAIRS.feishuAppId, suffix)?.trim();
+    const appSecret = readEnvAliasPairWithSuffix(ENV_ALIAS_PAIRS.feishuAppSecret, suffix)?.trim();
+
+    if (!appId || !appSecret) {
+      continue;
+    }
+
+    apps.push({
+      id: `env-feishu-${index}`,
+      name: readEnvAliasPairWithSuffix(ENV_ALIAS_PAIRS.feishuAppName, suffix)?.trim() || `飞书应用 ${index + 1}`,
+      appId,
+      appSecret,
+      agentRoleKey: readEnvAliasPairWithSuffix(ENV_ALIAS_PAIRS.feishuAgentRoleKey, suffix)?.trim() || 'organizer',
+      enabled: true,
+      createdAt: 0,
+    });
+  }
+
+  return {
+    enabled: apps.length > 0,
+    apps,
+  };
+}
+
 function hydrateImConfigWithRuntime(value: any): any {
   const config = value && typeof value === 'object' ? { ...value } : {};
   const currentIma = normalizeImaConfig(config);
   const mergedWechatBot = mergeWechatBotConfigWithRuntime(config);
+  const currentFeishu = config.feishu && typeof config.feishu === 'object' ? config.feishu : null;
+  const hasConfiguredFeishuApps = Array.isArray(currentFeishu?.apps) && currentFeishu.apps.length > 0;
+  const fallbackFeishu = resolveFeishuFallbackConfig();
+  const hydratedFeishu = hasConfiguredFeishuApps
+    ? currentFeishu
+    : {
+        ...fallbackFeishu,
+        enabled: typeof currentFeishu?.enabled === 'boolean'
+          ? currentFeishu.enabled
+          : fallbackFeishu.enabled,
+      };
 
   if (currentIma.clientId || currentIma.apiKey) {
     return {
       ...config,
+      feishu: hydratedFeishu,
       ima: currentIma,
       wechatbot: mergedWechatBot,
     };
@@ -258,6 +308,7 @@ function hydrateImConfigWithRuntime(value: any): any {
 
   return {
     ...config,
+    feishu: hydratedFeishu,
     ima: resolveImaFallbackConfig(),
     wechatbot: mergedWechatBot,
   };

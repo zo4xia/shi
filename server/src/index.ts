@@ -103,12 +103,17 @@ import { ENV_ALIAS_PAIRS, assignEnvAlias, readEnvAliasPair } from '../../src/sha
 import { startCoworkOpenAICompatProxy, stopCoworkOpenAICompatProxy } from '../../src/main/libs/coworkOpenAICompatProxy';
 import { FeishuGateway } from '../libs/feishuGateway';
 import { getOrCreateWebSessionExecutor } from '../libs/httpSessionExecutor';
+import { dedupeRuntimeFeishuApps } from '../../clean-room/spine/modules/feishuRuntime';
 import {
   ensureRoleRuntimeDirs,
   getRoleSkillConfigPath,
   getRoleSkillSecretPath,
   syncRoleSkillIndexes,
 } from '../libs/roleSkillFiles';
+import {
+  buildBuiltinPlaywrightArgs,
+  resolvePlaywrightBrowsersPath,
+} from '../libs/playwrightRuntime';
 import { syncRoleCapabilitySnapshots, syncRoleSettingsViews } from '../libs/roleRuntimeViews';
 import { runRoleRuntimeHealthCheck } from '../libs/roleRuntimeHealthCheck';
 import { recoverSkillBindingsFromRuntimeTruth } from '../libs/skillBindingRecovery';
@@ -198,6 +203,8 @@ let scheduler: Scheduler | null = null;
 let wss: import('ws').WebSocketServer | null = null;
 let feishuGateway: FeishuGateway | null = null;
 const feishuGateways: FeishuGateway[] = [];
+let feishuGatewayInitPromise: Promise<void> | null = null;
+let feishuGatewayAutoInitCompleted = false;
 let staleSessionSweepTimer: ReturnType<typeof setInterval> | null = null;
 let unlistenStoreChanges: (() => void) | null = null;
 let deferredStartupWarmupTimer: ReturnType<typeof setTimeout> | null = null;
@@ -773,29 +780,15 @@ const getStore = (): SqliteStore => {
   return store;
 };
 
-// {标记} 预装内置 MCP servers — 首次启动自动注入
-// Resolve local @playwright/mcp entry point so we don't need npx at runtime
-const resolvePlaywrightMcpEntry = (): string => {
-  try {
-    // require.resolve not available in ESM; use import.meta.resolve or manual path
-    const candidate = path.join(getProjectRoot(), 'node_modules', '@playwright', 'mcp', 'cli.js');
-    if (fs.existsSync(candidate)) return candidate;
-    // Fallback: try from __dirname (compiled dist)
-    const candidate2 = path.resolve(__dirname, '..', '..', '..', '..', 'node_modules', '@playwright', 'mcp', 'cli.js');
-    if (fs.existsSync(candidate2)) return candidate2;
-  } catch { /* ignore */ }
-  return '';
-};
-
 const BUILTIN_MCP_SERVERS = [
   {
     name: 'Playwright Browser',
-    description: 'Browser automation via Playwright (built-in Chromium, organizer专用)',
+    description: 'Browser automation via Playwright (built-in Chromium, organizer专用；服务器默认无桌面时自动走 headless)',
     transportType: 'stdio' as const,
     command: 'node',
-    args: [resolvePlaywrightMcpEntry()],
+    args: buildBuiltinPlaywrightArgs(),
     env: {
-      PLAYWRIGHT_BROWSERS_PATH: path.join(getProjectRoot(), '.playwright-browsers'),
+      PLAYWRIGHT_BROWSERS_PATH: resolvePlaywrightBrowsersPath(),
     },
     isBuiltIn: true,
     registryId: 'playwright',
@@ -890,83 +883,108 @@ const ensureDailyMemoryExtractionCron = (): void => {
 // {埋点} ⚡ 飞书Gateway初始化 (ID: feishu-gw-001) 遍历apps[] → new FeishuGateway → gw.start()
 // {标记} 支持多个飞书应用，每个bot绑定一个角色身份
 const initFeishuGateway = async (): Promise<void> => {
-  try {
-    const s = getStore();
-    const kvData = s.get('im_config');
-    const imConfig = (kvData && typeof kvData === 'object') ? kvData as Record<string, any> : {} as Record<string, any>;
-    const feishuConfig = imConfig.feishu;
-
-    // 检查数据库中的启用状态
-    if (feishuConfig?.enabled === false) {
-      console.log('[Feishu WS] Disabled in config, skipping');
-      return;
-    }
-
-    // {标记} 收集所有要启动的应用：.env + 数据库apps[]
-    const appsToStart: Array<{ appId: string; appSecret: string; agentRoleKey: string }> = [];
-
-    // 1. .env 环境变量（向后兼容，作为第一个应用）
-    const envAppId = readEnvAliasPair(ENV_ALIAS_PAIRS.feishuAppId);
-    const envAppSecret = readEnvAliasPair(ENV_ALIAS_PAIRS.feishuAppSecret);
-    const envAgentRoleKey = normalizeRequiredIdentityRoleKey(readEnvAliasPair(ENV_ALIAS_PAIRS.feishuAgentRoleKey));
-    if (envAppId && envAppSecret) {
-      if (!envAgentRoleKey) {
-        console.warn('[Feishu WS] Skip env bootstrap app: missing FEISHU_AGENT_ROLE_KEY / agentRoleKey binding');
-      } else {
-        appsToStart.push({ appId: envAppId, appSecret: envAppSecret, agentRoleKey: envAgentRoleKey });
-      }
-    }
-
-    // 2. 数据库 apps[] 配置（跳过已被.env覆盖的）
-    const dbApps = Array.isArray(feishuConfig?.apps) ? feishuConfig.apps : [];
-    for (const dbApp of dbApps) {
-      if (!dbApp?.appId || !dbApp?.appSecret || !dbApp?.enabled) continue;
-      // 跳过和.env重复的
-      if (envAppId && dbApp.appId === envAppId) continue;
-      const identityRoleKey = normalizeRequiredIdentityRoleKey(dbApp.agentRoleKey);
-      if (!identityRoleKey) {
-        console.warn(`[Feishu WS] Skip app ${dbApp.appId}: missing agentRoleKey binding`);
-        continue;
-      }
-      appsToStart.push({
-        appId: dbApp.appId,
-        appSecret: dbApp.appSecret,
-        agentRoleKey: identityRoleKey,
-      });
-    }
-
-    if (appsToStart.length === 0) {
-      console.log('[Feishu WS] No credentials configured, skipping auto-start');
-      return;
-    }
-
-    // {标记} 逐个启动每个应用的长连接
-    const domain = feishuConfig?.domain || 'feishu';
-    const debug = feishuConfig?.debug ?? true;
-
-    for (const app of appsToStart) {
-      try {
-        const gw = new FeishuGateway();
-        gw.setDependencies({
-          coworkStore: getCoworkStore(),
-          store: getStore(),
-          skillManager: getSkillManager(),
-        });
-        await gw.start({ appId: app.appId, appSecret: app.appSecret, agentRoleKey: app.agentRoleKey, domain, debug });
-        feishuGateways.push(gw);
-        console.log(`[Feishu WS] Gateway started: ${app.appId} → ${app.agentRoleKey}`);
-      } catch (err: any) {
-        console.error(`[Feishu WS] Failed to start ${app.appId} (${app.agentRoleKey}):`, err.message);
-      }
-    }
-
-    // {标记} 向后兼容：feishuGateway 指向第一个成功启动的
-    feishuGateway = feishuGateways.length > 0 ? feishuGateways[0] : null;
-
-    console.log(`[Feishu WS] Total gateways started: ${feishuGateways.length}`);
-  } catch (error: any) {
-    console.error('[Feishu WS] Auto-start failed:', error.message);
+  if (feishuGatewayAutoInitCompleted) {
+    console.log('[Feishu WS] Auto-start already completed, skipping');
+    return;
   }
+
+  if (feishuGatewayInitPromise) {
+    console.log('[Feishu WS] Auto-start already in progress, awaiting existing init');
+    return feishuGatewayInitPromise;
+  }
+
+  feishuGatewayInitPromise = (async () => {
+    try {
+      const s = getStore();
+      const kvData = s.get('im_config');
+      const imConfig = (kvData && typeof kvData === 'object') ? kvData as Record<string, any> : {} as Record<string, any>;
+      const feishuConfig = imConfig.feishu;
+
+      // 检查数据库中的启用状态
+      if (feishuConfig?.enabled === false) {
+        console.log('[Feishu WS] Disabled in config, skipping');
+        feishuGatewayAutoInitCompleted = true;
+        return;
+      }
+
+      // {标记} 收集所有要启动的应用：.env + 数据库apps[]
+      const appsToStart: Array<{ appId: string; appSecret: string; agentRoleKey: string }> = [];
+
+      // 1. .env 环境变量（向后兼容，作为第一个应用）
+      const envAppId = readEnvAliasPair(ENV_ALIAS_PAIRS.feishuAppId);
+      const envAppSecret = readEnvAliasPair(ENV_ALIAS_PAIRS.feishuAppSecret);
+      const envAgentRoleKey = normalizeRequiredIdentityRoleKey(readEnvAliasPair(ENV_ALIAS_PAIRS.feishuAgentRoleKey));
+      if (envAppId && envAppSecret) {
+        if (!envAgentRoleKey) {
+          console.warn('[Feishu WS] Skip env bootstrap app: missing FEISHU_AGENT_ROLE_KEY / agentRoleKey binding');
+        } else {
+          appsToStart.push({ appId: envAppId, appSecret: envAppSecret, agentRoleKey: envAgentRoleKey });
+        }
+      }
+
+      // 2. 数据库 apps[] 配置（跳过已被.env覆盖的）
+      const dbApps = Array.isArray(feishuConfig?.apps) ? feishuConfig.apps : [];
+      for (const dbApp of dbApps) {
+        if (!dbApp?.appId || !dbApp?.appSecret || !dbApp?.enabled) continue;
+        // 跳过和.env重复的
+        if (envAppId && dbApp.appId === envAppId) continue;
+        const identityRoleKey = normalizeRequiredIdentityRoleKey(dbApp.agentRoleKey);
+        if (!identityRoleKey) {
+          console.warn(`[Feishu WS] Skip app ${dbApp.appId}: missing agentRoleKey binding`);
+          continue;
+        }
+        appsToStart.push({
+          appId: dbApp.appId,
+          appSecret: dbApp.appSecret,
+          agentRoleKey: identityRoleKey,
+        });
+      }
+
+      const uniqueAppsToStart = dedupeRuntimeFeishuApps(appsToStart);
+      if (uniqueAppsToStart.length < appsToStart.length) {
+        console.warn(`[Feishu WS] Deduped startup app list: ${appsToStart.length} -> ${uniqueAppsToStart.length}`);
+      }
+
+      if (uniqueAppsToStart.length === 0) {
+        console.log('[Feishu WS] No credentials configured, skipping auto-start');
+        feishuGatewayAutoInitCompleted = true;
+        return;
+      }
+
+      // {标记} 逐个启动每个应用的长连接
+      const domain = feishuConfig?.domain || 'feishu';
+      const debug = feishuConfig?.debug ?? true;
+
+      for (const app of uniqueAppsToStart) {
+        try {
+          const gw = new FeishuGateway();
+          gw.setDependencies({
+            coworkStore: getCoworkStore(),
+            store: getStore(),
+            skillManager: getSkillManager(),
+          });
+          await gw.start({ appId: app.appId, appSecret: app.appSecret, agentRoleKey: app.agentRoleKey, domain, debug });
+          feishuGateways.push(gw);
+          console.log(`[Feishu WS] Gateway started: ${app.appId} → ${app.agentRoleKey}`);
+        } catch (err: any) {
+          console.error(`[Feishu WS] Failed to start ${app.appId} (${app.agentRoleKey}):`, err.message);
+        }
+      }
+
+      // {标记} 向后兼容：feishuGateway 指向第一个成功启动的
+      feishuGateway = feishuGateways.length > 0 ? feishuGateways[0] : null;
+
+      console.log(`[Feishu WS] Total gateways started: ${feishuGateways.length}`);
+      feishuGatewayAutoInitCompleted = true;
+    } catch (error: any) {
+      console.error('[Feishu WS] Auto-start failed:', error.message);
+      throw error;
+    } finally {
+      feishuGatewayInitPromise = null;
+    }
+  })();
+
+  return feishuGatewayInitPromise;
 };
 
 const initWechatBotGateway = async (): Promise<void> => {
@@ -1008,12 +1026,76 @@ const getFeishuGateway = (): FeishuGateway | null => feishuGateway;
 // Do not resolve it at module load time, otherwise cwd drift can freeze the wrong runtime root.
 export let userDataPath = '';
 
+const LOCAL_DEV_ORIGIN_RE = /^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/i;
+
+function parseCorsOriginConfig(rawValue: string | undefined): {
+  allowAny: boolean;
+  allowLocalDev: boolean;
+  allowedOrigins: Set<string>;
+} {
+  const trimmed = rawValue?.trim() || '';
+  const isPlaceholder = trimmed === 'https://your-domain.example.com';
+
+  if (!trimmed) {
+    return {
+      allowAny: true,
+      allowLocalDev: true,
+      allowedOrigins: new Set(),
+    };
+  }
+
+  if (trimmed === '*') {
+    return {
+      allowAny: true,
+      allowLocalDev: true,
+      allowedOrigins: new Set(),
+    };
+  }
+
+  const allowedOrigins = new Set(
+    trimmed
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean),
+  );
+
+  return {
+    allowAny: false,
+    allowLocalDev: isPlaceholder,
+    allowedOrigins,
+  };
+}
+
+const corsOriginConfig = parseCorsOriginConfig(process.env.CORS_ORIGIN);
+
 // Create Express app
 const app: ReturnType<typeof express> = express();
 
 // Middleware
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || '*',
+  origin(origin, callback) {
+    if (!origin) {
+      callback(null, true);
+      return;
+    }
+
+    if (corsOriginConfig.allowAny) {
+      callback(null, true);
+      return;
+    }
+
+    if (corsOriginConfig.allowLocalDev && LOCAL_DEV_ORIGIN_RE.test(origin)) {
+      callback(null, true);
+      return;
+    }
+
+    if (corsOriginConfig.allowedOrigins.has(origin)) {
+      callback(null, true);
+      return;
+    }
+
+    callback(new Error(`CORS blocked origin: ${origin}`));
+  },
   credentials: true,
 }));
 app.use(express.json({ limit: '50mb', type: 'application/json' }));

@@ -82,6 +82,7 @@ const CoworkView: React.FC<CoworkViewProps> = ({ onRequestAppSettings, onShowSki
   useEffect(() => {
     const init = async () => {
       // {路标} FLOW-PAGE-COWORK-INIT
+      // {BREAKPOINT} continuity-ui-start-001
       // {FLOW} PAGE-COWORK-INIT: Cowork 页进入时先 init service，再校验 API 配置，再决定是否弹 Settings。
       await coworkService.init();
       setIsInitialized(true);
@@ -106,6 +107,8 @@ const CoworkView: React.FC<CoworkViewProps> = ({ onRequestAppSettings, onShowSki
   }, [dispatch, onRequestAppSettings]);
 
   const handleStartSession = async (prompt: string, skillPrompt?: string, imageAttachments?: CoworkImageAttachment[]) => {
+    // {FLOW} CONTINUITY-UI-START-SESSION
+    // {BREAKPOINT} continuity-ui-start-001
     // Prevent duplicate submissions
     if (isStartingRef.current) return;
     isStartingRef.current = true;
@@ -187,6 +190,8 @@ const CoworkView: React.FC<CoworkViewProps> = ({ onRequestAppSettings, onShowSki
   };
 
   const handleContinueSession = async (prompt: string, skillPrompt?: string, imageAttachments?: CoworkImageAttachment[]) => {
+    // {FLOW} CONTINUITY-UI-CONTINUE-SESSION
+    // {BREAKPOINT} continuity-ui-continue-001
     if (!currentSession) return;
 
     console.log('[CoworkView] handleContinueSession called', {
@@ -333,7 +338,7 @@ const CoworkView: React.FC<CoworkViewProps> = ({ onRequestAppSettings, onShowSki
 
       {/* Main Content - 欢迎页自适应高度，不产生滚动 */}
       <div className="flex-1 overflow-y-auto min-h-0">
-        <div className="mx-auto flex w-full max-w-3xl flex-col px-6 py-[42px] sm:py-[50px]">
+        <div className="mx-auto flex w-full max-w-[1120px] flex-col px-6 py-[42px] sm:py-[50px]">
           <div className="relative mb-12 text-center sm:mb-14">
             <div className="absolute inset-x-0 top-3 -z-10 mx-auto h-36 w-36 rounded-full bg-gradient-radial from-claude-accent/6 to-transparent blur-3xl" />
             <div className="mx-auto inline-flex flex-col items-center">
@@ -346,10 +351,10 @@ const CoworkView: React.FC<CoworkViewProps> = ({ onRequestAppSettings, onShowSki
                   </div>
                 </div>
               </div>
-              <h2 className="mt-4 text-[28px] font-semibold tracking-[0.02em] text-claude-text dark:text-claude-darkText">
+              <h1 className="mt-4 text-[34px] font-semibold tracking-[0.04em] text-claude-text dark:text-claude-darkText sm:text-[38px]">
                 Uclaw
-              </h2>
-              <div className="mt-2 max-w-[680px] overflow-hidden text-ellipsis whitespace-nowrap text-sm leading-6 text-claude-textSecondary dark:text-claude-darkTextSecondary">
+              </h1>
+              <div className="mt-2 max-w-[760px] overflow-hidden text-ellipsis whitespace-nowrap text-[13px] font-medium leading-6 text-claude-textSecondary dark:text-claude-darkTextSecondary">
                 <span>🧠 自带跨多端记忆，一个对话框就够了</span>
                 <span className="mx-3 text-claude-accent/55">·</span>
                 <span>💬 飞书与多消息频道支持</span>
@@ -360,7 +365,7 @@ const CoworkView: React.FC<CoworkViewProps> = ({ onRequestAppSettings, onShowSki
           </div>
 
           {/* Prompt Input Area - 精致输入框容器 */}
-          <div className="mx-auto mb-5 flex w-full max-w-[900px] flex-wrap items-center justify-start gap-3 px-2">
+          <div className="uclaw-home-chip-row mb-5 flex flex-wrap items-center justify-start gap-3 px-2">
             {(() => {
               const roleCards: { key: AgentRoleKey; label: string; icon: string; color: string; bg: string; border: string; activeTone: string; activeShadow: string }[] = [
                 { key: 'organizer', label: '浏览器助手', icon: '🌐', color: 'text-blue-600 dark:text-blue-400', bg: 'from-blue-500/10 to-blue-400/5', border: 'border-blue-400/30 hover:border-blue-400/60', activeTone: 'from-blue-400/22 to-blue-300/12 ring-blue-300/35 border-blue-400/55', activeShadow: 'shadow-[0_10px_22px_rgba(96,165,250,0.22)]' },
@@ -392,9 +397,9 @@ const CoworkView: React.FC<CoworkViewProps> = ({ onRequestAppSettings, onShowSki
             })()}
           </div>
 
-          <div className="relative mx-auto w-full max-w-[900px]">
+          <div className="uclaw-home-input-region">
             <div className="relative group">
-              <div className="relative rounded-[28px] border border-white/55 bg-gradient-to-br from-white/92 via-pearl-50/88 to-[#f3e8de]/92 p-2 shadow-[0_12px_32px_rgba(140,116,96,0.12)] backdrop-blur-xl dark:border-white/10 dark:from-gray-800/92 dark:via-gray-900/84 dark:to-gray-950/92">
+              <div className="uclaw-panel-shell">
                 <div className="px-3 pt-3">
                   {latestVisibleSession ? (
                     <div className="mb-3 flex items-center gap-3 rounded-2xl border border-violet-200/60 bg-violet-50/60 px-3.5 py-2.5 dark:border-violet-400/15 dark:bg-violet-400/[0.06] sm:rounded-full">
@@ -435,7 +440,7 @@ const CoworkView: React.FC<CoworkViewProps> = ({ onRequestAppSettings, onShowSki
                     </div>
                   )}
                 </div>
-                <div className="rounded-[24px] bg-gradient-to-br from-white/72 via-pearl-50/58 to-[#f7efe8]/66 dark:bg-black/10">
+                <div className="uclaw-panel-inner">
                   <CoworkPromptInput
                     ref={promptInputRef}
                     onSubmit={handleStartSession}

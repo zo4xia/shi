@@ -17,6 +17,7 @@ import { setSkills, toggleActiveSkill } from '../../store/slices/skillSlice';
 import { Skill } from '../../types/skill';
 import { CoworkImageAttachment } from '../../types/cowork';
 import { getCompactFolderName } from '../../utils/path';
+import { chunkTextForAttachment, shouldSplitTextFile, splitLargeTextFile } from '../../utils/textFileChunking';
 import type { AgentRoleKey } from '../../../shared/agentRoleConfig';
 import {
   BROWSER_EYES_CURRENT_PAGE_STORE_KEY,
@@ -35,6 +36,15 @@ const MAX_PROMPT_CHARS = 12000;
 const URL_PATTERN = /(https?:\/\/[^\s]+|www\.[^\s]+)/i;
 
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg']);
+const SERVER_PARSED_DOCUMENT_EXTENSIONS = new Set(['.pdf', '.doc', '.docx', '.xls', '.xlsx']);
+const SERVER_PARSED_DOCUMENT_MIME_HINTS = [
+  'application/pdf',
+  'application/msword',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+];
+const PARSED_DOCUMENT_MAX_CHARACTERS = 400_000;
 
 const isImagePath = (filePath: string): boolean => {
   const ext = filePath.slice(filePath.lastIndexOf('.')).toLowerCase();
@@ -56,6 +66,22 @@ const getFileNameFromPath = (path: string): string => {
   return parts[parts.length - 1] || path;
 };
 
+const getFileExtension = (fileName: string): string => {
+  const index = fileName.lastIndexOf('.');
+  return index >= 0 ? fileName.slice(index).toLowerCase() : '';
+};
+
+const splitBaseName = (fileName: string): { name: string; extension: string } => {
+  const index = fileName.lastIndexOf('.');
+  if (index <= 0) {
+    return { name: fileName, extension: '' };
+  }
+  return {
+    name: fileName.slice(0, index),
+    extension: fileName.slice(index),
+  };
+};
+
 const extractFirstUrl = (input: string): string | null => {
   const matched = input.match(URL_PATTERN)?.[0]?.trim();
   return matched || null;
@@ -74,6 +100,43 @@ const clampPromptValue = (input: string): { value: string; wasTruncated: boolean
 const getSkillDirectoryFromPath = (skillPath: string): string => {
   const normalized = skillPath.trim().replace(/\\/g, '/');
   return normalized.replace(/\/SKILL\.md$/i, '') || normalized;
+};
+
+const isServerParsedDocumentFile = (file: File): boolean => {
+  const fileType = file.type.trim().toLowerCase();
+  if (fileType && SERVER_PARSED_DOCUMENT_MIME_HINTS.some((item) => fileType.includes(item))) {
+    return true;
+  }
+  return SERVER_PARSED_DOCUMENT_EXTENSIONS.has(getFileExtension(file.name));
+};
+
+const buildExtractedTextChunkFiles = (sourceName: string, fileType: string, extractedText: string): File[] => {
+  const chunks = chunkTextForAttachment(extractedText);
+  const { name } = splitBaseName(sourceName);
+  if (chunks.length <= 1) {
+    const content = [
+      `来源文件: ${sourceName}`,
+      `提取类型: ${fileType}`,
+      '',
+      chunks[0] || extractedText,
+    ].join('\n');
+    return [new File([content], `${name}.extracted.txt`, { type: 'text/plain' })];
+  }
+
+  const totalLabel = String(chunks.length).padStart(2, '0');
+  return chunks.map((chunk, index) => {
+    const partLabel = String(index + 1).padStart(2, '0');
+    const content = [
+      `来源文件: ${sourceName}`,
+      `提取类型: ${fileType}`,
+      `分块: ${index + 1}/${chunks.length}`,
+      '',
+      chunk,
+    ].join('\n');
+    return new File([content], `${name}.extracted.part-${partLabel}-of-${totalLabel}.txt`, {
+      type: 'text/plain',
+    });
+  });
 };
 
 const buildInlinedSkillPrompt = (skill: Skill): string => {
@@ -144,6 +207,7 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
     const [showFolderRequiredWarning, setShowFolderRequiredWarning] = useState(false);
     const [inputWasTruncated, setInputWasTruncated] = useState(initialPrompt.wasTruncated);
     const [isDraggingFiles, setIsDraggingFiles] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const folderButtonRef = useRef<HTMLButtonElement>(null);
     const dragDepthRef = useRef(0);
@@ -383,7 +447,7 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
     : 'relative flex items-end gap-2 p-3.5 rounded-xl border border-white/30 dark:border-white/[0.12] bg-white/75 dark:bg-white/[0.08] backdrop-blur-md shadow-[0_2px_8px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.3)] focus-within:border-violet-300/60 dark:focus-within:border-violet-400/30 focus-within:shadow-[0_0_0_3px_rgba(167,139,250,0.12),0_4px_16px_rgba(167,139,250,0.1)] dark:focus-within:shadow-[0_0_0_3px_rgba(167,139,250,0.15),0_4px_16px_rgba(0,0,0,0.4)] transition-all duration-200';
 
   const textareaClass = isLarge
-    ? `w-full resize-none bg-transparent px-5 pt-3 pb-2.5 dark:text-white/90 text-[#5A5248] placeholder:dark:text-white/40 placeholder:text-[#9A9085]/55 focus:outline-none text-[14px] leading-6 tracking-[0.01em] overflow-y-auto transition-[height] duration-150`
+    ? `w-full resize-none bg-transparent px-5 pt-3 pb-2.5 dark:text-white/90 text-[#5A5248] placeholder:dark:text-white/40 placeholder:text-[#9A9085]/55 focus:outline-none text-[12px] leading-5 tracking-[0.01em] overflow-y-auto transition-[height] duration-150`
     : 'flex-1 resize-none bg-transparent dark:text-white/90 text-[#5A5248] placeholder:dark:text-white/40 placeholder:text-[#9A9085]/50 focus:outline-none text-sm leading-relaxed overflow-y-auto transition-[height] duration-150';
 
   const truncatePath = (path: string, maxLength = 30): string => {
@@ -501,6 +565,45 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
     }
   }, [fileToBase64, workingDirectory]);
 
+  const parseInlineFile = useCallback(async (filePath: string): Promise<{
+    success: boolean;
+    fileName?: string;
+    fileType?: string;
+    text?: string;
+    truncated?: boolean;
+    error?: string;
+  }> => {
+    try {
+      return await window.electron.dialog.parseInlineFile({
+        path: filePath,
+        maxCharacters: PARSED_DOCUMENT_MAX_CHARACTERS,
+      });
+    } catch (error) {
+      console.error('Failed to parse inline file:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to parse inline file',
+      };
+    }
+  }, []);
+
+  const stageExtractedDocumentChunks = useCallback(async (
+    sourceName: string,
+    fileType: string,
+    extractedText: string,
+  ): Promise<number> => {
+    const chunkFiles = buildExtractedTextChunkFiles(sourceName, fileType, extractedText);
+    let successCount = 0;
+    for (const chunkFile of chunkFiles) {
+      const stagedPath = await saveInlineFile(chunkFile);
+      if (stagedPath) {
+        addAttachment(stagedPath);
+        successCount += 1;
+      }
+    }
+    return successCount;
+  }, [addAttachment, saveInlineFile]);
+
   const handleIncomingFiles = useCallback(async (fileList: FileList | File[]) => {
     if (disabled || isStreaming) return;
     const files = Array.from(fileList ?? []);
@@ -513,6 +616,59 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
       const fileIsImage = nativePath
         ? isImagePath(nativePath)
         : isImageMimeType(file.type);
+      const fileNeedsStructuredParse = !fileIsImage && isServerParsedDocumentFile(file);
+
+      if (fileNeedsStructuredParse) {
+        let sourcePath = nativePath;
+        if (!sourcePath) {
+          sourcePath = await saveInlineFile(file);
+        }
+
+        if (sourcePath) {
+          const parsedResult = await parseInlineFile(sourcePath);
+          if (parsedResult.success && parsedResult.text?.trim()) {
+            const sourceName = parsedResult.fileName || file.name || getFileNameFromPath(sourcePath);
+            const successCount = await stageExtractedDocumentChunks(
+              sourceName,
+              parsedResult.fileType || getFileExtension(sourceName).replace(/^\./, '') || 'text',
+              parsedResult.text,
+            );
+            if (successCount > 0) {
+              showGlobalToast(
+                `${sourceName} 已解析并拆成 ${successCount} 份文本${parsedResult.truncated ? '（解析内容达到上限）' : ''}`,
+              );
+              continue;
+            }
+          } else if (parsedResult.error) {
+            console.warn(`Failed to parse ${file.name}:`, parsedResult.error);
+          }
+
+          addAttachment(sourcePath);
+          continue;
+        }
+      }
+
+      if (!fileIsImage && shouldSplitTextFile(file)) {
+        try {
+          const splitFiles = await splitLargeTextFile(file);
+          if (splitFiles.length > 1) {
+            let successCount = 0;
+            for (const splitFile of splitFiles) {
+              const stagedPath = await saveInlineFile(splitFile);
+              if (stagedPath) {
+                addAttachment(stagedPath);
+                successCount += 1;
+              }
+            }
+            if (successCount > 0) {
+              showGlobalToast(`${file.name} 过大，已在浏览器侧切成 ${successCount} 份`);
+              continue;
+            }
+          }
+        } catch (error) {
+          console.error('Failed to split large text file:', error);
+        }
+      }
 
       if (fileIsImage && modelSupportsImage) {
         // For images on vision-capable models, read as data URL
@@ -561,34 +717,31 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
         addAttachment(stagedPath);
       }
     }
-  }, [addAttachment, addImageAttachmentFromDataUrl, disabled, fileToDataUrl, getNativeFilePath, isStreaming, modelSupportsImage, saveInlineFile]);
+  }, [
+    addAttachment,
+    addImageAttachmentFromDataUrl,
+    disabled,
+    fileToDataUrl,
+    getNativeFilePath,
+    isStreaming,
+    modelSupportsImage,
+    parseInlineFile,
+    saveInlineFile,
+    stageExtractedDocumentChunks,
+  ]);
 
-  const handleAddFile = useCallback(async () => {
-    try {
-      const result = await window.electron.dialog.selectFile({
-        title: '添加文件',
-        // {标记} P1-ATTACHMENT-CWD-UNIFY: 浏览器文件选择与拖拽/粘贴共用 cwd 落点规则。
-        cwd: workingDirectory,
-      });
-      if (result.success && result.path) {
-        // Check if it's an image and model supports images
-        if (isImagePath(result.path) && modelSupportsImage) {
-          try {
-            const readResult = await window.electron.dialog.readFileAsDataUrl(result.path);
-            if (readResult.success && readResult.dataUrl) {
-              addAttachment(result.path, { isImage: true, dataUrl: readResult.dataUrl });
-              return;
-            }
-          } catch (error) {
-            console.error('Failed to read image as data URL:', error);
-          }
-        }
-        addAttachment(result.path);
-      }
-    } catch (error) {
-      console.error('Failed to select file:', error);
+  const handleAddFile = useCallback(() => {
+    if (disabled || isStreaming) return;
+    fileInputRef.current?.click();
+  }, [disabled, isStreaming]);
+
+  const handleFileInputChange = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = event.target.files;
+    if (selectedFiles && selectedFiles.length > 0) {
+      await handleIncomingFiles(selectedFiles);
     }
-  }, [addAttachment, modelSupportsImage]);
+    event.target.value = '';
+  }, [handleIncomingFiles]);
 
   const handleRemoveAttachment = useCallback((path: string) => {
     setAttachments((prev) => prev.filter((attachment) => attachment.path !== path));
@@ -677,6 +830,12 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
 
   return (
     <div className="relative">
+      <input
+        ref={fileInputRef}
+        type="file"
+        className="hidden"
+        onChange={handleFileInputChange}
+      />
       {attachments.length > 0 && (
         <div className="mb-2 flex flex-wrap gap-2">
           {attachments.map((attachment) => (

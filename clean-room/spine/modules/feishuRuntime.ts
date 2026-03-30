@@ -26,10 +26,66 @@ export interface FeishuAgentBinding {
   roleLabel: string;
 }
 
+type FeishuRuntimeAppLike = {
+  id?: string;
+  name?: string;
+  appId?: string;
+  appSecret?: string;
+  agentRoleKey?: string;
+  enabled?: boolean;
+  createdAt?: number;
+};
+
 function resolveFeishuRuntimeRoleKey(agentRoleKey: string): string {
   return agentRoleKey === 'writer' || agentRoleKey === 'designer' || agentRoleKey === 'analyst'
     ? agentRoleKey
     : DEFAULT_FEISHU_AGENT_ROLE_KEY;
+}
+
+function normalizeFeishuRuntimeAppId(appId: string | undefined): string {
+  return String(appId || '').trim();
+}
+
+export function dedupeRuntimeFeishuApps<T extends FeishuRuntimeAppLike>(apps: T[]): T[] {
+  const deduped: T[] = [];
+  const indexByAppId = new Map<string, number>();
+
+  for (const app of apps) {
+    if (!app || typeof app !== 'object') {
+      continue;
+    }
+
+    const appId = normalizeFeishuRuntimeAppId(app.appId);
+    if (!appId) {
+      deduped.push(app);
+      continue;
+    }
+
+    const existingIndex = indexByAppId.get(appId);
+    if (existingIndex === undefined) {
+      indexByAppId.set(appId, deduped.length);
+      deduped.push({
+        ...app,
+        appId,
+      });
+      continue;
+    }
+
+    const existing = deduped[existingIndex];
+    deduped[existingIndex] = {
+      ...app,
+      ...existing,
+      appId,
+      appSecret: existing.appSecret || app.appSecret,
+      agentRoleKey: existing.agentRoleKey || app.agentRoleKey,
+      name: existing.name || app.name,
+      id: existing.id || app.id,
+      enabled: existing.enabled ?? app.enabled,
+      createdAt: existing.createdAt ?? app.createdAt,
+    };
+  }
+
+  return deduped;
 }
 
 export function resolveRuntimeFeishuApps(params: {
@@ -42,12 +98,12 @@ export function resolveRuntimeFeishuApps(params: {
   const envApp = params.envApp;
 
   if (!envApp) {
-    return configuredApps;
+    return dedupeRuntimeFeishuApps(configuredApps);
   }
 
   const existingIndex = configuredApps.findIndex((app) => app.appId === envApp.appId);
   if (existingIndex >= 0) {
-    return configuredApps.map((app, index) => {
+    return dedupeRuntimeFeishuApps(configuredApps.map((app, index) => {
       if (index !== existingIndex) {
         return app;
       }
@@ -57,10 +113,10 @@ export function resolveRuntimeFeishuApps(params: {
         agentRoleKey: app.agentRoleKey || envApp.agentRoleKey,
         enabled: app.enabled ?? true,
       };
-    });
+    }));
   }
 
-  return [...configuredApps, envApp];
+  return dedupeRuntimeFeishuApps([...configuredApps, envApp]);
 }
 
 export function resolveFeishuAgentBinding(

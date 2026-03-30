@@ -44,6 +44,17 @@ import {
   getTurnCacheEntry,
   putTurnCacheEntry,
 } from './turnCache';
+import { appendToIdentityThread } from './identityThreadHelper';
+import {
+  extractAssistantToolCalls,
+  extractTextFromResponsesOutput,
+  isToolLoopCompatibilityError,
+  normalizeAssistantMessageContent,
+  summarizeOpenAIToolPayload,
+  summarizeRawToolResponseBody,
+  type OpenAIToolCallCompat,
+} from './toolRuntimeCompat';
+import { buildToolCompletionRequest } from './toolRuntimeRequest';
 
 type ImageAttachment = {
   name: string;
@@ -92,14 +103,7 @@ type OpenAIMessage = {
   }>;
 };
 
-type OpenAIToolCall = {
-  id: string;
-  type: 'function';
-  function: {
-    name: string;
-    arguments: string;
-  };
-};
+type OpenAIToolCall = OpenAIToolCallCompat;
 
 type OpenAIAssistantToolCallMessage = {
   role: 'assistant';
@@ -131,7 +135,7 @@ type ExecutorToolDefinition = {
 const DEFAULT_OPENAI_MAX_TOKENS = 4096;
 const CACHE_REPLAY_CHUNK_SIZE = 48;
 const CACHE_REPLAY_CHUNK_DELAY_MS = 10;
-const FORWARDED_RAW_CONTEXT_MESSAGE_LIMIT = 5;
+const FORWARDED_RAW_CONTEXT_MESSAGE_LIMIT = 3;
 const BOUNDED_LOOP_MAX_STEPS = 10;
 const BOUNDED_LOOP_MAX_DURATION_MS = 90_000;
 const ATTACHMENT_INPUT_LABEL = '输入文件';
@@ -151,6 +155,12 @@ type DirectApiConfig = {
   agentRoleKey: AgentRoleKey;
   imageApiType?: string;
 };
+
+function isVolcengineV3BaseUrl(baseUrl: string): boolean {
+  const normalized = baseUrl.trim().replace(/\/+$/, '').toLowerCase();
+  return normalized.includes('ark.cn-beijing.volces.com/api/v3')
+    || normalized.includes('ark.cn-beijing.volces.com/api/coding/v3');
+}
 
 export class HttpSessionExecutor implements SessionExecutor {
   private readonly activeSessions = new Map<string, ActiveExecution>();
@@ -245,11 +255,12 @@ export class HttpSessionExecutor implements SessionExecutor {
         await this.runGoogleGenerateContent(sessionId, session, systemPrompt, apiConfig, streamState, abortController.signal);
       } else if (apiConfig.agentRoleKey === 'designer' && effectiveImageApiType === 'images') {
         await this.runOpenAIImagesGeneration(sessionId, session, systemPrompt, apiConfig, streamState, abortController.signal);
-      } else if (this.needsBoundedToolLoop(session, prompt, mergedSkillIds)) {
+      } else if (this.shouldPreferBoundedToolLoop(session, prompt, mergedSkillIds)) {
         // {BREAKPOINT} DIRECT-EXECUTOR-BOUNDED-LOOP
-        // {FLOW} PHASE1-DIRECT-IF-COMPAT: 主链默认仍走轻 single-shot；仅在明确需要工具回环时进入受控兼容层。
-        // {标记} P0-BOUND-LOOP-COMPAT: 限制 10 步 / 90 秒，避免重链无限拖垮低配机与长会话。
-        await this.runBoundedToolLoop(
+        // {FLOW} PHASE1-DIRECT-AGENTIC-DEFAULT: 现役非图片主链默认把工具决定权交给 agent，
+        // 不再依赖窄启发式把大多数回合挡在单轮之外。
+        // {标记} P0-BOUND-LOOP-COMPAT: 仍保留 10 步 / 90 秒受控边界，并在上游不兼容 tools 时回退 single-shot。
+        await this.runBoundedToolLoopOrFallback(
           sessionId,
           session,
           prompt,
@@ -317,7 +328,10 @@ export class HttpSessionExecutor implements SessionExecutor {
       return null;
     }
 
-    if (role.apiFormat !== 'openai') {
+    const effectiveApiFormat = role.apiFormat === 'openai' || isVolcengineV3BaseUrl(role.apiUrl)
+      ? 'openai'
+      : role.apiFormat;
+    if (effectiveApiFormat !== 'openai') {
       throw new Error(`Role ${resolvedRoleKey} is configured as ${role.apiFormat}. Web direct executor currently only supports openai-compatible streaming.`);
     }
 
@@ -372,6 +386,7 @@ export class HttpSessionExecutor implements SessionExecutor {
     options: TurnOptions,
     mode: 'start' | 'continue' | 'channel'
   ): Promise<string> {
+    // {BREAKPOINT} continuity-system-prompt-assembly-001
     // {路标} FLOW-EXECUTOR-SYSTEM-PROMPT
     // {FLOW} EXECUTOR-PROMPT-ASSEMBLY: system prompt 由显式提示、角色技能、native capabilities、连续性提示等拼装而成。
     // 【1.0链路】PROMPT-BUILD: 系统提示 = 显式 systemPrompt + 角色技能提示 + 连续性共享记忆提示。
@@ -436,9 +451,38 @@ export class HttpSessionExecutor implements SessionExecutor {
       if (continuity.promptText.trim()) {
         promptSections.push(continuity.promptText.trim());
       }
+
+      promptSections.push(this.buildBroadcastBoardOperatingPrompt());
     }
 
     return promptSections.filter((section) => section.trim()).join('\n\n');
+  }
+
+  private buildBroadcastBoardOperatingPrompt(): string {
+    return [
+      '## Broadcast Baton',
+      '- You have a `broadcast_board_write` tool for leaving a short baton note to your same-role future self.',
+      '- Use it during the turn when one of these becomes clear: key user requirement, important judgment, freshly confirmed pitfall, fix already completed, or next-step handoff.',
+      '- Keep each baton factual and compact. It is a 24h relay note, not a full transcript.',
+      '- The default continuity path is: broadcast board first, then the most recent raw messages, then longer history only when exact detail is needed.',
+      '',
+      '## Tool Grounding',
+      '- If this turn already produced one or more tool results, treat those results as real successful observations or actions from the current session.',
+      '- Do not say you cannot access, cannot call, or cannot use a tool when a tool result is already present in the conversation state.',
+      '- After a tool result arrives, answer from that result directly. If the result is incomplete, say what is missing; do not pretend the tool was unavailable.',
+    ].join('\n');
+  }
+
+  private buildToolCompatibilityFallbackPrompt(systemPrompt: string, compatibilityReason: string): string {
+    const addition = [
+      '## Tool Compatibility Notice',
+      '- The current provider/model did not execute tool completions for this turn.',
+      '- Do not say the tool is missing from the project, hidden by the UI, or unconfigured if this turn already attempted tool completion.',
+      '- If the user asked for a tool call, explain that the current provider/model could not execute tool completions for this request shape, then continue with the best non-tool answer you can provide.',
+      `- Compatibility reason: ${compatibilityReason}`,
+    ].join('\n');
+
+    return [systemPrompt, addition].filter((section) => section.trim()).join('\n\n');
   }
 
   private resolveMergedSkillIds(
@@ -480,7 +524,7 @@ export class HttpSessionExecutor implements SessionExecutor {
     }
 
     const statusMessage = this.store.addMessage(sessionId, {
-      type: 'system',
+      type: 'assistant',
       content: trimmed,
       metadata: {
         isFinal: false,
@@ -815,13 +859,21 @@ export class HttpSessionExecutor implements SessionExecutor {
       return true;
     }
 
-    const likelyAgenticLoop = this.promptLikelyNeedsAgenticLoop(prompt);
-    if (!likelyAgenticLoop) {
+    const hasActionIntent = this.promptHasActionIntent(prompt);
+    if (!hasActionIntent) {
       return false;
     }
 
     const availableExecutorToolCount = this.buildExecutorTools(session, prompt).length;
+    const roleKey = resolveRuntimeAgentRoleKey(session.agentRoleKey);
+    const runtimeMcpCount = this.readRuntimeMcpToolCount(roleKey);
+    const likelyAgenticLoop = this.promptLikelyNeedsAgenticLoop(prompt);
+
     if (availableExecutorToolCount > 2) {
+      return true;
+    }
+
+    if (availableExecutorToolCount > 0) {
       return true;
     }
 
@@ -829,17 +881,81 @@ export class HttpSessionExecutor implements SessionExecutor {
       return true;
     }
 
-    const roleKey = resolveRuntimeAgentRoleKey(session.agentRoleKey);
-    const runtimeMcpCount = this.readRuntimeMcpToolCount(roleKey);
     if (runtimeMcpCount > 0) {
       return true;
     }
 
-    if (session.sourceType === 'external' && (this.promptLikelyNeedsBrowserTool(prompt) || this.promptLikelyNeedsImaTool(prompt))) {
+    if (session.sourceType === 'external' && likelyAgenticLoop) {
       return true;
     }
 
-    return false;
+    return likelyAgenticLoop;
+  }
+
+  private shouldPreferBoundedToolLoop(
+    session: NonNullable<ReturnType<CoworkStore['getSession']>>,
+    prompt: string,
+    mergedSkillIds: string[]
+  ): boolean {
+    const normalizedPrompt = String(prompt || '').trim();
+    if (!normalizedPrompt) {
+      return false;
+    }
+
+    const availableExecutorToolCount = this.buildExecutorTools(session, prompt).length;
+    if (availableExecutorToolCount > 0) {
+      return true;
+    }
+
+    const roleKey = resolveRuntimeAgentRoleKey(session.agentRoleKey);
+    if (mergedSkillIds.length > 0 || this.readRuntimeMcpToolCount(roleKey) > 0) {
+      return true;
+    }
+
+    return this.needsBoundedToolLoop(session, prompt, mergedSkillIds);
+  }
+
+  private async runBoundedToolLoopOrFallback(
+    sessionId: string,
+    session: NonNullable<ReturnType<CoworkStore['getSession']>>,
+    prompt: string,
+    systemPrompt: string,
+    apiConfig: DirectApiConfig,
+    streamState: StreamState,
+    signal: AbortSignal
+  ): Promise<void> {
+    try {
+      await this.runBoundedToolLoop(
+        sessionId,
+        session,
+        prompt,
+        systemPrompt,
+        apiConfig,
+        streamState,
+        signal
+      );
+    } catch (error) {
+      if (!isToolLoopCompatibilityError(error)) {
+        throw error;
+      }
+
+      console.warn(
+        `[HttpSessionExecutor] Tool loop unsupported for role=${resolveRuntimeAgentRoleKey(session.agentRoleKey)} model=${apiConfig.model}; fallback to single-shot stream: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+      await this.runOpenAIStream(
+        sessionId,
+        session,
+        this.buildToolCompatibilityFallbackPrompt(
+          systemPrompt,
+          error instanceof Error ? error.message : String(error)
+        ),
+        apiConfig,
+        streamState,
+        signal
+      );
+    }
   }
 
   private promptLikelyNeedsAgenticLoop(prompt: string): boolean {
@@ -848,14 +964,19 @@ export class HttpSessionExecutor implements SessionExecutor {
       return false;
     }
 
-    const hasActionVerb = /(帮我|帮忙|请你|请帮|请先|去|打开|查看|读取|搜索|查找|找出|列出|浏览|整理|分析|总结|归纳|保存|导出|创建|新建|修改|删除|更新|执行|运行|调用|使用|检查|排查|修复|验证|测试|搜一下|看看|看下|read|open|search|find|list|browse|summari[sz]e|analy[sz]e|save|export|create|update|delete|run|use|inspect|check|debug|fix|test)/i.test(
-      normalized
-    );
-    const hasConcreteTarget = /(https?:\/\/|[A-Za-z]:\\|\/[^ \n\r\t]+|页面|网页|当前页|目录|文件|文档|链接|网址|笔记|对话|历史|记忆|工具|mcp|browser|playwright|ima|note|file|folder|directory|page|url|link|history|memory|tool|server)/i.test(
-      normalized
-    );
+    return this.promptHasActionIntent(normalized) && this.promptHasConcreteTarget(normalized);
+  }
 
-    return hasActionVerb && hasConcreteTarget;
+  private promptHasActionIntent(prompt: string): boolean {
+    return /(帮我|帮忙|请你|请帮|请先|去|打开|查看|读取|搜索|查找|找出|列出|浏览|整理|分析|总结|归纳|保存|导出|创建|新建|修改|删除|更新|执行|运行|调用|使用|检查|排查|修复|验证|测试|搜一下|看看|看下|read|open|search|find|list|browse|summari[sz]e|analy[sz]e|save|export|create|update|delete|run|use|inspect|check|debug|fix|test)/i.test(
+      String(prompt || '').trim()
+    );
+  }
+
+  private promptHasConcreteTarget(prompt: string): boolean {
+    return /(https?:\/\/|[A-Za-z]:\\|\/[^ \n\r\t]+|页面|网页|当前页|目录|文件|文档|链接|网址|笔记|对话|历史|记忆|工具|mcp|browser|playwright|ima|note|file|folder|directory|page|url|link|history|memory|tool|server)/i.test(
+      String(prompt || '').trim()
+    );
   }
 
   private promptLikelyNeedsBrowserTool(prompt: string): boolean {
@@ -950,7 +1071,16 @@ export class HttpSessionExecutor implements SessionExecutor {
             });
             return;
           }
-          throw new Error('上游返回了空响应，未产出最终 assistant 内容。');
+          const responseSummary = summarizeOpenAIToolPayload(responsePayload);
+          if (Number(responseSummary.choiceCount) === 0 && responsePayload?.model) {
+            throw new Error(
+              `Provider does not appear to support tool completions for this request shape: usage-only response without assistant choices. summary=${JSON.stringify(responseSummary)}`
+            );
+          }
+          console.warn(
+            `[HttpSessionExecutor] Empty bounded-loop payload session=${sessionId} role=${resolveRuntimeAgentRoleKey(session.agentRoleKey)} model=${apiConfig.model} summary=${JSON.stringify(responseSummary)}`
+          );
+          throw new Error(`上游返回了空响应，未产出最终 assistant 内容。summary=${JSON.stringify(responseSummary)}`);
         }
 
         const { assistantText: preToolStatusText } = splitAssistantToolTraceSections(messageContent ?? '');
@@ -1005,24 +1135,19 @@ export class HttpSessionExecutor implements SessionExecutor {
     toolChoice: 'auto' | 'required';
     signal: AbortSignal;
   }): Promise<any> {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-    if (params.apiConfig.apiKey.trim()) {
-      headers.Authorization = `Bearer ${params.apiConfig.apiKey.trim()}`;
-    }
+    const request = buildToolCompletionRequest({
+      apiConfig: params.apiConfig,
+      messages: params.messages,
+      tools: params.tools,
+      toolChoice: params.toolChoice,
+      maxTokens: DEFAULT_OPENAI_MAX_TOKENS,
+    });
+    console.info(
+      `[HttpSessionExecutor] Tool completion request summary=${JSON.stringify(request.summary)}`
+    );
 
-    const response = await fetch(buildOpenAIChatCompletionsURL(params.apiConfig.baseURL), {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        model: params.apiConfig.model,
-        max_tokens: DEFAULT_OPENAI_MAX_TOKENS,
-        stream: false,
-        tool_choice: params.toolChoice,
-        messages: params.messages,
-        tools: params.tools,
-      }),
+    const response = await fetch(request.url, {
+      ...request.init,
       signal: params.signal,
     });
 
@@ -1030,7 +1155,19 @@ export class HttpSessionExecutor implements SessionExecutor {
       throw new Error(await buildUpstreamError(response));
     }
 
-    return await response.json().catch(() => null);
+    const rawText = await response.text();
+    console.info(
+      `[HttpSessionExecutor] Tool completion raw body summary=${JSON.stringify(
+        summarizeRawToolResponseBody(rawText)
+      )}`
+    );
+    const payload = parseToolCompletionResponseBody(rawText);
+    console.info(
+      `[HttpSessionExecutor] Tool completion payload role=${params.apiConfig.agentRoleKey} model=${params.apiConfig.model} summary=${JSON.stringify(
+        summarizeOpenAIToolPayload(payload)
+      )}`
+    );
+    return payload;
   }
 
   private async buildOpenAIRequestMessages(
@@ -1146,6 +1283,25 @@ export class HttpSessionExecutor implements SessionExecutor {
             agentRoleKey: session.agentRoleKey,
           }),
         }),
+      },
+      {
+        name: 'broadcast_board_write',
+        spec: {
+          type: 'function',
+          function: {
+            name: 'broadcast_board_write',
+            description: 'Write a short baton note to the 24h broadcast board for your same-role future self. Use for key requirements, decisions, fixes, pitfalls, or next-step handoff.',
+            parameters: {
+              type: 'object',
+              properties: {
+                content: { type: 'string', minLength: 1, maxLength: 400 },
+              },
+              required: ['content'],
+              additionalProperties: false,
+            },
+          },
+        },
+        handler: async (args: { content: string }) => this.runBroadcastBoardWriteTool(args, session),
       },
     ];
 
@@ -1295,6 +1451,99 @@ export class HttpSessionExecutor implements SessionExecutor {
       agentRoleKey: identity?.agentRoleKey,
     });
     return this.formatChatSearchOutput(chats);
+  }
+
+  private async runBroadcastBoardWriteTool(
+    args: { content: string },
+    session: NonNullable<ReturnType<CoworkStore['getSession']>>
+  ): Promise<{ text: string; isError: boolean }> {
+    const agentRoleKey = session.agentRoleKey?.trim();
+    const content = String(args.content || '').trim();
+    if (!agentRoleKey) {
+      return {
+        text: 'action=write\nsuccess=0\nreason=missing agentRoleKey',
+        isError: true,
+      };
+    }
+    if (!content) {
+      return {
+        text: 'action=write\nsuccess=0\nreason=empty content',
+        isError: true,
+      };
+    }
+
+    const channelHint = this.inferIdentityThreadChannelHint(session);
+    appendToIdentityThread(
+      this.store.getDatabase(),
+      agentRoleKey,
+      {
+        role: 'assistant',
+        content,
+      },
+      channelHint
+    );
+    this.store.getSaveFunction()();
+
+    return {
+      text: [
+        'action=write',
+        'success=1',
+        `role=${agentRoleKey}`,
+        `channel=${channelHint}`,
+        `content=${content}`,
+      ].join('\n'),
+      isError: false,
+    };
+  }
+
+  private inferIdentityThreadChannelHint(
+    session: Pick<NonNullable<ReturnType<CoworkStore['getSession']>>, 'systemPrompt' | 'title' | 'sourceType'>
+  ): string {
+    if (session.sourceType === 'desktop') {
+      return 'desktop';
+    }
+    if (session.sourceType === 'external') {
+      const scope = session.systemPrompt?.trim() ?? '';
+      if (
+        scope.startsWith('im:feishu:chat:')
+        || scope.startsWith('im:feishu:ws:')
+        || scope.startsWith('im:feishu:app:')
+      ) {
+        return 'feishu';
+      }
+      if (scope.startsWith('im:dingtalk:chat:')) {
+        return 'dingtalk';
+      }
+      if (scope.startsWith('im:wechatbot:user:')) {
+        return 'wechatbot';
+      }
+      return 'external';
+    }
+
+    const scope = session.systemPrompt?.trim() ?? '';
+    if (
+      scope.startsWith('im:feishu:chat:')
+      || scope.startsWith('im:feishu:ws:')
+      || scope.startsWith('im:feishu:app:')
+    ) {
+      return 'feishu';
+    }
+    if (scope.startsWith('im:dingtalk:chat:')) {
+      return 'dingtalk';
+    }
+    if (scope.startsWith('im:wechatbot:user:')) {
+      return 'wechatbot';
+    }
+
+    const title = session.title?.trim() ?? '';
+    if (title.endsWith(' - 飞书对话')) {
+      return 'feishu';
+    }
+    if (title.endsWith(' - 钉钉对话')) {
+      return 'dingtalk';
+    }
+
+    return 'desktop';
   }
 
   private runMemoryUserEditsTool(args: {
@@ -1608,6 +1857,7 @@ export class HttpSessionExecutor implements SessionExecutor {
         type: 'assistant',
         content: '',
         metadata: {
+          stage: 'final_result',
           isStreaming: true,
           isFinal: false,
           ...(initialGeneratedImages ? { generatedImages: initialGeneratedImages } : {}),
@@ -1632,6 +1882,7 @@ export class HttpSessionExecutor implements SessionExecutor {
     }
     const metadata: CoworkMessageMetadata = {
       ...(streamState.metadata || {}),
+      stage: 'final_result',
       isStreaming: true,
       isFinal: false,
       ...(streamState.generatedImages.length > 0 ? { generatedImages: streamState.generatedImages } : {}),
@@ -1680,6 +1931,7 @@ export class HttpSessionExecutor implements SessionExecutor {
     const { assistantText, traceText } = splitAssistantToolTraceSections(streamState.content);
     const metadata: CoworkMessageMetadata = {
       ...(streamState.metadata || {}),
+      stage: 'final_result',
       isStreaming: false,
       isFinal: true,
       ...(streamState.generatedImages.length > 0 ? { generatedImages: streamState.generatedImages } : {}),
@@ -1697,7 +1949,7 @@ export class HttpSessionExecutor implements SessionExecutor {
     session: NonNullable<ReturnType<CoworkStore['getSession']>>,
     systemPrompt: string
   ): Promise<OpenAIMessage[]> {
-    // 【1.0链路】RAW-CONTEXT-5: 原始对话正文只向上游转发最近 5 条，其余依赖共享记忆和系统提示承接。
+    // 【1.0链路】RAW-CONTEXT-3: 原始对话正文只向上游转发最近 3 条，其余依赖广播板共享记忆和系统提示承接。
     const messages: OpenAIMessage[] = [];
     if (systemPrompt.trim()) {
       messages.push({ role: 'system', content: systemPrompt.trim() });
@@ -1772,6 +2024,8 @@ export function getOrCreateWebSessionExecutor(params: {
   configStore: SqliteStore;
   buildSelectedSkillsPrompt?: SkillPromptBuilder | null;
 }): HttpSessionExecutor {
+  // {FLOW} CONTINUITY-TRUNK-WEB-EXECUTOR-SINGLETON
+  // {BREAKPOINT} continuity-route-start-001
   if (!webSessionExecutor) {
     webSessionExecutor = new HttpSessionExecutor(
       params.store,
@@ -1919,7 +2173,13 @@ async function normalizeConversationMessage(message: CoworkMessage): Promise<Ope
   }
 
   if (message.type === 'assistant' && !message.metadata?.isThinking) {
-    return { role: 'assistant', content: message.content };
+    const stage = typeof message.metadata?.stage === 'string'
+      ? message.metadata.stage.trim()
+      : '';
+    // 只把正式回复带回上游历史；pre_tool / tool_trace 这类过程 assistant 不能污染后续上下文。
+    if (!stage || stage === 'final_result') {
+      return { role: 'assistant', content: message.content };
+    }
   }
 
   return null;
@@ -2073,6 +2333,186 @@ function tryParseJson(payload: string): any {
   }
 }
 
+function parseToolCompletionResponseBody(rawText: string): any {
+  const trimmed = String(rawText || '').trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const directPayload = tryParseJson(trimmed);
+  if (directPayload) {
+    return directPayload;
+  }
+
+  const ssePayloads = extractSsePayloads(trimmed)
+    .map((payload) => tryParseJson(payload))
+    .filter(Boolean);
+
+  if (ssePayloads.length === 0) {
+    return null;
+  }
+
+  if (ssePayloads.length === 1) {
+    return ssePayloads[0];
+  }
+
+  return synthesizePayloadFromSseChunks(ssePayloads);
+}
+
+function extractSsePayloads(rawText: string): string[] {
+  const payloads: string[] = [];
+  let buffer = rawText;
+
+  while (buffer.length > 0) {
+    const boundary = findSseBoundary(buffer);
+    if (!boundary) {
+      const parsedTail = parseSSEPacket(buffer);
+      if (parsedTail) {
+        payloads.push(parsedTail.payload);
+      }
+      break;
+    }
+
+    const packet = buffer.slice(0, boundary.index);
+    buffer = buffer.slice(boundary.index + boundary.length);
+    const parsed = parseSSEPacket(packet);
+    if (parsed) {
+      payloads.push(parsed.payload);
+    }
+  }
+
+  return payloads.filter((payload) => payload && payload !== '[DONE]');
+}
+
+function synthesizePayloadFromSseChunks(chunks: any[]): any {
+  const toolCalls = new Map<number, {
+    id: string;
+    type: 'function';
+    function: {
+      name: string;
+      arguments: string;
+    };
+  }>();
+  let id: string | null = null;
+  let model: string | null = null;
+  let finishReason: string | null = null;
+  let usage: Record<string, unknown> | null = null;
+  let assistantContent = '';
+  let directMessageContent: unknown = null;
+
+  for (const chunk of chunks) {
+    if (!id && typeof chunk?.id === 'string' && chunk.id.trim()) {
+      id = chunk.id.trim();
+    }
+    if (!model && typeof chunk?.model === 'string' && chunk.model.trim()) {
+      model = chunk.model.trim();
+    }
+    if (chunk?.usage && typeof chunk.usage === 'object') {
+      usage = chunk.usage as Record<string, unknown>;
+    }
+
+    const firstChoice = Array.isArray(chunk?.choices) ? chunk.choices[0] : null;
+    if (!firstChoice || typeof firstChoice !== 'object') {
+      continue;
+    }
+
+    if (typeof firstChoice.finish_reason === 'string' && firstChoice.finish_reason.trim()) {
+      finishReason = firstChoice.finish_reason.trim();
+    }
+
+    const message = firstChoice.message;
+    if (message && typeof message === 'object') {
+      if (message.content !== undefined && message.content !== null) {
+        directMessageContent = message.content;
+      }
+      const directToolCalls = Array.isArray(message.tool_calls) ? message.tool_calls : [];
+      for (const [index, toolCall] of directToolCalls.entries()) {
+        mergeSseToolCallChunk(toolCalls, index, toolCall);
+      }
+    }
+
+    const delta = firstChoice.delta;
+    if (delta && typeof delta === 'object') {
+      const deltaText = extractOpenAITextDelta({ choices: [{ delta }] });
+      if (deltaText) {
+        assistantContent += deltaText;
+      }
+
+      const deltaToolCalls = Array.isArray(delta.tool_calls) ? delta.tool_calls : [];
+      for (const [fallbackIndex, toolCall] of deltaToolCalls.entries()) {
+        const rawIndex = typeof toolCall?.index === 'number' && Number.isFinite(toolCall.index)
+          ? toolCall.index
+          : fallbackIndex;
+        mergeSseToolCallChunk(toolCalls, rawIndex, toolCall);
+      }
+    }
+  }
+
+  const normalizedContent = directMessageContent ?? (assistantContent || null);
+  const mergedToolCalls = Array.from(toolCalls.entries())
+    .sort((left, right) => left[0] - right[0])
+    .map(([, value]) => value)
+    .filter((toolCall) => toolCall.function.name.trim());
+
+  return {
+    id,
+    model,
+    choices: [{
+      index: 0,
+      message: {
+        role: 'assistant',
+        content: normalizedContent,
+        ...(mergedToolCalls.length > 0 ? { tool_calls: mergedToolCalls } : {}),
+      },
+      finish_reason: finishReason,
+    }],
+    ...(usage ? { usage } : {}),
+  };
+}
+
+function mergeSseToolCallChunk(
+  store: Map<number, {
+    id: string;
+    type: 'function';
+    function: {
+      name: string;
+      arguments: string;
+    };
+  }>,
+  index: number,
+  chunk: any
+): void {
+  const existing = store.get(index) ?? {
+    id: '',
+    type: 'function' as const,
+    function: {
+      name: '',
+      arguments: '',
+    },
+  };
+
+  if (typeof chunk?.id === 'string' && chunk.id.trim()) {
+    existing.id = chunk.id.trim();
+  }
+
+  if (typeof chunk?.function?.name === 'string' && chunk.function.name.trim()) {
+    existing.function.name += chunk.function.name.trim();
+  }
+
+  if (typeof chunk?.function?.arguments === 'string' && chunk.function.arguments) {
+    existing.function.arguments += chunk.function.arguments;
+  }
+
+  if (!existing.id) {
+    existing.id = `sse_tool_call_${index}`;
+  }
+  if (!existing.function.arguments) {
+    existing.function.arguments = '{}';
+  }
+
+  store.set(index, existing);
+}
+
 function abortReasonToError(reason: unknown, fallbackMessage: string): Error {
   if (reason instanceof Error) {
     return reason;
@@ -2081,59 +2521,6 @@ function abortReasonToError(reason: unknown, fallbackMessage: string): Error {
     return new Error(reason);
   }
   return new Error(fallbackMessage);
-}
-
-function normalizeAssistantMessageContent(value: unknown): string | null {
-  if (typeof value === 'string') {
-    const trimmed = value.trim();
-    return trimmed ? trimmed : null;
-  }
-  if (!Array.isArray(value)) {
-    return null;
-  }
-  const text = value
-    .map((part) => {
-      if (typeof part === 'string') {
-        return part;
-      }
-      if (typeof part?.text === 'string') {
-        return part.text;
-      }
-      return '';
-    })
-    .join('')
-    .trim();
-  return text ? text : null;
-}
-
-function extractAssistantToolCalls(payload: any): OpenAIToolCall[] {
-  const rawToolCalls = payload?.choices?.[0]?.message?.tool_calls;
-  if (!Array.isArray(rawToolCalls)) {
-    return [];
-  }
-
-  return rawToolCalls
-    .map((item, index) => {
-      const id = typeof item?.id === 'string' && item.id.trim()
-        ? item.id.trim()
-        : `tool_call_${index}`;
-      const name = typeof item?.function?.name === 'string' ? item.function.name.trim() : '';
-      if (!name) {
-        return null;
-      }
-      const args = typeof item?.function?.arguments === 'string'
-        ? item.function.arguments
-        : JSON.stringify(item?.function?.arguments ?? {});
-      return {
-        id,
-        type: 'function' as const,
-        function: {
-          name,
-          arguments: args || '{}',
-        },
-      };
-    })
-    .filter((item): item is OpenAIToolCall => Boolean(item));
 }
 
 function extractToolResultText(result: any): string {
@@ -2232,9 +2619,14 @@ function extractAssistantOutput(payload: any): AssistantOutput {
   }
 
   const choiceMessageContent = payload?.choices?.[0]?.message?.content;
+  if (typeof choiceMessageContent === 'string') {
+    pushText(choiceMessageContent);
+  }
   if (Array.isArray(choiceMessageContent)) {
     for (const part of choiceMessageContent) {
       pushText(typeof part?.text === 'string' ? part.text : '');
+      pushText(typeof part?.text?.value === 'string' ? part.text.value : '');
+      pushText(typeof part?.content === 'string' ? part.content : '');
       pushGeneratedImage(extractGeneratedImage(part));
     }
   }
@@ -2257,6 +2649,8 @@ function extractAssistantOutput(payload: any): AssistantOutput {
       }
     }
   }
+
+  pushText(extractTextFromResponsesOutput(payload?.output));
 
   const dedupedImages: GeneratedImage[] = [];
   const seen = new Set<string>();
@@ -2409,7 +2803,7 @@ function buildOpenAIImagesGenerationURL(baseURL: string): string {
   if (normalized.endsWith('/images/generations')) {
     return normalized;
   }
-  if (normalized.endsWith('/v1')) {
+  if (/\/v\d+$/.test(normalized)) {
     return `${normalized}/images/generations`;
   }
   return `${normalized}/v1/images/generations`;

@@ -7,6 +7,7 @@ import Toast from './components/Toast';
 import WindowTitleBar from './components/window/WindowTitleBar';
 import { CoworkView } from './components/cowork';
 import FeedbackButton from './components/FeedbackButton';
+import SettingsEntryButton from './components/SettingsEntryButton';
 import CoworkPermissionModal from './components/cowork/CoworkPermissionModal';
 import CoworkQuestionWizard from './components/cowork/CoworkQuestionWizard';
 import { imService } from './services/im';
@@ -25,7 +26,7 @@ import {
 } from '../shared/agentRoleConfig';
 import type { ApiConfig } from './services/api';
 import type { CoworkPermissionResult } from './types/cowork';
-import { ChatBubbleLeftRightIcon, Cog6ToothIcon } from '@heroicons/react/24/outline';
+import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
 import { StarIcon } from '@heroicons/react/24/solid';
 import { matchesShortcut } from './services/shortcuts';
 import AppUpdateBadge from './components/update/AppUpdateBadge';
@@ -838,6 +839,10 @@ const App: React.FC = () => {
         <Toast message={toastMessage} onClose={() => setToastMessage(null)} />
       )}
       <div className="flex flex-1 min-h-0 overflow-hidden main-content-pearl">
+        <div
+          className="app-shell-frame mx-auto h-full w-full flex min-h-0 overflow-hidden"
+          style={{ maxWidth: 'var(--uclaw-shell-max-width)' }}
+        >
         <div className="pearl-container-deep h-full flex flex-1 min-h-0 overflow-hidden">
           <Sidebar
             onShowLogin={handleShowLogin}
@@ -863,16 +868,8 @@ const App: React.FC = () => {
               style={{ borderRadius: 'var(--uclaw-shell-radius)' }}
             >
               <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex items-start justify-end px-4 py-3">
-                <div className="pointer-events-auto flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleShowSettings()}
-                    className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/70 bg-white/82 text-[#5b4e43] shadow-[0_10px_24px_rgba(194,170,145,0.12)] backdrop-blur-md transition-colors hover:bg-white dark:border-white/10 dark:bg-white/[0.08] dark:text-claude-darkText dark:hover:bg-white/[0.12]"
-                    aria-label="打开设置"
-                    title="设置"
-                  >
-                    <Cog6ToothIcon className="h-5 w-5" />
-                  </button>
+                <div className="pointer-events-auto uclaw-top-actions">
+                  <SettingsEntryButton onClick={() => handleShowSettings()} />
                   <FeedbackButton
                     buttonClassName="static top-auto right-auto h-10 px-3.5 py-0 rounded-full"
                     panelClassName="right-0 top-12"
@@ -990,6 +987,7 @@ const App: React.FC = () => {
               )}
             </div>
           </div>
+        </div>
         </div>
       </div>
 

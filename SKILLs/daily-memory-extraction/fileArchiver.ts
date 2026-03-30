@@ -50,8 +50,8 @@ export async function archiveDailyFiles(backupPath: string): Promise<ArchiveResu
       const progress = Math.round(((i + 1) / identities.length) * 100);
 
       try {
-        // PROGRESS: 文件归档 ${progress}% - 处理身份: ${identity.agentRoleKey}_${identity.modelId}
-        console.log(`[FileArchiver] 处理身份: ${identity.agentRoleKey}_${identity.modelId}`);
+        // PROGRESS: 文件归档 ${progress}% - 处理归档目录: ${identity.agentRoleKey}_${identity.modelId}
+        console.log(`[FileArchiver] 处理归档目录: ${identity.agentRoleKey}_${identity.modelId}`);
 
         // CHECKPOINT: Scan conversation files
         // ROUTE: Daily Memory Extraction - Scan Files - No authentication
@@ -59,7 +59,7 @@ export async function archiveDailyFiles(backupPath: string): Promise<ArchiveResu
         const filesToArchive = await scanConversationFiles(identity);
 
         if (filesToArchive.length === 0) {
-          console.log(`[FileArchiver] 身份 ${identity.agentRoleKey}_${identity.modelId} 没有需要归档的文件`);
+          console.log(`[FileArchiver] 归档目录 ${identity.agentRoleKey}_${identity.modelId} 没有需要归档的文件`);
           continue;
         }
 
@@ -105,7 +105,7 @@ export async function archiveDailyFiles(backupPath: string): Promise<ArchiveResu
           }
         }
       } catch (error) {
-        const errorMsg = `身份 ${identity.agentRoleKey}_${identity.modelId} 归档失败: ${error instanceof Error ? error.message : String(error)}`;
+        const errorMsg = `归档目录 ${identity.agentRoleKey}_${identity.modelId} 归档失败: ${error instanceof Error ? error.message : String(error)}`;
         results.errors.push(errorMsg);
         console.error(`[FileArchiver] ${errorMsg}`);
       }

@@ -29,12 +29,26 @@ type LegacyAppConfig = {
 
 const MODEL_PROBE_TIMEOUT_MS = 20_000;
 
+function isVolcengineV3BaseUrl(baseUrl: string): boolean {
+  const normalized = baseUrl.trim().replace(/\/+$/, '').toLowerCase();
+  return normalized.includes('ark.cn-beijing.volces.com/api/v3')
+    || normalized.includes('ark.cn-beijing.volces.com/api/coding/v3');
+}
+
 function buildAnthropicMessagesUrl(baseUrl: string): string {
   const normalized = baseUrl.trim().replace(/\/+$/, '');
   if (normalized.endsWith('/v1/messages')) return normalized;
   if (normalized.endsWith('/messages')) return normalized;
   if (normalized.endsWith('/v1')) return `${normalized}/messages`;
   return `${normalized}/v1/messages`;
+}
+
+function buildOpenAIChatUrl(baseUrl: string): string {
+  const normalized = baseUrl.trim().replace(/\/+$/, '');
+  if (!normalized) return '/v1/chat/completions';
+  if (normalized.endsWith('/chat/completions')) return normalized;
+  if (/\/v\d+$/.test(normalized)) return `${normalized}/chat/completions`;
+  return `${normalized}/v1/chat/completions`;
 }
 
 function extractApiErrorSnippet(rawText: string): string {
@@ -58,13 +72,19 @@ async function probeResolvedConfigReadiness(config: CoworkApiConfig): Promise<{ 
   const timeoutId = setTimeout(() => controller.abort(), MODEL_PROBE_TIMEOUT_MS);
 
   try {
-    const response = await fetch(buildAnthropicMessagesUrl(config.baseURL), {
+    const useOpenAICompat = config.apiType === 'openai' || isVolcengineV3BaseUrl(config.baseURL);
+    const response = await fetch(useOpenAICompat ? buildOpenAIChatUrl(config.baseURL) : buildAnthropicMessagesUrl(config.baseURL), {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': config.apiKey,
-        'anthropic-version': '2023-06-01',
-      },
+      headers: useOpenAICompat
+        ? {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${config.apiKey}`,
+          }
+        : {
+            'Content-Type': 'application/json',
+            'x-api-key': config.apiKey,
+            'anthropic-version': '2023-06-01',
+          },
       body: JSON.stringify({
         model: config.model,
         max_tokens: 1,

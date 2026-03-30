@@ -28,6 +28,7 @@ import type {
   CoworkApiConfig,
   CoworkUserMemoryEntry,
   CoworkMemoryStats,
+  CoworkBroadcastBoardSnapshot,
   CoworkPermissionResult,
   CoworkStartOptions,
   CoworkContinueOptions,
@@ -800,6 +801,17 @@ class CoworkService {
     const result = await api(input);
     if (!result?.success || !result.stats) return null;
     return result.stats;
+  }
+
+  async listBroadcastBoards(input?: {
+    agentRoleKey?: string;
+    limit?: number;
+  }): Promise<CoworkBroadcastBoardSnapshot[]> {
+    const api = window.electron?.cowork?.listBroadcastBoards;
+    if (!api) return [];
+    const result = await api(input);
+    if (!result?.success || !result.boards) return [];
+    return result.boards;
   }
 
   async generateSessionTitle(prompt: string | null): Promise<string | null> {

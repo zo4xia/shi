@@ -116,10 +116,12 @@ const McpManager: React.FC = () => {
     return '';
   };
 
-  const getStdioCommandSummary = (command?: string, args?: string[]): string => {
-    if (!command) return '';
-    if (!args || args.length === 0) return command;
-    return `${command} ${args[args.length - 1]}`;
+  const getCategoryLabel = (categoryId?: string): string => {
+    if (!categoryId) {
+      return '工具';
+    }
+    const category = dynamicCategories.find((entry) => entry.id === categoryId);
+    return category?.name_zh || category?.key || '工具';
   };
 
   const getRegistryEntryForServer = (server: McpServerConfig): McpRegistryEntry | undefined => {
@@ -134,18 +136,6 @@ const McpManager: React.FC = () => {
     ));
   };
 
-  const getTransportSummary = (server: McpServerConfig): string => {
-    if (server.transportType === 'stdio') {
-      const parts = [server.command || ''];
-      if (server.args && server.args.length > 0) {
-        parts.push(server.args[0]);
-        if (server.args.length > 1) parts.push('...');
-      }
-      return parts.join(' ');
-    }
-    return server.url || '';
-  };
-
   const getInstalledDescription = (server: McpServerConfig): string => {
     const persistedDescription = server.description?.trim();
     if (persistedDescription) return persistedDescription;
@@ -154,7 +144,7 @@ const McpManager: React.FC = () => {
       const registryDescription = getRegistryEntryDescription(registryEntry).trim();
       if (registryDescription) return registryDescription;
     }
-    return getTransportSummary(server);
+    return '已接入当前系统的外部能力。';
   };
 
   const runtimeVisibleServerIds = useMemo(() => {
@@ -318,25 +308,11 @@ const McpManager: React.FC = () => {
       activeTab === tab ? 'bg-claude-accent' : 'bg-transparent'
     }`;
 
-  const getServerTypeLabel = (server: McpServerConfig) => {
-    if (server.registryId === 'memory') {
-      return RUNTIME_FLOW_TAGS.legacyMemoryCompat.label;
-    }
-    return server.isBuiltIn ? RUNTIME_FLOW_TAGS.builtinMcp.label : RUNTIME_FLOW_TAGS.customMcp.label;
-  };
-
-  const getServerFlowLine = (server: McpServerConfig) => {
-    if (server.registryId === 'memory') {
-      return RUNTIME_FLOW_TAGS.legacyMemoryCompat.line;
-    }
-    return server.isBuiltIn ? RUNTIME_FLOW_TAGS.builtinMcp.line : RUNTIME_FLOW_TAGS.customMcp.line;
-  };
-
   return (
     <div className="space-y-4">
       {/* Description */}
       <p className="text-sm dark:text-claude-darkTextSecondary text-claude-textSecondary">
-        {'配置和管理 MCP（Model Context Protocol）服务器，为您的智能体扩展工具能力'}
+        {'把外部工具接给当前角色。首屏只看用途和归属，细节点进去再看。'}
       </p>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -364,9 +340,9 @@ const McpManager: React.FC = () => {
             {'这里展示的是 MCP 工具链，不是 Skill 文件夹。真正已经能用的放在“当前支持”；还没装或还要填 key 的放在“可接入”。一期先隐藏自定义入口，避免把未收口能力提前暴露。旧 Memory 兼容记录不再算 MCP 可接入项。'}
           </p>
           <div className="space-y-1 text-xs leading-5 text-sky-600 dark:text-sky-300/90">
-            <div>{RUNTIME_FLOW_TAGS.builtinMcp.line}</div>
-            <div>{RUNTIME_FLOW_TAGS.customMcp.line}</div>
-            <div>{RUNTIME_FLOW_TAGS.memoryStore.line}</div>
+            <div>{'这里优先看“当前角色现在能不能用”，而不是先看技术配置长相。'}</div>
+            <div>{'已经接入的能力会按角色过滤展示；没到当前角色的，不会冒充成可用。'}</div>
+            <div>{'记忆相关能力会继续回写系统记忆链，不需要用户理解底层存放路径。'}</div>
           </div>
         </div>
       )}
@@ -529,54 +505,21 @@ const McpManager: React.FC = () => {
                     </p>
                   </Tooltip>
 
-                  <p className="text-[10px] leading-4 text-slate-500 dark:text-slate-400 mb-2">
-                    {getServerFlowLine(server)}
-                  </p>
-
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] dark:text-claude-darkTextSecondary text-claude-textSecondary">
-                    <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-medium">
-                      {getServerTypeLabel(server)}
+                  <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                    <span className="px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-600 dark:text-violet-300 font-medium">
+                      {getCategoryLabel(registryEntry?.category)}
                     </span>
-                    <span className={`px-1.5 py-0.5 rounded font-medium ${TRANSPORT_BADGE_COLORS[server.transportType] || ''}`}>
-                      {server.transportType}
+                    <span className="px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 font-medium">
+                      {server.agentRoleKey === 'all'
+                        ? '全部角色'
+                        : (AGENT_ROLE_SHORT_LABELS[server.agentRoleKey] || server.agentRoleKey || '当前角色')}
                     </span>
-                    {server.transportType === 'stdio' && server.command && (
-                      <>
-                        <span>·</span>
-                        <span className="truncate">{getStdioCommandSummary(server.command, server.args)}</span>
-                      </>
-                    )}
-                    {(server.transportType === 'sse' || server.transportType === 'http') && server.url && (
-                      <>
-                        <span>·</span>
-                        <span className="truncate">{server.url}</span>
-                      </>
-                    )}
-                    {registryEntry?.requiredEnvKeys && registryEntry.requiredEnvKeys.length > 0 && (
-                      <>
-                        <span>·</span>
-                        <span className="text-amber-500 dark:text-amber-400">
-                          {registryEntry.requiredEnvKeys.length} key{registryEntry.requiredEnvKeys.length > 1 ? 's' : ''}
-                        </span>
-                      </>
-                    )}
-                    {server.agentRoleKey && (
-                      <>
-                        <span>·</span>
-                        <span className="px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 font-medium">
-                          {server.agentRoleKey === 'all'
-                            ? '公共'
-                            : (AGENT_ROLE_SHORT_LABELS[server.agentRoleKey] || server.agentRoleKey)}
-                        </span>
-                      </>
-                    )}
-                    <span>·</span>
-                    <span className={`px-1.5 py-0.5 rounded font-medium ${
+                    <span className={`px-2 py-0.5 rounded-full font-medium ${
                       runtimeVisibleServerIds.has(server.id)
                         ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
                         : 'bg-slate-500/10 text-slate-600 dark:text-slate-400'
                     }`}>
-                      {runtimeVisibleServerIds.has(server.id) ? '当前角色可见' : '当前角色不可见'}
+                      {runtimeVisibleServerIds.has(server.id) ? '当前可用' : '暂未生效'}
                     </span>
                   </div>
                 </div>
@@ -646,23 +589,16 @@ const McpManager: React.FC = () => {
                     {getRegistryEntryDescription(entry)}
                   </p>
 
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] dark:text-claude-darkTextSecondary text-claude-textSecondary">
-                    <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-medium">
-                      {RUNTIME_FLOW_TAGS.builtinMcp.label}
+                  <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                    <span className="px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-600 dark:text-violet-300 font-medium">
+                      {getCategoryLabel(entry.category)}
                     </span>
-                    <span className={`px-1.5 py-0.5 rounded font-medium ${TRANSPORT_BADGE_COLORS[entry.transportType] || ''}`}>
+                    <span className={`px-2 py-0.5 rounded-full font-medium ${TRANSPORT_BADGE_COLORS[entry.transportType] || ''}`}>
                       {entry.transportType}
                     </span>
-                    <span>·</span>
-                    <span className="truncate">{getStdioCommandSummary(entry.command, entry.defaultArgs)}</span>
-                    {entry.requiredEnvKeys && entry.requiredEnvKeys.length > 0 && (
-                      <>
-                        <span>·</span>
-                        <span className="text-amber-500 dark:text-amber-400">
-                          {`需配置 ${entry.requiredEnvKeys.length} 个 key`}
-                        </span>
-                      </>
-                    )}
+                    <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 font-medium">
+                      {'待接入'}
+                    </span>
                   </div>
                 </div>
               ))

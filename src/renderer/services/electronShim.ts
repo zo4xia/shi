@@ -23,6 +23,7 @@ import type {
   CoworkConfigUpdate,
   CoworkUserMemoryEntry,
   CoworkMemoryStats,
+  CoworkBroadcastBoardSnapshot,
   CoworkPermissionRequest,
   CoworkPermissionResult,
   CoworkApiConfig,
@@ -530,6 +531,17 @@ const cowork = {
     return unwrap(await apiClient.get(url));
   },
 
+  async listBroadcastBoards(input?: {
+    agentRoleKey?: string;
+    limit?: number;
+  }): Promise<{ success: boolean; boards?: CoworkBroadcastBoardSnapshot[]; error?: string }> {
+    const query = new URLSearchParams(
+      Object.fromEntries(Object.entries(input ?? {}).filter(([, value]) => value !== undefined && value !== null)) as Record<string, string>
+    ).toString();
+    const url = query ? `${routes.cowork.broadcastBoards()}?${query}` : routes.cowork.broadcastBoards();
+    return unwrap(await apiClient.get(url));
+  },
+
   // Stream event listeners
   onStreamMessage(callback: (data: { sessionId: string; message: CoworkMessage }) => void): () => void {
     return webSocketClient.on(WS_EVENTS.COWORK_MESSAGE, callback);
@@ -785,6 +797,48 @@ const dialog = {
     } catch (error) {
       console.error('[ElectronShim] saveInlineFile error:', error);
       return { success: false, path: null, error: error instanceof Error ? error.message : 'Failed to save file' };
+    }
+  },
+
+  async parseInlineFile(options: { path: string; maxCharacters?: number }): Promise<{
+    success: boolean;
+    path?: string;
+    fileName?: string;
+    fileType?: string;
+    text?: string;
+    truncated?: boolean;
+    originalLength?: number;
+    error?: string;
+  }> {
+    try {
+      const result = await apiClient.post<{
+        success: boolean;
+        path?: string;
+        fileName?: string;
+        fileType?: string;
+        text?: string;
+        truncated?: boolean;
+        originalLength?: number;
+        error?: string;
+      }>('/dialog/parseInlineFile', {
+        path: options.path,
+        maxCharacters: options.maxCharacters,
+      });
+      if (result.success && result.data?.success) {
+        return {
+          success: true,
+          path: result.data.path,
+          fileName: result.data.fileName,
+          fileType: result.data.fileType,
+          text: result.data.text,
+          truncated: result.data.truncated,
+          originalLength: result.data.originalLength,
+        };
+      }
+      return { success: false, error: result.data?.error || result.error || 'Failed to parse file' };
+    } catch (error) {
+      console.error('[ElectronShim] parseInlineFile error:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Failed to parse file' };
     }
   },
 

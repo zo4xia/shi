@@ -234,7 +234,7 @@ const RoomView: React.FC<RoomViewProps> = ({
                 </p>
               </div>
 
-              <div className="rounded-[28px] border border-white/55 bg-gradient-to-br from-white/92 via-pearl-50/88 to-[#f3e8de]/92 p-5 shadow-[0_12px_32px_rgba(140,116,96,0.12)] dark:border-white/10 dark:bg-claude-darkSurface/45">
+              <div className="uclaw-panel-shell p-5 dark:bg-claude-darkSurface/45">
                 <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-claude-textSecondary dark:text-claude-darkTextSecondary">
                   邀请伙伴
                 </div>
@@ -384,7 +384,7 @@ const RoomView: React.FC<RoomViewProps> = ({
                   <div className="mb-2 text-xs text-claude-textSecondary dark:text-claude-darkTextSecondary">
                     可以用 <code>@A</code>、<code>@B</code>、<code>@浏览器助手</code>、<code>@全部</code> 点名。
                   </div>
-                  <div className="rounded-[24px] bg-gradient-to-br from-white/72 via-pearl-50/58 to-[#f7efe8]/66 p-3 dark:bg-black/10">
+                  <div className="uclaw-panel-inner p-3">
                     <textarea
                       value={draft}
                       onChange={(event) => setDraft(event.target.value)}
@@ -396,7 +396,7 @@ const RoomView: React.FC<RoomViewProps> = ({
                       }}
                       placeholder="先拉几个小伙伴进来，想和谁说话就 @谁"
                       disabled={isBusy || activeRoom.status !== 'active'}
-                      className="min-h-[92px] w-full resize-none bg-transparent px-2 py-2 text-[14px] leading-6 text-claude-text outline-none placeholder:text-claude-textSecondary dark:text-claude-darkText dark:placeholder:text-claude-darkTextSecondary"
+                      className="min-h-[92px] w-full resize-none bg-transparent px-2 py-2 text-[13px] leading-5 text-claude-text outline-none placeholder:text-claude-textSecondary dark:text-claude-darkText dark:placeholder:text-claude-darkTextSecondary"
                     />
                     <div className="mt-2 flex items-center justify-between gap-3">
                       <div className="text-xs text-claude-textSecondary dark:text-claude-darkTextSecondary">

@@ -7,7 +7,14 @@ import { normalizeNativeCapabilitiesConfig } from '../../shared/nativeCapabiliti
 import { localStore } from './store';
 
 const getFixedProviderApiFormat = (providerKey: string): 'anthropic' | 'openai' | null => {
-  if (providerKey === 'openai' || providerKey === 'gemini' || providerKey === 'stepfun' || providerKey === 'youdaozhiyun') {
+  if (
+    providerKey === 'openai'
+    || providerKey === 'gemini'
+    || providerKey === 'stepfun'
+    || providerKey === 'youdaozhiyun'
+    || providerKey === 'youdao_zhiyun'
+    || providerKey === 'volcengine'
+  ) {
     return 'openai';
   }
   if (providerKey === 'anthropic') {

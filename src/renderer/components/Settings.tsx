@@ -49,6 +49,7 @@ import {
 import type {
   CoworkUserMemoryEntry,
   CoworkMemoryStats,
+  CoworkBroadcastBoardSnapshot,
 } from '../types/cowork';
 import { defaultConfig, type AppConfig, getVisibleProviders } from '../config';
 import {
@@ -78,10 +79,12 @@ import {
   getEffectiveApiFormat,
   buildOpenAICompatibleChatCompletionsUrl,
   CONNECTIVITY_TEST_TOKEN_BUDGET,
+  isVolcengineV3BaseUrl,
 } from './settings/settingsHelpers';
 import {
   resolveBaseUrl,
 } from './settings/settingsConstants';
+import CoworkMemorySettingsPanel from './settings/CoworkMemorySettingsPanel';
 
 // 特价 API 套餐卡片 — 珍珠白风格
 const ClawApiIframeView: React.FC = () => {
@@ -364,35 +367,6 @@ const resolveExplicitDefaultRole = (
   return null;
 };
 
-const joinProjectPath = (...segments: string[]): string => {
-  return segments
-    .map((segment, index) => (
-      index === 0
-        ? segment.replace(/[\\/]+$/, '')
-        : segment.replace(/^[\\/]+|[\\/]+$/g, '')
-    ))
-    .filter(Boolean)
-    .join('\\');
-};
-
-const buildRoleRuntimePaths = (workspacePath: string, roleKey: AgentRoleKey) => {
-  if (!workspacePath.trim()) {
-    return null;
-  }
-
-  const runtimeRoot = joinProjectPath(workspacePath, '.uclaw', 'web');
-  const roleRoot = joinProjectPath(runtimeRoot, 'roles', roleKey);
-  return {
-    runtimeRoot,
-    roleRoot,
-    settingsPath: joinProjectPath(roleRoot, 'role-settings.json'),
-    skillsIndexPath: joinProjectPath(roleRoot, 'skills.json'),
-    notesRoot: joinProjectPath(roleRoot, 'notes'),
-    roleNotesPath: joinProjectPath(roleRoot, 'notes', 'role-notes.md'),
-    pitfallsPath: joinProjectPath(roleRoot, 'notes', 'pitfalls.md'),
-  };
-};
-
 const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpdateFound: _onUpdateFound }) => {
   const dispatch = useDispatch();
   // 状态
@@ -453,7 +427,6 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
   const [_testModeUnlocked, setTestModeUnlocked] = useState(false);
   const [showWorkspacePath, setShowWorkspacePath] = useState(false);
   const [showEnvSyncTargetPath, setShowEnvSyncTargetPath] = useState(false);
-  const [showActiveRoleRuntimePaths, setShowActiveRoleRuntimePaths] = useState(false);
 
   // Workspace info (web build)
   const [workspacePath, setWorkspacePath] = useState<string>('');
@@ -498,6 +471,7 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
   const [coworkMemoryLlmJudgeEnabled, setCoworkMemoryLlmJudgeEnabled] = useState<boolean>(coworkConfig.memoryLlmJudgeEnabled ?? false);
   const [coworkMemoryEntries, setCoworkMemoryEntries] = useState<CoworkUserMemoryEntry[]>([]);
   const [coworkMemoryStats, setCoworkMemoryStats] = useState<CoworkMemoryStats | null>(null);
+  const [coworkBroadcastBoards, setCoworkBroadcastBoards] = useState<CoworkBroadcastBoardSnapshot[]>([]);
   const [coworkMemoryListLoading, setCoworkMemoryListLoading] = useState<boolean>(false);
   const [coworkMemoryQuery, setCoworkMemoryQuery] = useState<string>('');
   // {标记} P0-身份筛选-DYNAMIC: 记忆归桶按真实 agentRoleKey，前端筛选不能只写死四主角色。
@@ -837,16 +811,11 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
     return Array.from(ordered);
   }, [activeRole, coworkMemoryAgentRoleKey, coworkMemoryEntries]);
 
-  const getMemoryRoleLabel = useCallback((roleKey: string): string => {
-    return AGENT_ROLE_LABELS[roleKey as AgentRoleKey] ?? roleKey;
-  }, []);
-
-
   const loadCoworkMemoryData = useCallback(async () => {
     setCoworkMemoryListLoading(true);
     const effectiveAgentRoleKey = coworkMemoryAgentRoleKey !== 'all' ? coworkMemoryAgentRoleKey : undefined;
     try {
-      const [entries, stats] = await Promise.all([
+      const [entries, stats, boards] = await Promise.all([
         coworkService.listMemoryEntries({
           query: coworkMemoryQuery.trim() || undefined,
           agentRoleKey: effectiveAgentRoleKey,
@@ -854,13 +823,19 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
         coworkService.getMemoryStats({
           agentRoleKey: effectiveAgentRoleKey,
         }),
+        coworkService.listBroadcastBoards({
+          agentRoleKey: effectiveAgentRoleKey,
+          limit: 24,
+        }),
       ]);
       setCoworkMemoryEntries(entries);
       setCoworkMemoryStats(stats);
+      setCoworkBroadcastBoards(boards);
     } catch (loadError) {
       console.error('Failed to load cowork memory data:', loadError);
       setCoworkMemoryEntries([]);
       setCoworkMemoryStats(null);
+      setCoworkBroadcastBoards([]);
     } finally {
       setCoworkMemoryListLoading(false);
     }
@@ -971,21 +946,6 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
     }
   };
 
-  const getMemoryStatusLabel = (status: CoworkUserMemoryEntry['status']): string => {
-    if (status === 'created') return '生效中';
-    if (status === 'stale') return '暂不使用';
-    return '已删除';
-  };
-
-  const formatMemoryUpdatedAt = (timestamp: number): string => {
-    if (!Number.isFinite(timestamp) || timestamp <= 0) return '-';
-    try {
-      return new Date(timestamp).toLocaleString();
-    } catch {
-      return '-';
-    }
-  };
-
   const handleOpenCoworkMemoryModal = () => {
     resetCoworkMemoryEditor();
     setShowMemoryModal(true);
@@ -1044,10 +1004,11 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
 
     try {
       const normalizedBaseUrl = role.apiUrl.replace(/\/+$/, '');
+      const useOpenAICompatibleProbe = role.apiFormat === 'openai' || isVolcengineV3BaseUrl(normalizedBaseUrl);
       let response: Awaited<ReturnType<typeof window.electron.api.fetch>>;
 
-      if (role.apiFormat === 'anthropic') {
-        const anthropicUrl = normalizedBaseUrl.endsWith('/v1')
+      if (!useOpenAICompatibleProbe) {
+        const anthropicUrl = /\/v\d+$/.test(normalizedBaseUrl)
           ? `${normalizedBaseUrl}/messages`
           : `${normalizedBaseUrl}/v1/messages`;
         response = await window.electron.api.fetch({
@@ -1782,202 +1743,37 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
 
       case 'coworkMemory':
         return (
-          <div className="space-y-6">
-            <div className="space-y-3 rounded-xl border px-4 py-4 dark:border-claude-darkBorder border-claude-border bg-gradient-to-br from-[#f8efe8] via-white to-[#f6f8fb] dark:from-claude-darkSurface dark:via-claude-darkSurface/90 dark:to-claude-darkSurface/70">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className="text-sm font-medium dark:text-claude-darkText text-claude-text">
-                    {'连续性保护'}
-                  </div>
-                  <div className="text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary">
-                    {'系统会尽量帮你保住跨天连续性。'}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowCoworkContinuityNote((value) => !value)}
-                  className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium dark:border-claude-darkBorder/70 border-claude-border/70 dark:text-claude-darkTextSecondary text-claude-textSecondary"
-                >
-                  <InformationCircleIcon className="h-3.5 w-3.5" />
-                  {'这是什么'}
-                </button>
-              </div>
-              {showCoworkContinuityNote && (
-                <div className="rounded-lg dark:bg-claude-darkSurfaceInset bg-claude-surfaceInset px-3 py-3 text-xs leading-5 dark:text-claude-darkTextSecondary text-claude-textSecondary">
-                  {'短期共享线程负责当天交接，长期记忆负责跨天延续。热缓存空了，就尝试从长期记忆里把“今天的第一棒”接回来。'}
-                </div>
-              )}
-            </div>
-
-            <div className="space-y-3 rounded-xl border px-4 py-4 dark:border-claude-darkBorder border-claude-border">
-              <div className="text-sm font-medium dark:text-claude-darkText text-claude-text">
-                {'记忆管理'}
-              </div>
-              <label className="flex items-start gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={coworkMemoryEnabled}
-                  onChange={(event) => setCoworkMemoryEnabled(event.target.checked)}
-                  className="mt-1"
-                />
-                <span>
-                  <span className="block text-sm dark:text-claude-darkText text-claude-text">
-                    {'启用用户记忆'}
-                  </span>
-                  <span className="block text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary">
-                    {'将稳定事实注入到系统提示词中的 <userMemories> 区块。'}
-                  </span>
-                  <span className="mt-1 block text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary">
-                    {'建议开启后直接使用下方“记忆条目管理”，无需额外配置。'}
-                  </span>
-                </span>
-              </label>
-              <label className={`flex items-start gap-3 ${coworkMemoryEnabled ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}>
-                <input
-                  type="checkbox"
-                  checked={coworkMemoryLlmJudgeEnabled}
-                  onChange={(event) => setCoworkMemoryLlmJudgeEnabled(event.target.checked)}
-                  disabled={!coworkMemoryEnabled}
-                  className="mt-1"
-                />
-                <span>
-                  <span className="block text-sm dark:text-claude-darkText text-claude-text">
-                    {'启用 LLM 二级判定'}
-                  </span>
-                  <span className="block text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary">
-                    {'仅对规则边界样本调用模型复核，提升准确率（会增加少量 API 调用）。'}
-                  </span>
-                </span>
-              </label>
-            </div>
-
-            <div className="space-y-4 rounded-xl border px-4 py-4 dark:border-claude-darkBorder border-claude-border">
-              <div className="flex items-center justify-between">
-                <div className="space-y-1">
-                  <div className="text-sm font-medium dark:text-claude-darkText text-claude-text">
-                    {'记忆条目管理'}
-                  </div>
-                  <div className="text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary">
-                    {'你可以在这里查看、搜索、新增、编辑或删除记忆内容。'}
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={handleRefreshCoworkMemoryData}
-                    disabled={coworkMemoryListLoading}
-                    className="inline-flex items-center justify-center px-3 py-1.5 rounded-lg border dark:border-claude-darkBorder border-claude-border text-sm dark:text-claude-darkText text-claude-text hover:bg-claude-surfaceHover dark:hover:bg-claude-darkSurfaceHover disabled:opacity-60 transition-colors"
-                  >
-                    {'刷新'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleOpenCoworkMemoryModal}
-                    className="inline-flex items-center justify-center px-3 py-1.5 rounded-lg bg-claude-accent hover:bg-claude-accentHover text-white text-sm transition-colors"
-                  >
-                    <PlusCircleIcon className="h-4 w-4 mr-1.5" />
-                    {'新增条目'}
-                  </button>
-                </div>
-              </div>
-
-              {coworkMemoryStats && (
-                <div className="text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary">
-                  {`${'记忆总数'}: ${coworkMemoryStats.total - coworkMemoryStats.deleted} · ${'生效中'}: ${coworkMemoryStats.created} · ${'暂不使用'}: ${coworkMemoryStats.stale}`}
-                </div>
-              )}
-
-              {/* {标记} P0-新增：身份过滤器 */}
-              <div className="grid grid-cols-1 gap-2">
-                <select
-                  value={coworkMemoryAgentRoleKey}
-                  onChange={(e) => setCoworkMemoryAgentRoleKey(e.target.value as string | 'all')}
-                  className="rounded-lg border px-3 py-2 text-sm dark:border-claude-darkBorder border-claude-border dark:bg-claude-darkSurface bg-claude-surface"
-                >
-                  <option value="all">所有身份</option>
-                  {coworkMemoryRoleOptions.map((roleKey) => (
-                    <option key={roleKey} value={roleKey}>
-                      {getMemoryRoleLabel(roleKey)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <input
-                type="text"
-                value={coworkMemoryQuery}
-                onChange={(event) => setCoworkMemoryQuery(event.target.value)}
-                placeholder={'搜索记忆内容/来源'}
-                className="w-full rounded-lg border px-3 py-2 text-sm dark:border-claude-darkBorder border-claude-border dark:bg-claude-darkSurface bg-claude-surface"
-              />
-              <div className="text-[11px] dark:text-claude-darkTextSecondary text-claude-textSecondary">
-                {'记忆只按身份归桶；默认展示全部身份。新增条目会写入当前选中身份；若筛选为“所有身份”，则写入当前设置页角色。'}
-              </div>
-
-              <div className="max-h-[500px] overflow-auto rounded-lg border dark:border-claude-darkBorder border-claude-border">
-                {coworkMemoryListLoading ? (
-                  <div className="px-3 py-3 text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary">
-                    {'加载中...'}
-                  </div>
-                ) : coworkMemoryEntries.length === 0 ? (
-                  <div className="px-3 py-3 text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary">
-                    {'暂无记忆条目'}
-                  </div>
-                ) : (
-                  <div className="divide-y dark:divide-claude-darkBorder divide-claude-border">
-                    {coworkMemoryEntries.map((entry) => (
-                      <div key={entry.id} className="px-3 py-3 text-xs hover:bg-claude-surfaceHover dark:hover:bg-claude-darkSurfaceHover transition-colors">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex-1 space-y-1 min-w-0">
-                            <div className="font-medium dark:text-claude-darkText text-claude-text break-words">
-                              {entry.text}
-                            </div>
-                            <div className="flex flex-wrap items-center gap-2 dark:text-claude-darkTextSecondary text-claude-textSecondary">
-                              <span className="rounded-full border px-2 py-0.5 dark:border-claude-darkBorder border-claude-border">
-                                {getMemoryStatusLabel(entry.status)}
-                              </span>
-                              {/* {标记} P0-新增：显示身份标签 */}
-                              {entry.agentRoleKey && (
-                                <span className="rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 px-2 py-0.5 text-xs">
-                                  {AGENT_ROLE_LABELS[entry.agentRoleKey as AgentRoleKey] ?? entry.agentRoleKey}
-                                </span>
-                              )}
-                              <span>
-                                {`${'最后更新'}: ${formatMemoryUpdatedAt(entry.updatedAt)}`}
-                              </span>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-1 flex-shrink-0">
-                            <button
-                              type="button"
-                              onClick={() => handleEditCoworkMemoryEntry(entry)}
-                              className="rounded border px-2 py-1 dark:border-claude-darkBorder border-claude-border dark:text-claude-darkText text-claude-text hover:bg-claude-surfaceHover dark:hover:bg-claude-darkSurfaceHover transition-colors"
-                            >
-                              {'编辑'}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => { void handleDeleteCoworkMemoryEntry(entry); }}
-                              className="rounded border px-2 py-1 text-red-500 dark:border-claude-darkBorder border-claude-border hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-60 transition-colors"
-                              disabled={coworkMemoryListLoading}
-                            >
-                              {'删除'}
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-          </div>
+          <CoworkMemorySettingsPanel
+            showCoworkContinuityNote={showCoworkContinuityNote}
+            coworkMemoryEnabled={coworkMemoryEnabled}
+            coworkMemoryLlmJudgeEnabled={coworkMemoryLlmJudgeEnabled}
+            coworkBroadcastBoards={coworkBroadcastBoards}
+            coworkMemoryEntries={coworkMemoryEntries}
+            coworkMemoryStats={coworkMemoryStats}
+            coworkMemoryListLoading={coworkMemoryListLoading}
+            coworkMemoryQuery={coworkMemoryQuery}
+            coworkMemoryRoleOptions={coworkMemoryRoleOptions}
+            coworkMemoryAgentRoleKey={coworkMemoryAgentRoleKey}
+            showMemoryModal={showMemoryModal}
+            coworkMemoryEditingId={coworkMemoryEditingId}
+            coworkMemoryDraftText={coworkMemoryDraftText}
+            onToggleContinuityNote={() => setShowCoworkContinuityNote((value) => !value)}
+            onCoworkMemoryEnabledChange={setCoworkMemoryEnabled}
+            onCoworkMemoryLlmJudgeEnabledChange={setCoworkMemoryLlmJudgeEnabled}
+            onRefresh={handleRefreshCoworkMemoryData}
+            onOpenModal={handleOpenCoworkMemoryModal}
+            onRoleFilterChange={setCoworkMemoryAgentRoleKey}
+            onQueryChange={setCoworkMemoryQuery}
+            onEditEntry={handleEditCoworkMemoryEntry}
+            onDeleteEntry={handleDeleteCoworkMemoryEntry}
+            onCloseModal={resetCoworkMemoryEditor}
+            onDraftChange={setCoworkMemoryDraftText}
+            onSaveEntry={handleSaveCoworkMemoryEntry}
+          />
         );
 
       case 'model': {
         const activeRoleConfig = agentRoles[activeRole];
-        const activeRoleRuntimePaths = buildRoleRuntimePaths(workspacePath, activeRole);
 
         return (
           <div className="flex h-full gap-4">
@@ -2062,72 +1858,11 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
                 </span>
               </div>
 
-              {activeRoleRuntimePaths && (
-                <div className="rounded-xl border px-4 py-3 dark:border-claude-darkBorder border-claude-border dark:bg-claude-darkSurface/35 bg-claude-surface/35 space-y-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <div className="text-xs font-medium dark:text-claude-darkText text-claude-text">
-                        {'角色文件'}
-                      </div>
-                      <div className="mt-1 text-xs leading-5 dark:text-claude-darkTextSecondary text-claude-textSecondary">
-                        {'这里只保留当前角色的资料入口，方便直接打开相关目录；具体位置默认先隐藏。'}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setShowActiveRoleRuntimePaths((value) => !value)}
-                        className="inline-flex items-center rounded-xl border px-3 py-1.5 text-xs font-medium dark:border-claude-darkBorder border-claude-border dark:text-claude-darkTextSecondary text-claude-textSecondary dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover transition-colors"
-                      >
-                        {showActiveRoleRuntimePaths ? '收起位置' : '查看位置'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => { void handleOpenShellPath(activeRoleRuntimePaths.roleRoot, 'open'); }}
-                        className="inline-flex items-center rounded-xl border px-3 py-1.5 text-xs font-medium dark:border-claude-darkBorder border-claude-border dark:text-claude-darkText text-claude-text dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover transition-colors"
-                      >
-                        {'打开角色目录'}
-                      </button>
-                    </div>
-                  </div>
-
-                  {[
-                    { label: '角色目录', path: activeRoleRuntimePaths.roleRoot, openMode: 'open' as const },
-                    { label: '设定视图', path: activeRoleRuntimePaths.settingsPath, openMode: 'reveal' as const },
-                    { label: '技能索引', path: activeRoleRuntimePaths.skillsIndexPath, openMode: 'reveal' as const },
-                    { label: '笔记目录', path: activeRoleRuntimePaths.notesRoot, openMode: 'open' as const },
-                  ].map((entry) => (
-                    <div
-                      key={entry.label}
-                      className="rounded-xl border px-3 py-3 dark:border-claude-darkBorder/80 border-claude-border/80 dark:bg-claude-darkSurface/30 bg-white/50"
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="text-[11px] font-medium dark:text-claude-darkText text-claude-text">
-                            {entry.label}
-                          </div>
-                          <div className="mt-1 break-all font-mono text-[11px] leading-5 dark:text-claude-darkTextSecondary text-claude-textSecondary">
-                            {showActiveRoleRuntimePaths ? entry.path : '位置已隐藏；需要时可点右侧按钮直接打开。'}
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => { void handleOpenShellPath(entry.path, entry.openMode); }}
-                          className="shrink-0 inline-flex items-center rounded-lg border px-2.5 py-1.5 text-[11px] font-medium dark:border-claude-darkBorder border-claude-border dark:text-claude-darkText text-claude-text dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover transition-colors"
-                        >
-                          {entry.openMode === 'open' ? '打开' : '定位'}
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
 
               <div>
                 <div className="mb-1 flex items-center justify-between gap-3">
                   <label htmlFor={`${activeRole}-apiUrl`} className="block text-xs font-medium dark:text-claude-darkText text-claude-text">
-                    {'API Base URL'}
+                    {'API Base URL（必须带版本号）'}
                   </label>
                   <button
                     type="button"
@@ -2144,7 +1879,7 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
                     value={activeRoleConfig.apiUrl}
                     onChange={(event) => handleAgentRoleChange(activeRole, 'apiUrl', event.target.value)}
                     className="block w-full rounded-xl bg-claude-surfaceInset dark:bg-claude-darkSurfaceInset dark:border-claude-darkBorder border-claude-border border focus:border-claude-accent focus:ring-1 focus:ring-claude-accent/30 dark:text-claude-darkText text-claude-text px-3 py-2 pr-8 text-xs"
-                    placeholder={'api.ujiapp.com/v1'}
+                    placeholder={'https://ark.cn-beijing.volces.com/api/v3'}
                   />
                   {activeRoleConfig.apiUrl && (
                     <div className="absolute right-2 inset-y-0 flex items-center">
@@ -2159,11 +1894,34 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
                     </div>
                   )}
                 </div>
-                {!activeRoleConfig.apiUrl.trim() && (
-                  <p className="mt-1 text-[11px] dark:text-claude-darkTextSecondary text-claude-textSecondary">
-                    {'留空时建议填写：api.ujiapp.com/v1'}
+                <div className="mt-1 space-y-1 text-[11px] dark:text-claude-darkTextSecondary text-claude-textSecondary">
+                  <p>
+                    {'必须由用户自己填写到版本层，例如 '}
+                    <code className="font-mono">/v1</code>
+                    {'、'}
+                    <code className="font-mono">/api/v3</code>
+                    {'。没填版本号就是不对。'}
                   </p>
-                )}
+                  <p>
+                    {'系统只会自动拼接后缀，不会帮你猜版本：OpenAI 兼容自动补 '}
+                    <code className="font-mono">/chat/completions</code>
+                    {'，Anthropic 兼容自动补 '}
+                    <code className="font-mono">/messages</code>
+                    {'。'}
+                  </p>
+                  <p>
+                    {'不要把完整接口填进来，例如不要直接填 '}
+                    <code className="font-mono">/chat/completions</code>
+                    {' 或 '}
+                    <code className="font-mono">/messages</code>
+                    {'。'}
+                  </p>
+                  <p>
+                    {'示例：火山 Ark / 豆包填写 '}
+                    <code className="font-mono">https://ark.cn-beijing.volces.com/api/v3</code>
+                    {'。'}
+                  </p>
+                </div>
               </div>
 
               <div>
@@ -2269,7 +2027,7 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
                     }))}
                   />
                   <p className="mt-1 text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary">
-                    {'这里按接口形态分流：`generic` 走 `/v1/chat/completions`，`images` 走 `/v1/images/generations`，`google` 走 `generateContent`。旧值仅保留展示，标记为可疑1。'}
+                    {'这里按接口形态分流：Base URL 必须先填到版本层；`generic` 自动拼 `/chat/completions`，`images` 自动拼 `/images/generations`，`google` 走 `generateContent`。旧值仅保留展示，标记为可疑1。'}
                   </p>
                   <p className="mt-1 text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary">
                     {`当前已确认图片模型：${CONFIRMED_DESIGNER_IMAGE_MODEL_HINTS.map((item) => `${item.label} → ${item.apiType}`).join('；')}。Sora / Veo 这类视频链路先不做。`}
@@ -2700,58 +2458,6 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
                     className="px-3 py-1.5 text-xs text-white bg-claude-accent hover:bg-claude-accentHover rounded-xl"
                   >
                     {'保存'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Memory Modal */}
-          {showMemoryModal && (
-            <div
-              className="absolute inset-0 z-20 flex items-center justify-center bg-black/35 px-4 rounded-2xl"
-              onClick={resetCoworkMemoryEditor}
-            >
-              <div
-                className="dark:bg-claude-darkSurface bg-claude-surface dark:border-claude-darkBorder border-claude-border border rounded-2xl shadow-xl w-full max-w-md"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="px-5 pt-5 pb-4 border-b dark:border-claude-darkBorder border-claude-border">
-                  <h3 className="text-base font-semibold dark:text-claude-darkText text-claude-text">
-                    {coworkMemoryEditingId ? '更新条目' : '新增条目'}
-                  </h3>
-                </div>
-
-                <div className="px-5 py-4 space-y-4">
-                  {coworkMemoryEditingId && (
-                    <div className="rounded-lg border px-2 py-1 text-xs dark:border-claude-darkBorder border-claude-border dark:text-claude-darkTextSecondary text-claude-textSecondary">
-                      {'正在编辑当前记忆'}
-                    </div>
-                  )}
-                  <textarea
-                    value={coworkMemoryDraftText}
-                    onChange={(event) => setCoworkMemoryDraftText(event.target.value)}
-                    placeholder={'输入要保存的记忆内容'}
-                    autoFocus
-                    className="min-h-[200px] w-full rounded-lg border px-3 py-2 text-sm dark:border-claude-darkBorder border-claude-border dark:bg-claude-darkSurface bg-claude-surface dark:text-claude-darkText text-claude-text focus:border-claude-accent focus:ring-1 focus:ring-claude-accent/30"
-                  />
-                </div>
-
-                <div className="flex justify-end space-x-2 px-5 pb-5">
-                  <button
-                    type="button"
-                    onClick={resetCoworkMemoryEditor}
-                    className="px-3 py-1.5 text-sm dark:text-claude-darkText text-claude-text dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover rounded-xl border dark:border-claude-darkBorder border-claude-border transition-colors"
-                  >
-                    {'取消'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { void handleSaveCoworkMemoryEntry(); }}
-                    disabled={!coworkMemoryDraftText.trim() || coworkMemoryListLoading}
-                    className="px-3 py-1.5 text-sm text-white bg-claude-accent hover:bg-claude-accentHover rounded-xl disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
-                  >
-                    {coworkMemoryEditingId ? '保存' : '新增条目'}
                   </button>
                 </div>
               </div>

@@ -110,8 +110,14 @@ function buildOpenAIChatUrl(baseUrl: string): string {
   const normalized = normalizeBaseUrl(baseUrl);
   if (!normalized) return '/v1/chat/completions';
   if (normalized.endsWith('/chat/completions')) return normalized;
-  if (normalized.endsWith('/v1')) return `${normalized}/chat/completions`;
+  if (/\/v\d+$/.test(normalized)) return `${normalized}/chat/completions`;
   return `${normalized}/v1/chat/completions`;
+}
+
+function isVolcengineV3BaseUrl(baseUrl: string): boolean {
+  const normalized = normalizeBaseUrl(baseUrl).toLowerCase();
+  return normalized.includes('ark.cn-beijing.volces.com/api/v3')
+    || normalized.includes('ark.cn-beijing.volces.com/api/coding/v3');
 }
 
 function extractTextFromOpenAIResponse(payload: any): string {
@@ -556,7 +562,8 @@ async function buildRemoteHelperReply(
   ].join('\n');
 
   try {
-    if (roleConfig.apiFormat === 'anthropic') {
+    const useOpenAICompatibleFormat = roleConfig.apiFormat === 'openai' || isVolcengineV3BaseUrl(helperConfig.apiUrl);
+    if (!useOpenAICompatibleFormat) {
       const response = await fetch(buildAnthropicMessagesUrl(helperConfig.apiUrl), {
         method: 'POST',
         headers: {

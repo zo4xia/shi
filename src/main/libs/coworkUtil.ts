@@ -1470,8 +1470,20 @@ function buildOpenAIChatUrl(baseUrl: string): string {
   const normalized = baseUrl.trim().replace(/\/+$/, '');
   if (!normalized) return '/v1/chat/completions';
   if (normalized.endsWith('/chat/completions')) return normalized;
-  if (normalized.endsWith('/v1')) return `${normalized}/chat/completions`;
+  if (/\/v\d+$/.test(normalized)) return `${normalized}/chat/completions`;
   return `${normalized}/v1/chat/completions`;
+}
+
+function isLocalOpenAICompatProxy(config: {
+  baseURL: string;
+  apiKey: string;
+  apiType?: string;
+}): boolean {
+  if (config.apiType !== 'openai') {
+    return false;
+  }
+  const normalized = config.baseURL.trim().replace(/\/+$/, '');
+  return /^http:\/\/(?:127\.0\.0\.1|localhost):\d+$/i.test(normalized);
 }
 
 function extractApiErrorSnippet(rawText: string): string {
@@ -1613,23 +1625,40 @@ export async function probeCoworkModelReadiness(
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    // 始终用 Anthropic 格式发到代理（代理会自动转换为上游格式）
-    const url = buildAnthropicMessagesUrl(config.baseURL);
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'x-api-key': config.apiKey,
-      'anthropic-version': '2023-06-01',
-    };
+    const isOpenAICompat = config.apiType === 'openai';
+    const useAnthropicCompatProxyProbe = isLocalOpenAICompatProxy(config);
+    const url = isOpenAICompat && !useAnthropicCompatProxyProbe
+      ? buildOpenAIChatUrl(config.baseURL)
+      : buildAnthropicMessagesUrl(config.baseURL);
+    const headers: Record<string, string> = isOpenAICompat && !useAnthropicCompatProxyProbe
+      ? {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${config.apiKey}`,
+        }
+      : {
+          'Content-Type': 'application/json',
+          'x-api-key': config.apiKey,
+          'anthropic-version': '2023-06-01',
+        };
+
+    const body = isOpenAICompat
+      ? {
+          model: config.model,
+          max_tokens: 1,
+          temperature: 0,
+          messages: [{ role: 'user', content: 'Reply with "ok".' }],
+        }
+      : {
+          model: config.model,
+          max_tokens: 1,
+          temperature: 0,
+          messages: [{ role: 'user', content: 'Reply with "ok".' }],
+        };
 
     const response = await fetch(url, {
       method: 'POST',
       headers,
-      body: JSON.stringify({
-        model: config.model,
-        max_tokens: 1,
-        temperature: 0,
-        messages: [{ role: 'user', content: 'Reply with "ok".' }],
-      }),
+      body: JSON.stringify(body),
       signal: controller.signal,
     });
 

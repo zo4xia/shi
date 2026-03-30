@@ -39,7 +39,7 @@ const McpView: React.FC<McpViewProps> = ({ isSidebarCollapsed, onToggleSidebar, 
             </div>
           )}
           <h1 className={getResponsivePageTitleClass('dark:text-claude-darkText text-claude-text')}>
-            {'插件 MCP'}
+            {'外接能力'}
           </h1>
         </div>
         <WindowTitleBar inline />

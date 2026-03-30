@@ -48,7 +48,6 @@ const SkillsManager: React.FC = () => {
   const [importTargetRoleKeys, setImportTargetRoleKeys] = useState<string[]>([]);
   const [showRuntimeHint, setShowRuntimeHint] = useState(false);
   const [showCompatHint, setShowCompatHint] = useState(false);
-  const [showSelectedSkillPath, setShowSelectedSkillPath] = useState(false);
   const [skillDisplayAlias, setSkillDisplayAlias] = useState('');
   const [selectedSkillLabels, setSelectedSkillLabels] = useState<string[]>([]);
   const [skillCategoryDraft, setSkillCategoryDraft] = useState('');
@@ -174,12 +173,10 @@ const SkillsManager: React.FC = () => {
     if (!selectedSkill) {
       setSkillCategoryDraft('');
       setIsSavingSkillCategory(false);
-      setShowSelectedSkillPath(false);
       return;
     }
     setSkillCategoryDraft(selectedSkill.category ?? '');
     setIsSavingSkillCategory(false);
-    setShowSelectedSkillPath(false);
   }, [selectedSkill]);
 
   const filteredSkills = useMemo(() => {
@@ -216,12 +213,6 @@ const SkillsManager: React.FC = () => {
     return Array.from(labels).sort((a, b) => a.localeCompare(b, 'zh-CN'));
   }, [skills]);
 
-  const formatSkillDate = (timestamp: number) => {
-    const date = new Date(timestamp);
-    const locale = 'zh-CN';
-    return new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric' }).format(date);
-  };
-
   const matchesSkillBinding = (config: SkillRoleConfigEntry, skill: Skill) => (
     config.skillId === skill.id
     || config.skillName === skill.name
@@ -242,15 +233,9 @@ const SkillsManager: React.FC = () => {
 
   const getSkillRoleBindings = (skill: Skill): Array<{
     roleKey: 'all' | typeof AGENT_ROLE_ORDER[number];
-    scope: string;
-    configPath: string;
-    secretPath: string;
   }> => {
     const bindings = new Map<string, {
       roleKey: 'all' | typeof AGENT_ROLE_ORDER[number];
-      scope: string;
-      configPath: string;
-      secretPath: string;
     }>();
 
     for (const roleKey of AGENT_ROLE_ORDER) {
@@ -265,9 +250,6 @@ const SkillsManager: React.FC = () => {
         if (!bindings.has(bindingKey)) {
           bindings.set(bindingKey, {
             roleKey: bindingKey,
-            scope: boundSkill.scope,
-            configPath: boundSkill.configPath,
-            secretPath: boundSkill.secretPath,
           });
         }
       }
@@ -302,20 +284,6 @@ const SkillsManager: React.FC = () => {
       default:
         return skill.isBuiltIn ? '系统内置' : '本地导入';
     }
-  };
-
-  const getSkillTypeLabel = (skill: Skill) => {
-    if (skill.id === 'daily-memory-extraction') {
-      return RUNTIME_FLOW_TAGS.memorySkill.label;
-    }
-    return RUNTIME_FLOW_TAGS.skillFile.label;
-  };
-
-  const getSkillFlowLine = (skill: Skill) => {
-    if (skill.id === 'daily-memory-extraction') {
-      return RUNTIME_FLOW_TAGS.memorySkill.line;
-    }
-    return RUNTIME_FLOW_TAGS.skillFile.line;
   };
 
   const handleToggleSkill = async (skillId: string) => {
@@ -641,7 +609,7 @@ const SkillsManager: React.FC = () => {
     <div className="space-y-4">
       <div>
         <p className="text-sm dark:text-claude-darkTextSecondary text-claude-textSecondary">
-          {'为您的智能体提供预封装且可重复的最佳实践与工具'}
+          {'把常用技能装给当前角色。首屏只看名字和用途，细节点进去再看。'}
         </p>
       </div>
 
@@ -670,8 +638,8 @@ const SkillsManager: React.FC = () => {
             {'这里看到的是角色当前真正能用到的技能结果，不是随便展示一个列表。系统会按角色绑定和运行配置，筛出实际会进对话的那部分。'}
           </p>
           <div className="space-y-1 text-xs leading-5 text-sky-600 dark:text-sky-300/90">
-            <div>{RUNTIME_FLOW_TAGS.skillFile.line}</div>
-            <div>{RUNTIME_FLOW_TAGS.roleIndex.line}</div>
+            <div>{'先导入，再选择给哪个角色使用，最后才会进入这个角色的真实对话能力。'}</div>
+            <div>{'这里默认只保留已经对当前角色生效的结果，不把底层路径和技术细节直接铺给用户。'}</div>
             <div>{'这里默认只显示当前角色真正会带上的技能：角色绑定 + 全部角色通用。'}</div>
             <div>{'像 Memory、Playwright 这类工具接入不在这里看，它们归到 MCP。'}</div>
           </div>
@@ -814,106 +782,94 @@ const SkillsManager: React.FC = () => {
             {'暂无可用技能'}
           </div>
         ) : (
-          filteredSkills.map((skill) => (
-            <div
-              key={skill.id}
-              className="rounded-xl border dark:border-claude-darkBorder border-claude-border dark:bg-claude-darkSurface/50 bg-claude-surface/50 p-3 transition-colors hover:border-claude-accent/50 cursor-pointer"
-              onClick={() => setSelectedSkill(skill)}
-            >
-              <div className="flex items-start justify-between mb-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="w-7 h-7 rounded-lg dark:bg-claude-darkSurface bg-claude-surface flex items-center justify-center flex-shrink-0">
-                    <PuzzleIcon className="h-4 w-4 dark:text-claude-darkTextSecondary text-claude-textSecondary" />
+          filteredSkills.map((skill) => {
+            const bindings = getSkillRoleBindings(skill);
+            const visibleLabels = getSkillFilterLabels(skill).slice(0, 2);
+            const roleLabel = bindings.length === 0
+              ? '未绑定'
+              : bindings.some((binding) => binding.roleKey === 'all')
+                ? '全部角色'
+                : bindings
+                  .slice(0, 2)
+                  .map((binding) => AGENT_ROLE_SHORT_LABELS[binding.roleKey] || binding.roleKey)
+                  .join(' / ');
+
+            return (
+              <div
+                key={skill.id}
+                className="rounded-xl border dark:border-claude-darkBorder border-claude-border dark:bg-claude-darkSurface/50 bg-claude-surface/50 p-3 transition-colors hover:border-claude-accent/50 cursor-pointer"
+                onClick={() => setSelectedSkill(skill)}
+              >
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="w-7 h-7 rounded-lg dark:bg-claude-darkSurface bg-claude-surface flex items-center justify-center flex-shrink-0">
+                      <PuzzleIcon className="h-4 w-4 dark:text-claude-darkTextSecondary text-claude-textSecondary" />
+                    </div>
+                    <span className="text-sm font-medium dark:text-claude-darkText text-claude-text truncate">
+                      {getSkillDisplayName(skill)}
+                    </span>
                   </div>
-                  <span className="text-sm font-medium dark:text-claude-darkText text-claude-text truncate">
-                    {getSkillDisplayName(skill)}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  {!skill.isBuiltIn && (
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); handleRequestDeleteSkill(skill); }}
-                      className="p-1 rounded-lg text-claude-textSecondary dark:text-claude-darkTextSecondary hover:text-red-500 dark:hover:text-red-400 transition-colors"
-                      title={'删除技能'}
-                    >
-                      <TrashIcon className="h-4 w-4" />
-                    </button>
-                  )}
-                  <div
-                    className={`w-9 h-5 rounded-full flex items-center transition-colors cursor-pointer flex-shrink-0 ${
-                      skill.enabled ? 'bg-claude-accent' : 'dark:bg-claude-darkBorder bg-claude-border'
-                    }`}
-                    onClick={(e) => { e.stopPropagation(); handleToggleSkill(skill.id); }}
-                  >
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {!skill.isBuiltIn && (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); handleRequestDeleteSkill(skill); }}
+                        className="p-1 rounded-lg text-claude-textSecondary dark:text-claude-darkTextSecondary hover:text-red-500 dark:hover:text-red-400 transition-colors"
+                        title={'删除技能'}
+                      >
+                        <TrashIcon className="h-4 w-4" />
+                      </button>
+                    )}
                     <div
-                      className={`w-3.5 h-3.5 rounded-full bg-white shadow-md transform transition-transform ${
-                        skill.enabled ? 'translate-x-[18px]' : 'translate-x-[3px]'
+                      className={`w-9 h-5 rounded-full flex items-center transition-colors cursor-pointer flex-shrink-0 ${
+                        skill.enabled ? 'bg-claude-accent' : 'dark:bg-claude-darkBorder bg-claude-border'
                       }`}
-                    />
+                      onClick={(e) => { e.stopPropagation(); handleToggleSkill(skill.id); }}
+                    >
+                      <div
+                        className={`w-3.5 h-3.5 rounded-full bg-white shadow-md transform transition-transform ${
+                          skill.enabled ? 'translate-x-[18px]' : 'translate-x-[3px]'
+                        }`}
+                      />
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <p className="text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary line-clamp-2 mb-2">
-                {skillService.getLocalizedSkillDescription(skill.id, skill.name, skill.description)}
-              </p>
+                <p className="text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary line-clamp-2">
+                  {skillService.getLocalizedSkillDescription(skill.id, skill.name, skill.description)}
+                </p>
 
-              <p className="text-[10px] leading-4 text-slate-500 dark:text-slate-400 mb-2">
-                {getSkillFlowLine(skill)}
-              </p>
-
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] dark:text-claude-darkTextSecondary text-claude-textSecondary">
-                {getSkillFilterLabels(skill).map((label) => (
-                  <span key={`${skill.id}:${label}`} className="px-1.5 py-0.5 rounded bg-violet-500/10 text-violet-600 dark:text-violet-300 font-medium">
-                    {label}
-                  </span>
-                ))}
-                <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-medium">
-                  {getSkillTypeLabel(skill)}
-                </span>
-                {skill.isOfficial && (
-                  <>
-                    <span className="px-1.5 py-0.5 rounded bg-claude-accent/10 text-claude-accent font-medium">
+                <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px]">
+                  {visibleLabels.map((label, index) => (
+                    <span
+                      key={`${skill.id}:${label}`}
+                      className={`px-2 py-0.5 rounded-full font-medium ${
+                        index % 2 === 0
+                          ? 'bg-violet-500/10 text-violet-600 dark:text-violet-300'
+                          : 'bg-rose-500/10 text-rose-600 dark:text-rose-300'
+                      }`}
+                    >
+                      {label}
+                    </span>
+                  ))}
+                  {skill.isOfficial && (
+                    <span className="px-2 py-0.5 rounded-full bg-claude-accent/10 text-claude-accent font-medium">
                       {'官方'}
                     </span>
-                    <span>·</span>
-                  </>
-                )}
-                {skill.version && (
-                  <>
-                    <span className="px-1.5 py-0.5 rounded dark:bg-claude-darkSurfaceHover bg-claude-surfaceHover font-medium">
-                      v{skill.version}
-                    </span>
-                    <span>·</span>
-                  </>
-                )}
-                <span>{formatSkillDate(skill.updatedAt)}</span>
-                {(() => {
-                  const bindings = getSkillRoleBindings(skill);
-                  return (
-                    <>
-                      <span>·</span>
-                      {bindings.length === 0 ? (
-                        <span className="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 font-medium">
-                          未绑定
-                        </span>
-                      ) : (
-                        bindings.map(b => (
-                          <span key={`${skill.id}:${b.roleKey}`} className="px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 font-medium">
-                            {b.roleKey === 'all' ? '公共' : (AGENT_ROLE_SHORT_LABELS[b.roleKey] || b.roleKey)}
-                          </span>
-                        ))
-                      )}
-                      <span className="px-1.5 py-0.5 rounded bg-slate-500/10 text-slate-600 dark:text-slate-400 font-medium">
-                        {getSkillSourceLabel(skill)}
-                      </span>
-                    </>
-                  );
-                })()}
+                  )}
+                  <span
+                    className={`px-2 py-0.5 rounded-full font-medium ${
+                      bindings.length === 0
+                        ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                        : 'bg-blue-500/10 text-blue-600 dark:text-blue-400'
+                    }`}
+                  >
+                    {roleLabel}
+                  </span>
+                </div>
               </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
 
@@ -964,26 +920,6 @@ const SkillsManager: React.FC = () => {
                 <span className="px-1.5 py-0.5 rounded dark:bg-claude-darkSurfaceHover bg-claude-surfaceHover dark:text-claude-darkText text-claude-text font-medium">
                   {getSkillSourceLabel(selectedSkill)}
                 </span>
-              </div>
-              <div className="flex items-start text-xs">
-                <span className="w-16 flex-shrink-0 pt-1 dark:text-claude-darkTextSecondary text-claude-textSecondary">{'位置'}</span>
-                <div className="min-w-0 flex-1">
-                  <button
-                    type="button"
-                    onClick={() => setShowSelectedSkillPath((value) => !value)}
-                    className="inline-flex items-center rounded-lg px-2 py-1 text-left font-medium text-claude-accent transition-colors hover:bg-claude-accent/10"
-                  >
-                    {showSelectedSkillPath ? '收起路径' : '点击查看路径'}
-                  </button>
-                  {showSelectedSkillPath && (
-                    <div
-                      className="mt-2 rounded-xl dark:bg-claude-darkSurfaceHover bg-claude-surfaceHover px-2.5 py-2 dark:text-claude-darkText text-claude-text break-all"
-                      title={selectedSkill.skillPath}
-                    >
-                      {selectedSkill.skillPath}
-                    </div>
-                  )}
-                </div>
               </div>
             </div>
 
@@ -1038,7 +974,7 @@ const SkillsManager: React.FC = () => {
                 {'角色绑定'}
               </div>
               <p className="mb-2 text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary">
-                {RUNTIME_FLOW_TAGS.roleIndex.line}
+                {'选中角色后，这个技能才会进入对应角色的真实对话能力。'}
               </p>
               <div className="flex flex-wrap gap-2">
                 {[{ key: 'all', label: '全部角色（公共）' }, ...AGENT_ROLE_ORDER.map((key) => ({ key, label: AGENT_ROLE_SHORT_LABELS[key] }))].map((role) => {

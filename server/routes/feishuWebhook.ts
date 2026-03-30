@@ -17,6 +17,7 @@ import {
   getOrCreateFeishuSession as cleanRoomGetOrCreateFeishuSession,
 } from '../../clean-room/spine/modules/feishuSessionSpine';
 import {
+  dedupeRuntimeFeishuApps as cleanRoomDedupeRuntimeFeishuApps,
   resolveFeishuAgentBinding as cleanRoomResolveFeishuAgentBinding,
   resolveRuntimeFeishuApps as cleanRoomResolveRuntimeFeishuApps,
 } from '../../clean-room/spine/modules/feishuRuntime';
@@ -58,7 +59,17 @@ function resolveFeishuGateways(req: Request): any[] {
   const seenAppIds = new Set<string>();
 
   for (const gateway of candidates) {
-    const appId = gateway?.getStatus?.()?.appId;
+    const status = gateway?.getStatus?.();
+    const isEmptyStoppedGateway = status
+      && status.connected !== true
+      && !status.appId
+      && !status.startedAt
+      && !status.error;
+    if (isEmptyStoppedGateway && candidates.length > 1) {
+      continue;
+    }
+
+    const appId = status?.appId;
     const dedupeKey = typeof appId === 'string' && appId.trim() ? appId : `gateway-${uniqueGateways.length}`;
     if (seenAppIds.has(dedupeKey)) {
       continue;
@@ -662,21 +673,25 @@ async function downloadFeishuMessageImage(
   }
 }
 
-function extractNewAssistantReply(session: FeishuWebhookSession | null, knownAssistantIds: Set<string>): string | null {
+function extractNewAssistantReplies(session: FeishuWebhookSession | null, knownAssistantIds: Set<string>): string[] {
   if (!session?.messages?.length) {
-    return null;
+    return [];
   }
 
-  const candidates = session.messages
+  return session.messages
     .filter((message) => (
       message.type === 'assistant'
       && !knownAssistantIds.has(message.id)
       && !message.metadata?.isThinking
+      && (() => {
+        const stage = typeof message.metadata?.stage === 'string'
+          ? message.metadata.stage.trim()
+          : '';
+        return !stage || stage === 'final_result';
+      })()
     ))
     .map((message) => message.content?.trim())
     .filter((content): content is string => Boolean(content));
-
-  return candidates.length > 0 ? candidates.join('\n\n') : null;
 }
 
 function extractLatestErrorMessage(session: FeishuWebhookSession | null): string | null {
@@ -784,16 +799,28 @@ async function processFeishuConversation(params: {
   }
 
   const completedSession = coworkStore.getSession(session.id) as FeishuWebhookSession | null;
-  const rawReplyText = extractNewAssistantReply(completedSession, knownAssistantIds);
+  const rawReplyTexts = extractNewAssistantReplies(completedSession, knownAssistantIds);
   const artifactResult = collectFeishuArtifacts({
     sessionMessages: completedSession?.messages ?? [],
     knownMessageIds: knownAssistantIds,
     workspaceRoot: session.cwd,
     runStartedAt,
   });
-  const replyText = artifactResult.cleanText || rawReplyText;
-  if (replyText) {
-    await sendFeishuTextReply(app, chatId, replyText, replyToMessageId);
+  const replyTexts = (() => {
+    if (artifactResult.cleanText) {
+      if (rawReplyTexts.length === 0) {
+        return [artifactResult.cleanText];
+      }
+      return [...rawReplyTexts.slice(0, -1), artifactResult.cleanText];
+    }
+    return rawReplyTexts;
+  })();
+  if (replyTexts.length > 0) {
+    let currentReplyToMessageId = replyToMessageId;
+    for (const replyText of replyTexts) {
+      await sendFeishuTextReply(app, chatId, replyText, currentReplyToMessageId);
+      currentReplyToMessageId = undefined;
+    }
     await sendFeishuArtifacts(app, chatId, artifactResult.artifacts, replyToMessageId);
     if (processingStatusSent) {
       await sendFeishuTextReply(app, chatId, FEISHU_STATUS_SENT_MESSAGE);
@@ -1070,7 +1097,12 @@ export function setupFeishuWebhookRoutes(app: Router) {
       const requestedApps = Array.isArray(apps)
         ? apps
         : [{ appId, appSecret, agentRoleKey, domain, debug }];
-      const validApps = requestedApps.filter((app) => app?.appId && app?.appSecret);
+      const validApps = cleanRoomDedupeRuntimeFeishuApps(
+        requestedApps.filter((app) => app?.appId && app?.appSecret),
+      );
+      if (validApps.length < requestedApps.length) {
+        console.warn(`[Feishu] Deduped manual gateway start app list: ${requestedApps.length} -> ${validApps.length}`);
+      }
 
       if (validApps.length === 0) {
         return res.status(400).json({ success: false, error: 'appId and appSecret required' });

@@ -20,7 +20,7 @@ This skill performs two automated tasks every day:
 | Layer | Storage | Responsibility | Lifecycle |
 |-------|---------|---------------|-----------|
 | **Layer 1** | `user_memories` | Real-time fine-grained rule extraction | During session |
-| **Layer 2** | `identity_thread_24h` | 24-hour conversation context cache | 24-hour expiration |
+| **Layer 2** | `identity_thread_24h` | 24-hour broadcast baton cache | 24-hour expiration |
 | **Layer 3** | `Identity Memory` | Condensed long-term knowledge | Permanent |
 
 ### Data Flow
@@ -28,7 +28,7 @@ This skill performs two automated tasks every day:
 ```
 Today's Conversations (Feishu/DingTalk/Desktop)
          ↓
-identity_thread_24h (24-hour cache)
+identity_thread_24h (24-hour broadcast baton cache)
          ↓
 Scheduled Task (daily fixed time)
          ↓
@@ -41,16 +41,47 @@ Scheduled Task (daily fixed time)
   Backup Path/{agentRoleKey}_{modelId}/{YYYY-MM-DD}/{filename}
 ```
 
+Note:
+
+- The archive path may still include `${agentRoleKey}_${modelId}` for compatibility naming.
+- That archive folder name is not the identity boundary.
+- Identity continuity is still bucketed by `agentRoleKey`.
+
 ## Task Execution Flow
 
 ### Step 1: Scan Active Identities
 
 ```typescript
 // ROUTE: Daily Memory Extraction - Scan Identities - No authentication
-// API: SELECT DISTINCT agent_role_key, model_id FROM identity_thread_24h
+// API: SELECT DISTINCT agent_role_key FROM identity_thread_24h
 // FLOW: Daily Memory Extraction - Step 1: Scan all active identities
 const identities = await getAllIdentities();
 ```
+
+## Boundary Notes
+
+- `identity_thread_24h` is not a full transcript store. It is a relay board for cross-channel continuity.
+- The relay board must be read before longer history, then paired with the most recent raw messages.
+- The canonical baton shape is:
+  - `agentRoleKey`
+  - `channel`
+  - `timestamp`
+  - `content summary`
+  - `channel sequence`
+- `modelId` is runtime configuration only, not an identity boundary.
+- Summary/condensation may assist, but must not replace the agent's own relay intent.
+- Real runtime read order is:
+  1. `identity_thread_24h`
+  2. fallback `user_memories`
+  3. if durable memory was used, seed a bootstrap baton back into `identity_thread_24h`
+  4. pair the baton with only the latest `3` raw messages
+- `turn_cache` is request-reply cache only. It expires automatically and is not the continuity source.
+- `identity_thread_24h` is cleared only after a successful long-term memory merge. If nothing new was written, keep the board for later catch-up.
+- Daily journal semantics currently land in structured long-term memory fields:
+  - `projectContext`
+  - `decisions`
+  - `notes`
+- Pitfalls, tool errors, and fixes should be written as retrievable notes for future selves, not left as one-off execution noise.
 
 ### Step 2: Extract Memory for Each Identity
 
@@ -292,10 +323,10 @@ Files are detected from:
 
 ```typescript
 // PROGRESS: 每日记忆抽取 0% - 开始执行
-// PROGRESS: 每日记忆抽取 10% - 处理身份: ${identity.agentRoleKey}_${identity.modelId}
+// PROGRESS: 每日记忆抽取 10% - 处理身份: ${identity.agentRoleKey} (摘要模型: ${identity.modelId})
 // PROGRESS: 每日记忆抽取 50% - 记忆抽取完成
 // PROGRESS: 文件归档 0% - 开始执行
-// PROGRESS: 文件归档 10% - 处理身份: ${identity.agentRoleKey}_${identity.modelId}
+// PROGRESS: 文件归档 10% - 处理归档目录: ${identity.agentRoleKey}_${identity.modelId}
 // PROGRESS: 文件归档 100% - 完成
 ```
 

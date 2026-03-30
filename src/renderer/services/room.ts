@@ -54,6 +54,12 @@ const createId = (prefix: string) => `${prefix}_${Date.now()}_${Math.random().to
 
 const normalizeBaseUrl = (baseUrl: string): string => baseUrl.trim().replace(/\/+$/, '');
 
+const isVolcengineV3BaseUrl = (baseUrl: string): boolean => {
+  const normalized = normalizeBaseUrl(baseUrl).toLowerCase();
+  return normalized.includes('ark.cn-beijing.volces.com/api/v3')
+    || normalized.includes('ark.cn-beijing.volces.com/api/coding/v3');
+};
+
 const buildOpenAiUrl = (baseUrl: string): string => {
   const normalized = normalizeBaseUrl(baseUrl);
   if (!normalized) {
@@ -297,7 +303,9 @@ export async function invokeRoomParticipant(
     throw new Error('当前环境没有可用的 API 代理');
   }
 
-  if (role.apiFormat === 'anthropic') {
+  const useOpenAICompatibleFormat = role.apiFormat === 'openai' || isVolcengineV3BaseUrl(role.apiUrl);
+
+  if (!useOpenAICompatibleFormat) {
     const response = await window.electron.api.fetch({
       url: buildAnthropicUrl(role.apiUrl),
       method: 'POST',

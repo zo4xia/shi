@@ -146,7 +146,7 @@ class ApiService {
     if (normalized.endsWith('/responses')) {
       return normalized;
     }
-    if (normalized.endsWith('/v1')) {
+    if (/\/v\d+$/.test(normalized)) {
       return `${normalized}/responses`;
     }
     return `${normalized}/v1/responses`;

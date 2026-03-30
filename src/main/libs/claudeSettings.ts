@@ -93,13 +93,26 @@ type MatchedProvider = {
 };
 
 function getEffectiveProviderApiFormat(providerName: string, apiFormat: unknown): AnthropicApiFormat {
-  if (providerName === 'openai' || providerName === 'gemini' || providerName === 'stepfun' || providerName === 'youdaozhiyun') {
+  if (
+    providerName === 'openai'
+    || providerName === 'gemini'
+    || providerName === 'stepfun'
+    || providerName === 'youdaozhiyun'
+    || providerName === 'youdao_zhiyun'
+    || providerName === 'volcengine'
+  ) {
     return 'openai';
   }
   if (providerName === 'anthropic') {
     return 'anthropic';
   }
   return normalizeProviderApiFormat(apiFormat);
+}
+
+function isVolcengineV3BaseUrl(baseURL: string | undefined): boolean {
+  const normalized = baseURL?.trim().replace(/\/+$/, '').toLowerCase() ?? '';
+  return normalized.includes('ark.cn-beijing.volces.com/api/v3')
+    || normalized.includes('ark.cn-beijing.volces.com/api/coding/v3');
 }
 
 function providerRequiresApiKey(providerName: string): boolean {
@@ -116,7 +129,9 @@ function buildResolvedConfigFromTarget(input: {
 }): ApiConfigResolution {
   const baseURL = input.baseURL?.trim();
   const modelId = input.modelId?.trim();
-  const apiFormat = input.apiFormat === 'anthropic' ? 'anthropic' : 'openai';
+  const apiFormat = input.apiFormat === 'anthropic' && !isVolcengineV3BaseUrl(baseURL)
+    ? 'anthropic'
+    : 'openai';
   const resolvedApiKey = input.apiKey?.trim() || '';
 
   if (!baseURL || !modelId) {

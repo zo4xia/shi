@@ -54,6 +54,7 @@ const reservedPorts = new Set();
 const backendPort = await findAvailablePort(3001, reservedPorts);
 const frontendPort = await findAvailablePort(5176, reservedPorts);
 const hmrPort = await findAvailablePort(5177, reservedPorts);
+const frontendOrigin = `http://${host}:${frontendPort}`;
 
 const findPackageDirInPnpmStore = (packageName) => {
   if (!fs.existsSync(pnpmStoreDir)) {
@@ -119,6 +120,7 @@ const commonEnv = {
   UCLAW_APP_ROOT: root,
   LOBSTERAI_APP_ROOT: root,
   PORT: String(backendPort),
+  CORS_ORIGIN: frontendOrigin,
   UCLAW_DATA_PATH: path.join(root, '.uclaw'),
   LOBSTERAI_DATA_PATH: path.join(root, '.uclaw'),
   VITE_BACKEND_HOST: host,
@@ -206,6 +208,7 @@ console.log('[dev-runner] Ports selected');
 console.log(`  backend:  http://${host}:${backendPort}`);
 console.log(`  frontend: http://${host}:${frontendPort}`);
 console.log(`  hmr:      ${host}:${hmrPort}`);
+console.log(`  cors:     ${frontendOrigin}`);
 console.log('[dev-runner] Startup order: backend -> health check -> frontend');
 
 const backend = spawnCommand(process.execPath, [

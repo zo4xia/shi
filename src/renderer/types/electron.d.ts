@@ -106,6 +106,25 @@ interface CoworkMemoryStats {
   implicit: number;
 }
 
+interface CoworkBroadcastBoardEntry {
+  role: string;
+  content: string;
+  channelHint?: string;
+  channelLabel: string;
+  timestamp: number;
+  timeLabel: string;
+  channelSeq?: number;
+}
+
+interface CoworkBroadcastBoardSnapshot {
+  agentRoleKey: string;
+  messageCount: number;
+  updatedAt: number;
+  expiresAt: number;
+  summaryText: string;
+  entries: CoworkBroadcastBoardEntry[];
+}
+
 interface CoworkPermissionRequest {
   sessionId: string;
   toolName: string;
@@ -354,6 +373,7 @@ interface IElectronAPI {
     }) => Promise<{ success: boolean; entry?: CoworkUserMemoryEntry; error?: string }>;
     deleteMemoryEntry: (input: { id: string }) => Promise<{ success: boolean; error?: string }>;
     getMemoryStats: (input?: { agentRoleKey?: string }) => Promise<{ success: boolean; stats?: CoworkMemoryStats; error?: string }>;
+    listBroadcastBoards: (input?: { agentRoleKey?: string; limit?: number }) => Promise<{ success: boolean; boards?: CoworkBroadcastBoardSnapshot[]; error?: string }>;
     onStreamMessage: (callback: (data: { sessionId: string; message: CoworkMessage }) => void) => () => void;
     onStreamMessageUpdate: (callback: (data: { sessionId: string; messageId: string; content: string }) => void) => () => void;
     onStreamPermission: (callback: (data: { sessionId: string; request: CoworkPermissionRequest }) => void) => () => void;
@@ -365,6 +385,16 @@ interface IElectronAPI {
     selectDirectory: () => Promise<{ success: boolean; path: string | null; error?: string }>;
     selectFile: (options?: { title?: string; filters?: { name: string; extensions: string[] }[]; cwd?: string }) => Promise<{ success: boolean; path: string | null }>;
     saveInlineFile: (options: { dataBase64: string; fileName?: string; mimeType?: string; cwd?: string; purpose?: 'attachment' | 'export' }) => Promise<{ success: boolean; path: string | null; error?: string }>;
+    parseInlineFile: (options: { path: string; maxCharacters?: number }) => Promise<{
+      success: boolean;
+      path?: string;
+      fileName?: string;
+      fileType?: string;
+      text?: string;
+      truncated?: boolean;
+      originalLength?: number;
+      error?: string;
+    }>;
     readFileAsDataUrl: (filePath: string) => Promise<{ success: boolean; dataUrl?: string; error?: string }>;
   };
   shell: {

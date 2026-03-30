@@ -7,6 +7,8 @@ export class SessionTurnFinalizer {
   constructor(private readonly store: CoworkStore) {}
 
   prepareTurn(sessionId: string): void {
+    // {FLOW} CONTINUITY-TRUNK-FINALIZER-PREPARE
+    // {BREAKPOINT} continuity-shared-thread-finalize-001
     // 【1.0链路】TURN-PREPARE: 记住本轮开始前的消息边界，避免共享记忆重复写入旧消息。
     if (this.threadSavedIndexBySession.has(sessionId)) {
       return;
@@ -21,6 +23,8 @@ export class SessionTurnFinalizer {
   }
 
   async finalize(sessionId: string): Promise<void> {
+    // {FLOW} CONTINUITY-TRUNK-FINALIZER-WRITE
+    // {BREAKPOINT} continuity-shared-thread-finalize-001
     // 【1.0链路】TURN-FINALIZE: 每轮结束先做归档，再把本轮新增 user/assistant 写入共享线程。
     try {
       this.store.runDailyConversationBackupIfConfigured();
@@ -31,6 +35,8 @@ export class SessionTurnFinalizer {
   }
 
   private saveToSharedThread(sessionId: string): void {
+    // {FLOW} CONTINUITY-TRUNK-THREAD-APPEND
+    // {标记} 真相边界: 这里只把本轮 user/assistant 正文写入广播板式共享线程，不把 thinking/system/tool 当连续性正文。
     // 【1.0链路】SHARED-THREAD-WRITE: 共享线程只收正文 user/assistant，不收 thinking/system/tool 噪音。
     const session = this.store.getSession(sessionId);
     if (!session || !session.agentRoleKey || session.messages.length === 0) {

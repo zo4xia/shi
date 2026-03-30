@@ -1079,6 +1079,8 @@ export class CoworkRunner extends EventEmitter {
   }
 
   private truncateLargeContent(content: string, maxChars: number): string {
+    // {BREAKPOINT} distortion-runner-truncate-001
+    // {标记} 真相风险: 这里会直接截断 streaming / tool / final result 文本；若下游误把截断结果当真相源，就会造成记忆与导出的语义失真。
     if (content.length <= maxChars) {
       return content;
     }
@@ -4092,24 +4094,37 @@ export class CoworkRunner extends EventEmitter {
     activeSession: ActiveSession,
     resultText: string
   ): void {
+    // {BREAKPOINT} distortion-runner-final-result-001
+    // {标记} 兼容壳边界: 这里为了避免流式重复，会优先复用已有 assistant message；修缮时必须区分“同一条流式收口”与“不同语义阶段被压成一条”的边界。
     const safeResultText = this.truncateLargeContent(resultText, FINAL_RESULT_MAX_CHARS);
     const trimmed = safeResultText.trim();
     if (!trimmed) return;
 
-    // If we have an active streaming message, prefer updating it with the final result.
-    // This avoids duplicate assistant messages when result arrives before streaming completes.
+    // If we have an active streaming message, only merge when the semantic content is
+    // effectively the same. Different stages should remain as separate assistant messages.
     if (activeSession.currentStreamingMessageId) {
-      // 优先保留已累积的流式内容，只有在流式内容为空时才使用 resultText
-      // 这样可以防止 result 事件覆盖已接收的流式内容
-      const finalContent = activeSession.currentStreamingContent.trim()
-        ? activeSession.currentStreamingContent
-        : safeResultText;
+      const streamedContent = activeSession.currentStreamingContent.trim();
+      const finalContent = streamedContent || safeResultText;
 
-      this.updateMessageMerged(sessionId, activeSession.currentStreamingMessageId, {
-        content: finalContent,
-        metadata: { isFinal: true, isStreaming: false },
-      });
-      this.emit('messageUpdate', sessionId, activeSession.currentStreamingMessageId, finalContent);
+      if (!streamedContent || streamedContent === trimmed) {
+        this.updateMessageMerged(sessionId, activeSession.currentStreamingMessageId, {
+          content: finalContent,
+          metadata: { isFinal: true, isStreaming: false },
+        });
+        this.emit('messageUpdate', sessionId, activeSession.currentStreamingMessageId, finalContent);
+      } else {
+        this.updateMessageMerged(sessionId, activeSession.currentStreamingMessageId, {
+          content: streamedContent,
+          metadata: { isFinal: false, isStreaming: false, stage: 'pre_tool' },
+        });
+        this.emit('messageUpdate', sessionId, activeSession.currentStreamingMessageId, streamedContent);
+        const message = this.store.addMessage(sessionId, {
+          type: 'assistant',
+          content: safeResultText,
+          metadata: { isFinal: true, stage: 'final_result' },
+        });
+        this.emit('message', sessionId, message);
+      }
 
       // 更新后立即重置状态，防止被后续事件重复处理
       activeSession.currentStreamingMessageId = null;

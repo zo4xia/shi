@@ -4,12 +4,16 @@ import fs from 'fs';
 import type { RequestContext } from '../src/index';
 import { resolveConversationFileCacheConfig } from '../../src/shared/conversationFileCacheConfig';
 import { getProjectRoot } from '../../src/shared/runtimeDataPaths';
+import { parseFile } from '../libs/fileParser';
 
 // In web version, these endpoints provide alternatives to Electron's file dialogs
 // The frontend will need to implement file selection UI using <input type="file">
 // These endpoints provide server-side file operations for saving/uploaded files
 
 const MAX_INLINE_ATTACHMENT_BYTES = 25 * 1024 * 1024;
+const MAX_PARSE_INLINE_FILE_BYTES = 25 * 1024 * 1024;
+const DEFAULT_PARSE_INLINE_MAX_CHARS = 400_000;
+const MAX_PARSE_INLINE_MAX_CHARS = 1_000_000;
 const MIME_EXTENSION_MAP: Record<string, string> = {
   'image/png': '.png',
   'image/jpeg': '.jpg',
@@ -275,6 +279,71 @@ export function setupDialogRoutes(app: Router) {
       res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : 'Failed to save file',
+      });
+    }
+  });
+
+  // POST /api/dialog/parseInlineFile - Parse a local file into plain text for frontend chunking
+  router.post('/parseInlineFile', async (req: Request, res: Response) => {
+    try {
+      const rawPath = typeof req.body?.path === 'string' ? req.body.path.trim() : '';
+      const requestedMaxChars = typeof req.body?.maxCharacters === 'number'
+        ? Math.floor(req.body.maxCharacters)
+        : DEFAULT_PARSE_INLINE_MAX_CHARS;
+
+      if (!rawPath) {
+        return res.status(400).json({
+          success: false,
+          error: 'Missing file path',
+        });
+      }
+
+      const resolvedPath = path.resolve(rawPath);
+      const stat = await fs.promises.stat(resolvedPath);
+
+      if (!stat.isFile()) {
+        return res.status(400).json({
+          success: false,
+          error: 'Not a file',
+        });
+      }
+
+      if (stat.size > MAX_PARSE_INLINE_FILE_BYTES) {
+        return res.status(413).json({
+          success: false,
+          error: `File too large (max ${Math.floor(MAX_PARSE_INLINE_FILE_BYTES / (1024 * 1024))}MB)`,
+        });
+      }
+
+      const maxCharacters = Math.min(
+        Math.max(1, requestedMaxChars),
+        MAX_PARSE_INLINE_MAX_CHARS,
+      );
+      const buffer = await fs.promises.readFile(resolvedPath);
+      const fileName = path.basename(resolvedPath) || resolvedPath;
+      const parsed = await parseFile(fileName, buffer, { maxTextLength: maxCharacters });
+
+      if (!parsed.success) {
+        return res.status(400).json({
+          success: false,
+          error: parsed.error || 'Failed to parse file',
+          fileType: parsed.fileType,
+        });
+      }
+
+      res.json({
+        success: true,
+        path: resolvedPath,
+        fileName,
+        fileType: parsed.fileType,
+        text: parsed.text,
+        truncated: Boolean(parsed.truncated),
+        originalLength: parsed.originalLength ?? parsed.text.length,
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to parse file',
       });
     }
   });

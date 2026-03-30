@@ -169,7 +169,7 @@ const SkillsMcpHelperButton: React.FC<SkillsMcpHelperButtonProps> = ({ contextLa
       ...prev,
       createMessage(
         'assistant',
-        reply || '这次没有成功取到结果。你可以换一种问法，或者直接说报错、目录、绑定对象、缺的字段名。'
+        reply || '这次没有成功取到结果。你可以换一种问法，或者直接说报错、绑定对象、缺的字段名。'
       ),
     ]);
     setIsSending(false);
@@ -251,7 +251,7 @@ const SkillsMcpHelperButton: React.FC<SkillsMcpHelperButtonProps> = ({ contextLa
 
                 {loading && (
                   <div className="rounded-xl border border-amber-200/80 bg-amber-50/80 px-3 py-2.5 text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-200">
-                    {'小助手整理定位信息中...'}
+                    {'小助手核对信息中...'}
                   </div>
                 )}
 
@@ -269,32 +269,10 @@ const SkillsMcpHelperButton: React.FC<SkillsMcpHelperButtonProps> = ({ contextLa
                   </div>
                 )}
 
-                {showDetails && manifest && (
-                  <div className="rounded-xl border border-slate-200/80 bg-slate-50/80 px-3 py-2.5 dark:border-claude-darkBorder dark:bg-claude-darkBg/40">
-                    <div className="font-medium text-claude-text dark:text-claude-darkText">
-                      {'定位信息'}
-                    </div>
-                    <div className="mt-2 space-y-1.5 text-[11px] leading-5 text-claude-textSecondary dark:text-claude-darkTextSecondary">
-                      <div>{`内置 Skills：${manifest.directories.bundledSkillsRoot}`}</div>
-                      <div>{`运行时 Skills：${manifest.directories.runtimeSkillsRoot}`}</div>
-                      <div>{`MCP 存储：${manifest.directories.mcpStorage}`}</div>
-                      <div>{`角色绑定：${manifest.directories.skillBindingStorage}`}</div>
-                      <div>{`小助手 API Key：${manifest.directories.helperApiKeyEnv}`}</div>
-                      <div>{`真实核验顺序：仓库 -> 绑定表 -> skills.json -> role-capabilities.json`}</div>
-                    </div>
-                  </div>
-                )}
               </div>
 
               <div className="border-t border-amber-100/80 px-4 py-3 dark:border-amber-900/20">
-                <div className="mb-2 flex items-center justify-between">
-                  <button
-                    type="button"
-                    onClick={() => setShowDetails((prev) => !prev)}
-                    className="text-[11px] text-amber-700 transition-colors hover:text-amber-800 dark:text-amber-300 dark:hover:text-amber-200"
-                  >
-                    {showDetails ? '收起定位信息' : '查看定位信息'}
-                  </button>
+                <div className="mb-2 flex justify-end">
                   <span className="text-[11px] text-claude-textSecondary dark:text-claude-darkTextSecondary">
                     {'明文密钥不要发这里'}
                   </span>

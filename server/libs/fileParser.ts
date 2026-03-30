@@ -17,20 +17,33 @@ const TEXT_EXTENSIONS = new Set([
 
 const MAX_TEXT_LENGTH = 30000;
 
+export interface ParseFileOptions {
+  maxTextLength?: number;
+}
+
 export interface ParseResult {
   success: boolean;
   text: string;
   fileType: string;
   pageCount?: number;
+  truncated?: boolean;
+  originalLength?: number;
   error?: string;
 }
 
 /**
  * 解析文件内容为纯文本
  */
-export async function parseFile(fileName: string, buffer: Buffer): Promise<ParseResult> {
+export async function parseFile(
+  fileName: string,
+  buffer: Buffer,
+  options: ParseFileOptions = {},
+): Promise<ParseResult> {
   const ext = getExtension(fileName);
   const fileType = getFileType(ext);
+  const maxTextLength = Number.isFinite(options.maxTextLength)
+    ? Math.max(1, Math.floor(options.maxTextLength as number))
+    : MAX_TEXT_LENGTH;
 
   try {
     let text: string | null = null;
@@ -62,8 +75,18 @@ export async function parseFile(fileName: string, buffer: Buffer): Promise<Parse
       return { success: false, text: '', fileType, error: '文件内容为空' };
     }
 
-    const truncated = text.length > MAX_TEXT_LENGTH ? text.slice(0, MAX_TEXT_LENGTH) + '\n\n...[内容已截断]' : text;
-    return { success: true, text: truncated, fileType };
+    const originalLength = text.length;
+    const wasTruncated = originalLength > maxTextLength;
+    const normalizedText = wasTruncated
+      ? text.slice(0, maxTextLength) + '\n\n...[内容已截断]'
+      : text;
+    return {
+      success: true,
+      text: normalizedText,
+      fileType,
+      truncated: wasTruncated,
+      originalLength,
+    };
   } catch (err: any) {
     return { success: false, text: '', fileType, error: err.message || '解析失败' };
   }

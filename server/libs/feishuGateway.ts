@@ -84,25 +84,29 @@ function splitMessageChunks(text: string): string[] {
   return chunks.filter(Boolean);
 }
 
-function extractNewAssistantReply(
+function extractNewAssistantReplies(
   session: { messages?: Array<{ id?: string; type?: string; content?: string; metadata?: Record<string, unknown> }> } | null,
   knownIds: Set<string>
-): string | null {
+): string[] {
   if (!session?.messages?.length) {
-    return null;
+    return [];
   }
 
-  const parts = session.messages
+  return session.messages
     .filter((message) => (
       message.type === 'assistant'
       && typeof message.id === 'string'
       && !knownIds.has(message.id)
       && !message.metadata?.isThinking
+      && (() => {
+        const stage = typeof message.metadata?.stage === 'string'
+          ? message.metadata.stage.trim()
+          : '';
+        return !stage || stage === 'final_result';
+      })()
     ))
     .map((message) => message.content?.trim())
     .filter((content): content is string => Boolean(content));
-
-  return parts.length > 0 ? parts.join('\n\n') : null;
 }
 
 function createDelayedStatusController(task: () => Promise<unknown>, delayMs: number): {
@@ -592,19 +596,31 @@ export class FeishuGateway extends EventEmitter {
       }
 
       const completed = this.coworkStore.getSession(session.id) as any;
-      const rawReply = extractNewAssistantReply(completed, knownIds);
+      const rawReplies = extractNewAssistantReplies(completed, knownIds);
       const artifactResult = collectFeishuArtifacts({
         sessionMessages: completed?.messages ?? [],
         knownMessageIds: knownIds,
         workspaceRoot: session.cwd || getProjectRoot(),
         runStartedAt,
       });
-      const reply = artifactResult.cleanText || rawReply;
+      const replies = (() => {
+        if (artifactResult.cleanText) {
+          if (rawReplies.length === 0) {
+            return [artifactResult.cleanText];
+          }
+          return [...rawReplies.slice(0, -1), artifactResult.cleanText];
+        }
+        return rawReplies;
+      })();
 
-      if (reply) {
-        const replySent = await this.sendTextReply(chatId, reply, replyToMessageId);
-        if (!replySent) {
-          throw new Error('Feishu outbound reply send failed');
+      if (replies.length > 0) {
+        let currentReplyToMessageId = replyToMessageId;
+        for (const reply of replies) {
+          const replySent = await this.sendTextReply(chatId, reply, currentReplyToMessageId);
+          if (!replySent) {
+            throw new Error('Feishu outbound reply send failed');
+          }
+          currentReplyToMessageId = undefined;
         }
         await this.sendArtifactsReply(chatId, artifactResult.artifacts, replyToMessageId);
         if (processingStatusSent) {

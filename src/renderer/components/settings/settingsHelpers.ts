@@ -93,6 +93,12 @@ export function normalizeBaseUrl(baseUrl: string): string {
   return baseUrl.trim().replace(/\/+$/, '');
 }
 
+export function isVolcengineV3BaseUrl(baseUrl: string): boolean {
+  const normalized = normalizeBaseUrl(baseUrl).toLowerCase();
+  return normalized.includes('ark.cn-beijing.volces.com/api/v3')
+    || normalized.includes('ark.cn-beijing.volces.com/api/coding/v3');
+}
+
 /**
  * 规范化 API 格式
  * 
@@ -110,8 +116,8 @@ export function normalizeApiFormat(value: unknown): 'anthropic' | 'openai' {
  * @returns API 格式或 null
  */
 export function getFixedApiFormatForProvider(provider: string): 'anthropic' | 'openai' | null {
-  const anthropicProviders = ['anthropic', 'claude', 'deepseek', 'moonshot', 'zhipu', 'minimax', 'qwen', 'xiaomi', 'stepfun'];
-  const openaiProviders = ['openai', 'gemini', 'ollama', 'custom'];
+  const anthropicProviders = ['anthropic', 'claude', 'deepseek', 'moonshot', 'zhipu', 'minimax', 'qwen', 'xiaomi'];
+  const openaiProviders = ['openai', 'gemini', 'ollama', 'custom', 'stepfun', 'youdaozhiyun', 'youdao_zhiyun', 'volcengine'];
   
   if (anthropicProviders.includes(provider.toLowerCase())) {
     return 'anthropic';
@@ -169,8 +175,8 @@ export function buildOpenAICompatibleChatCompletionsUrl(
 ): string {
   const normalized = normalizeBaseUrl(baseUrl);
 
-  // 如果URL已经包含 /v1，不要重复添加
-  if (normalized.endsWith('/v1')) {
+  // 如果 URL 已经以 /vN 结尾，不要重复添加版本前缀
+  if (/\/v\d+$/.test(normalized)) {
     return `${normalized}/chat/completions`;
   }
 
@@ -186,7 +192,7 @@ export function buildOpenAICompatibleChatCompletionsUrl(
 // {埋点} 📦 Responses URL构建 (ID: api-test-003b) 同上逻辑，/v1去重
 export function buildOpenAIResponsesUrl(baseUrl: string): string {
   const normalized = normalizeBaseUrl(baseUrl);
-  if (normalized.endsWith('/v1')) {
+  if (/\/v\d+$/.test(normalized)) {
     return `${normalized}/responses`;
   }
   return `${normalized}/v1/responses`;

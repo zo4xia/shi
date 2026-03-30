@@ -46,14 +46,13 @@ export default function FeedbackButton({ buttonClassName = '', panelClassName = 
   };
 
   return (
-    <>
-      {/* 浮动按钮 */}
+    <div className="relative shrink-0">
       <button
         type="button"
         onClick={() => { setIsOpen(!isOpen); setSent(false); }}
-        className={`absolute top-3 right-16 z-40 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-sm font-medium
-          bg-claude-accent/90 text-white shadow-md hover:bg-claude-accent
-          transition-colors backdrop-blur-sm ${buttonClassName}`}
+        className={`inline-flex items-center gap-1.5 rounded-full bg-claude-accent/90 px-3.5 py-1.5 text-sm font-medium
+          leading-none text-white shadow-md transition-colors hover:bg-claude-accent
+          whitespace-nowrap backdrop-blur-sm ${buttonClassName}`}
         data-feedback-button="true"
       >
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5 opacity-90">
@@ -62,11 +61,10 @@ export default function FeedbackButton({ buttonClassName = '', panelClassName = 
         反馈
       </button>
 
-      {/* 弹出面板 */}
       {isOpen && (
-        <div className={`absolute top-14 right-16 z-50 w-[22rem] max-w-[calc(100vw-2rem)] rounded-xl shadow-2xl border
+        <div className={`absolute right-0 top-[calc(100%+0.65rem)] z-50 w-[22rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border shadow-2xl
           dark:border-claude-darkBorder border-claude-border
-          dark:bg-claude-darkSurface bg-claude-surface overflow-hidden ${panelClassName}`}>
+          dark:bg-claude-darkSurface bg-claude-surface ${panelClassName}`}>
           <div className="px-4 pt-3 pb-2 flex items-center justify-between">
             <span className="text-sm font-medium dark:text-claude-darkText text-claude-text">
               反馈与建议
@@ -112,6 +110,6 @@ export default function FeedbackButton({ buttonClassName = '', panelClassName = 
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }

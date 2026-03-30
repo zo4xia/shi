@@ -14,6 +14,25 @@ export interface IdentityThreadContext {
   expiresInHours: number;
 }
 
+export interface IdentityThreadBoardEntry {
+  role: string;
+  content: string;
+  channelHint?: string;
+  channelLabel: string;
+  timestamp: number;
+  timeLabel: string;
+  channelSeq?: number;
+}
+
+export interface IdentityThreadBoardSnapshot {
+  agentRoleKey: string;
+  messageCount: number;
+  updatedAt: number;
+  expiresAt: number;
+  summaryText: string;
+  entries: IdentityThreadBoardEntry[];
+}
+
 type IdentityThreadMessage = {
   role: string;
   content: string;
@@ -379,6 +398,8 @@ export function getIdentityThreadContext(
   agentRoleKey: string
 ): IdentityThreadContext | null {
   try {
+    // {BREAKPOINT} continuity-thread-summary-001
+    // {标记} 广播板边界: 这里返回的是跨渠道交接摘要，不是全文仓库；下游必须把它当“锚点”，不能误当原文。
     const mergedThread = loadMergedThreadState(db, agentRoleKey);
     if (!mergedThread) {
       return null;
@@ -462,6 +483,7 @@ function loadMergedThreadState(db: Database, agentRoleKey: string): {
   primaryRowId: string;
   messages: IdentityThreadMessage[];
   expiresAtMs: number;
+  updatedAtMs: number;
 } | null {
   const rows = loadThreadRows(db, agentRoleKey);
   if (rows.length === 0) {
@@ -482,7 +504,88 @@ function loadMergedThreadState(db: Database, agentRoleKey: string): {
     primaryRowId: rows[0].id,
     messages: mergedMessages,
     expiresAtMs: Math.max(...rows.map((row) => row.expiresAtMs || 0)),
+    updatedAtMs: Math.max(...rows.map((row) => row.updatedAtMs || 0)),
   };
+}
+
+function listActiveIdentityThreadRoleKeys(
+  db: Database,
+  agentRoleKey?: string
+): string[] {
+  const normalizedRoleKey = agentRoleKey?.trim();
+  const nowMs = Date.now();
+  const result = normalizedRoleKey
+    ? db.exec(
+      `
+        SELECT agent_role_key
+        FROM identity_thread_24h
+        WHERE agent_role_key = ?
+          AND ((expires_at < 1e12 AND expires_at > ?) OR (expires_at >= 1e12 AND expires_at > ?))
+        ORDER BY updated_at DESC, created_at DESC
+      `,
+      [normalizedRoleKey, Math.floor(nowMs / 1000), nowMs]
+    )
+    : db.exec(
+      `
+        SELECT agent_role_key
+        FROM identity_thread_24h
+        WHERE ((expires_at < 1e12 AND expires_at > ?) OR (expires_at >= 1e12 AND expires_at > ?))
+        ORDER BY updated_at DESC, created_at DESC
+      `,
+      [Math.floor(nowMs / 1000), nowMs]
+    );
+
+  const rows = result[0]?.values || [];
+  const seen = new Set<string>();
+  for (const row of rows) {
+    const roleKey = String(row[0] ?? '').trim();
+    if (roleKey) {
+      seen.add(roleKey);
+    }
+  }
+  return Array.from(seen);
+}
+
+// {FLOW} CONTINUITY-BROADCAST-BOARD-READ: 设置页只读观察窗，从 identity_thread_24h 导出每个身份最近 24h 广播板。
+export function listIdentityThreadBoardSnapshots(
+  db: Database,
+  options?: { agentRoleKey?: string; limit?: number }
+): IdentityThreadBoardSnapshot[] {
+  try {
+    const normalizedLimit = Number.isFinite(options?.limit)
+      ? Math.max(1, Math.min(60, Math.floor(options?.limit as number)))
+      : 24;
+    const roleKeys = listActiveIdentityThreadRoleKeys(db, options?.agentRoleKey);
+
+    return roleKeys.flatMap((agentRoleKey) => {
+      const mergedThread = loadMergedThreadState(db, agentRoleKey);
+      if (!mergedThread) {
+        return [];
+      }
+
+      return [{
+        agentRoleKey,
+        messageCount: mergedThread.messages.length,
+        updatedAt: mergedThread.updatedAtMs,
+        expiresAt: mergedThread.expiresAtMs,
+        summaryText: buildSharedThreadPromptBody(mergedThread.messages),
+        entries: mergedThread.messages.slice(-normalizedLimit).map((message) => ({
+          role: message.role,
+          content: String(message.content || '').trim(),
+          channelHint: message.channel_hint,
+          channelLabel: normalizeSharedThreadChannel(message.channel_hint),
+          timestamp: normalizeThreadTimestampMs(message.timestamp),
+          timeLabel: formatCompactThreadTime(message.timestamp),
+          channelSeq: Number.isFinite(Number(message.channel_seq))
+            ? Number(message.channel_seq)
+            : undefined,
+        })),
+      }];
+    });
+  } catch (error) {
+    console.error('Failed to list identity thread board snapshots:', error);
+    return [];
+  }
 }
 
 /**
@@ -515,6 +618,8 @@ function appendIdentityThreadMessage(
   channelHint?: string
 ): void {
   try {
+    // {FLOW} CONTINUITY-TRUNK-THREAD-SUMMARIZE
+    // {BREAKPOINT} continuity-thread-summary-001
     const now = Date.now();
     const expiresAt = now + 24 * 60 * 60 * 1000;
     const summarizedContent = normalizeSharedThreadSummary(content, role);

@@ -83,11 +83,11 @@ const getToolResultDisplay = (message: CoworkMessage): string => {
 type AssistantSurfaceTone = 'reply' | 'thinking' | 'tool' | 'system' | 'error';
 
 const ASSISTANT_SURFACE_STYLES: Record<AssistantSurfaceTone, string> = {
-  reply: 'border-emerald-500/20 bg-emerald-500/[0.04] dark:border-emerald-400/20 dark:bg-emerald-400/[0.06]',
-  thinking: 'border-amber-500/25 bg-amber-500/[0.05] dark:border-amber-300/20 dark:bg-amber-300/[0.08]',
-  tool: 'border-sky-500/25 bg-sky-500/[0.05] dark:border-sky-300/20 dark:bg-sky-300/[0.08]',
-  system: 'border-slate-500/20 bg-slate-500/[0.05] dark:border-slate-300/15 dark:bg-slate-300/[0.06]',
-  error: 'border-red-500/25 bg-red-500/[0.05] dark:border-red-300/20 dark:bg-red-300/[0.08]',
+  reply: 'border-emerald-500/20 bg-emerald-500/[0.04] shadow-sm dark:border-emerald-400/20 dark:bg-emerald-400/[0.06]',
+  thinking: 'border-dashed border-amber-500/25 bg-amber-500/[0.035] shadow-none dark:border-amber-300/20 dark:bg-amber-300/[0.06]',
+  tool: 'border-dashed border-sky-500/25 bg-sky-500/[0.035] shadow-none dark:border-sky-300/20 dark:bg-sky-300/[0.06]',
+  system: 'border-dashed border-slate-500/20 bg-slate-500/[0.035] shadow-none dark:border-slate-300/15 dark:bg-slate-300/[0.05]',
+  error: 'border-dashed border-red-500/25 bg-red-500/[0.035] shadow-none dark:border-red-300/20 dark:bg-red-300/[0.06]',
 };
 
 const ASSISTANT_BADGE_STYLES: Record<AssistantSurfaceTone, string> = {
@@ -263,6 +263,8 @@ const buildMarkdownExport = (
   session: RootState['cowork']['currentSession'],
   options?: { turnLimit?: number }
 ): string => {
+  // {BREAKPOINT} continuity-ui-display-boundary-001
+  // {标记} 展示边界: 这里是 markdown 导出策略，不是真相源定义；任何过滤/折叠都不能反向当成记忆或原始对话依据。
   if (!session) return '';
 
   const exportedMessages = options?.turnLimit && options.turnLimit > 0
@@ -295,6 +297,11 @@ const buildMarkdownExport = (
 
     if (message.type === 'assistant') {
       if (message.metadata?.isThinking && !message.metadata?.isStreaming && !message.content?.trim()) {
+        continue;
+      }
+      const stage = getAssistantStage(message);
+      if (stage && stage !== 'final_result') {
+        lines.push(`## Assistant Process · ${stage} · ${timestamp}`, '', message.content || '', '');
         continue;
       }
       lines.push(`## Assistant · ${timestamp}`, '', message.content || '', '');
@@ -568,7 +575,7 @@ const ToolCallGroup: React.FC<{
   const [isExpanded, setIsExpanded] = useState(false);
   const resultLineCount = getToolResultLineCount(toolResultDisplay);
   const toolTone: AssistantSurfaceTone = !toolResult ? 'tool' : (isToolError ? 'error' : 'tool');
-  const toolStatusText = !toolResult ? '工具执行中，不是最终回复' : (isToolError ? '工具执行失败' : '工具执行完成');
+  const toolStatusText = !toolResult ? '过程信息，不会作为正式回复发送' : (isToolError ? '过程信息，工具执行失败' : '过程信息，工具执行完成');
 
   // Check if this is a Bash-like tool that should show terminal style
   const isBashTool = toolName === 'Bash';
@@ -580,7 +587,7 @@ const ToolCallGroup: React.FC<{
         <div className="absolute left-[14px] top-[42px] bottom-[-10px] w-px dark:bg-claude-darkTextSecondary/20 bg-claude-textSecondary/20" />
       )}
       <AssistantSectionBadge
-        label={'工具执行'}
+        label={'过程信息 · 工具'}
         tone={toolTone}
         detail={toolStatusText}
         pulse={!toolResult}
@@ -607,14 +614,14 @@ const ToolCallGroup: React.FC<{
               </code>
             )}
           </div>
-          {toolResult && resultLineCount > 0 && !isTodoWriteTool && (
-            <div className="text-xs dark:text-claude-darkTextSecondary/60 text-claude-textSecondary/60 mt-0.5">
-              {resultLineCount} {resultLineCount === 1 ? 'line' : 'lines'} of output
-            </div>
-          )}
+            {toolResult && resultLineCount > 0 && !isTodoWriteTool && (
+              <div className="text-xs dark:text-claude-darkTextSecondary/60 text-claude-textSecondary/60 mt-0.5">
+                {`已返回 ${resultLineCount} ${resultLineCount === 1 ? 'line' : 'lines'}，点开查看详情`}
+              </div>
+            )}
           {!toolResult && (
             <div className="text-xs dark:text-claude-darkTextSecondary/60 text-claude-textSecondary/60 mt-0.5">
-              {'执行中'}
+              {'执行中，属于过程信息'}
             </div>
           )}
         </div>
@@ -835,18 +842,39 @@ const AssistantMessageItem: React.FC<{
   const generatedImages = (((message.metadata as CoworkMessageMetadata)?.generatedImages ?? []) as CoworkRenderableImage[]);
   const cacheHit = Boolean(message.metadata?.cacheHit);
   const cacheSource = typeof message.metadata?.cacheSource === 'string' ? message.metadata.cacheSource : null;
+  const stage = getAssistantStage(message);
+  const isFormalReply = isFinalAssistantMessage(message);
+  const tone: AssistantSurfaceTone = isFormalReply
+    ? 'reply'
+    : stage === 'tool_trace'
+      ? 'tool'
+      : 'system';
+  const badgeLabel = isFormalReply
+    ? '正式回复'
+    : stage === 'pre_tool'
+      ? '过程信息 · 执行前说明'
+      : stage === 'tool_trace'
+        ? '过程信息 · 运行轨迹'
+        : '过程信息 · 系统提示';
+  const badgeDetail = isFormalReply
+    ? (message.metadata?.isStreaming ? '正在输出给你' : '这是会发送给你的最终内容')
+    : stage === 'pre_tool'
+      ? '工具调用前的过程说明，不会作为正式回复发送'
+      : stage === 'tool_trace'
+        ? '工具调用记录，已从正式回复中拆出'
+        : '过程信息，不会作为正式回复发送';
 
   return (
     <div
-      className={`relative rounded-2xl border px-4 py-3 ${ASSISTANT_SURFACE_STYLES.reply}`}
+      className={`relative rounded-2xl border px-4 py-3 ${ASSISTANT_SURFACE_STYLES[tone]}`}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
       <AssistantSectionBadge
-        label={'正式回复'}
-        tone={'reply'}
-        detail={message.metadata?.isStreaming ? '正在输出给你' : '这是会发送给你的最终内容'}
-        pulse={Boolean(message.metadata?.isStreaming)}
+        label={badgeLabel}
+        tone={tone}
+        detail={badgeDetail}
+        pulse={Boolean(message.metadata?.isStreaming) && isFormalReply}
       />
       <div className="dark:text-claude-darkText text-claude-text">
         {cacheHit && (
@@ -987,11 +1015,16 @@ const ThinkingBlock: React.FC<{
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <AssistantSectionBadge
-              label={'思考过程'}
+              label={'过程信息 · 思考'}
               tone={'thinking'}
-              detail={isCurrentlyStreaming ? '内部思考中，不是最终回复' : '内部过程记录，不会直接发给你'}
+              detail={isCurrentlyStreaming ? '内部处理中，不是最终回复' : '内部过程记录，默认收起'}
               pulse={isCurrentlyStreaming}
             />
+            {!isExpanded && (
+              <div className="text-xs leading-5 dark:text-claude-darkTextSecondary/70 text-claude-textSecondary/70">
+                {'这部分只是内部过程信息，展开后查看，不会当作正式答复。'}
+              </div>
+            )}
           </div>
           <ChevronRightIcon
             className={`mt-1 h-3.5 w-3.5 dark:text-claude-darkTextSecondary text-claude-textSecondary flex-shrink-0 transition-transform duration-200 ${
@@ -1010,6 +1043,15 @@ const ThinkingBlock: React.FC<{
     </div>
   );
 });
+
+const getAssistantStage = (message: CoworkMessage): string => (
+  typeof message.metadata?.stage === 'string' ? message.metadata.stage.trim() : ''
+);
+
+const isFinalAssistantMessage = (message: CoworkMessage): boolean => {
+  const stage = getAssistantStage(message);
+  return !stage || stage === 'final_result';
+};
 
 const AssistantHtmlBlock: React.FC<{ html: string }> = React.memo(({ html }) => {
   const deferredHtml = useDeferredValue(html);
@@ -1072,7 +1114,7 @@ const AssistantHtmlBlock: React.FC<{ html: string }> = React.memo(({ html }) => 
 const AssistantToolTraceBlock: React.FC<{ content: string }> = React.memo(({ content }) => (
   <div className={`rounded-xl border px-4 py-3 ${ASSISTANT_SURFACE_STYLES.tool}`}>
     <AssistantSectionBadge
-      label={'运行轨迹'}
+      label={'过程信息 · 运行轨迹'}
       tone={'tool'}
       detail={'工具调用记录，已从正式回复中拆出'}
     />
@@ -1111,13 +1153,13 @@ const AssistantTurnBlock: React.FC<{
 
     const badgeLabel = stage === 'pre_tool' ? '执行前说明' : '系统提示';
     const badgeDetail = stage === 'pre_tool'
-      ? '工具调用前的状态说明，不属于模型正式回复'
-      : '系统状态与提示，不属于模型正式回复';
+      ? '过程信息，工具调用前的状态说明'
+      : '过程信息，系统状态与提示';
 
     return (
       <div className={`rounded-2xl border px-3 py-3 ${ASSISTANT_SURFACE_STYLES.system}`}>
         <AssistantSectionBadge
-          label={badgeLabel}
+          label={`过程信息 · ${badgeLabel}`}
           tone={'system'}
           detail={badgeDetail}
         />
@@ -1139,9 +1181,9 @@ const AssistantTurnBlock: React.FC<{
     return (
       <div className={`rounded-2xl border px-3 py-3 ${ASSISTANT_SURFACE_STYLES[isToolError ? 'error' : 'tool']}`}>
         <AssistantSectionBadge
-          label={'工具结果'}
+          label={isToolError ? '过程信息 · 工具失败' : '过程信息 · 工具结果'}
           tone={isToolError ? 'error' : 'tool'}
-          detail={isToolError ? '工具失败返回，不是模型最终回复' : '工具返回结果，不是模型最终回复'}
+          detail={isToolError ? '过程信息，不是模型最终回复' : '过程信息，不是模型最终回复'}
         />
         <div className="flex items-start gap-2">
           <span className={`mt-1.5 w-2 h-2 rounded-full flex-shrink-0 ${
@@ -1149,7 +1191,7 @@ const AssistantTurnBlock: React.FC<{
           }`} />
           <div className="flex-1 min-w-0">
             <div className="text-sm font-medium dark:text-claude-darkTextSecondary text-claude-textSecondary">
-              {'执行结果'}
+              {'返回结果'}
             </div>
             {resultLineCount > 0 && (
               <div className="text-xs dark:text-claude-darkTextSecondary/60 text-claude-textSecondary/60 mt-0.5">
