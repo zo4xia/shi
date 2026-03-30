@@ -13,6 +13,13 @@ import type { RequestContext } from '../src/index';
 import { getProjectRoot } from '../../src/shared/runtimeDataPaths';
 import { ENV_ALIAS_PAIRS, readEnvAliasPair } from '../../src/shared/envAliases';
 import {
+  FEISHU_SCHEDULER_DISABLE_COMMAND,
+  FEISHU_SCHEDULER_ENABLE_COMMAND,
+  getFeishuSchedulerBindingKey,
+  resolveFeishuSchedulerBindingCommand,
+  type FeishuSchedulerBinding,
+} from '../../src/shared/feishuSchedulerBinding';
+import {
   findReusableFeishuSession as cleanRoomFindReusableFeishuSession,
   getOrCreateFeishuSession as cleanRoomGetOrCreateFeishuSession,
 } from '../../clean-room/spine/modules/feishuSessionSpine';
@@ -734,6 +741,52 @@ function findReusableFeishuSession(
   ) as FeishuWebhookSession | null;
 }
 
+function handleFeishuSchedulerBindingCommand(params: {
+  store: RequestContext['store'];
+  app: FeishuWebhookAppConfig;
+  binding: FeishuAgentBinding;
+  chatId: string;
+  senderId: string;
+  chatType?: 'p2p' | 'group';
+  text: string;
+}): { handled: boolean; replyText?: string } {
+  const command = resolveFeishuSchedulerBindingCommand(params.text);
+  if (!command) {
+    return { handled: false };
+  }
+
+  if (params.chatType !== 'p2p') {
+    return {
+      handled: true,
+      replyText: '当前只支持飞书私聊开启定时通知，不支持群聊。',
+    };
+  }
+
+  const key = getFeishuSchedulerBindingKey(params.binding.agentRoleKey);
+  if (command === 'disable') {
+    params.store.delete(key);
+    return {
+      handled: true,
+      replyText: `已关闭 ${params.binding.roleLabel} 的飞书定时通知绑定。`,
+    };
+  }
+
+  const nextBinding: FeishuSchedulerBinding = {
+    agentRoleKey: params.binding.agentRoleKey,
+    appId: params.app.appId,
+    appName: params.app.name || params.binding.roleLabel,
+    chatId: params.chatId,
+    senderId: params.senderId,
+    chatType: 'p2p',
+    updatedAt: new Date().toISOString(),
+  };
+  params.store.set(key, nextBinding);
+  return {
+    handled: true,
+    replyText: `已开启 ${params.binding.roleLabel} 的飞书定时通知绑定。后续在定时任务里启用飞书通知并选择该角色即可生效。`,
+  };
+}
+
 async function processFeishuConversation(params: {
   coworkStore: any;
   store: RequestContext['store'];
@@ -996,6 +1049,7 @@ export function setupFeishuWebhookRoutes(app: Router) {
 
       const text = normalizedInbound.text;
       const senderId = normalizedInbound.senderId;
+      const chatType = event?.message?.chat_type;
 
       console.log('[Feishu] Message received:', {
         appName: app.name,
@@ -1030,6 +1084,25 @@ export function setupFeishuWebhookRoutes(app: Router) {
         agentRoleKey: binding.agentRoleKey,
         modelId: binding.modelId,
       });
+
+      const schedulerBindingCommand = handleFeishuSchedulerBindingCommand({
+        store,
+        app,
+        binding,
+        chatId,
+        senderId: senderId || '',
+        chatType,
+        text,
+      });
+      if (schedulerBindingCommand.handled) {
+        res.sendStatus(200);
+        if (schedulerBindingCommand.replyText) {
+          void sendFeishuTextReply(app, chatId, schedulerBindingCommand.replyText, messageId).catch((replyError) => {
+            console.error('[Feishu] Failed to reply scheduler binding command:', replyError);
+          });
+        }
+        return;
+      }
 
       const inboundRequest = buildFeishuInboundRequest({
         chatId: normalizedInbound.chatId,

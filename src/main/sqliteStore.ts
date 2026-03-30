@@ -201,6 +201,9 @@ export class SqliteStore {
         skill_ids_json TEXT NOT NULL DEFAULT '[]',
         notify_platforms_json TEXT NOT NULL DEFAULT '[]',
         completion_webhook_url TEXT,
+        feishu_notify_agent_role_key TEXT,
+        feishu_app_id TEXT,
+        feishu_chat_id TEXT,
         agent_role_key TEXT DEFAULT 'organizer',
         model_id TEXT DEFAULT '',
         next_run_at_ms INTEGER,
@@ -418,6 +421,21 @@ export class SqliteStore {
 
         if (!stColumns.includes('completion_webhook_url')) {
           this.db.run('ALTER TABLE scheduled_tasks ADD COLUMN completion_webhook_url TEXT');
+          this.save();
+        }
+
+        if (!stColumns.includes('feishu_notify_agent_role_key')) {
+          this.db.run('ALTER TABLE scheduled_tasks ADD COLUMN feishu_notify_agent_role_key TEXT');
+          this.save();
+        }
+
+        if (!stColumns.includes('feishu_app_id')) {
+          this.db.run('ALTER TABLE scheduled_tasks ADD COLUMN feishu_app_id TEXT');
+          this.save();
+        }
+
+        if (!stColumns.includes('feishu_chat_id')) {
+          this.db.run('ALTER TABLE scheduled_tasks ADD COLUMN feishu_chat_id TEXT');
           this.save();
         }
 

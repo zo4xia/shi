@@ -48,6 +48,9 @@ export interface ScheduledTask {
   skillIds: string[];
   notifyPlatforms: NotifyPlatform[];
   completionWebhookUrl: string | null;
+  feishuNotifyAgentRoleKey: string | null;
+  feishuAppId: string | null;
+  feishuChatId: string | null;
   // {标记} P0-新增：身份绑定字段
   // The stored identity key may be any preserved agentRoleKey. Runtime execution can still map to the 4 main role slots.
   agentRoleKey: string;
@@ -82,6 +85,9 @@ export interface ScheduledTaskInput {
   skillIds: string[];
   notifyPlatforms: NotifyPlatform[];
   completionWebhookUrl?: string | null;
+  feishuNotifyAgentRoleKey?: string | null;
+  feishuAppId?: string | null;
+  feishuChatId?: string | null;
   enabled: boolean;
   // {标记} P0-新增：身份绑定字段
   // The stored identity key may be any preserved agentRoleKey. Runtime execution can still map to the 4 main role slots.
@@ -105,6 +111,9 @@ interface TaskRow {
   skill_ids_json: string;
   notify_platforms_json: string;
   completion_webhook_url: string | null;
+  feishu_notify_agent_role_key: string | null;
+  feishu_app_id: string | null;
+  feishu_chat_id: string | null;
   // {标记} P0-新增：身份绑定字段
   agent_role_key: string;
   model_id: string;
@@ -224,10 +233,10 @@ export class ScheduledTaskStore {
       INSERT INTO scheduled_tasks
         (id, name, description, enabled, schedule_json, prompt,
          working_directory, system_prompt, execution_mode, expires_at,
-         skill_ids_json, notify_platforms_json, completion_webhook_url,
+         skill_ids_json, notify_platforms_json, completion_webhook_url, feishu_notify_agent_role_key, feishu_app_id, feishu_chat_id,
          agent_role_key, model_id,
          next_run_at_ms, consecutive_errors, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
     `, [
       id, input.name, input.description,
       input.enabled ? 1 : 0,
@@ -238,6 +247,9 @@ export class ScheduledTaskStore {
       JSON.stringify(input.skillIds ?? []),
       JSON.stringify(input.notifyPlatforms ?? []),
       input.completionWebhookUrl?.trim() || null,
+      input.feishuNotifyAgentRoleKey?.trim() || null,
+      input.feishuAppId?.trim() || null,
+      input.feishuChatId?.trim() || null,
       input.agentRoleKey ?? 'organizer',  // 默认使用 organizer
       input.modelId ?? '',
       nextRunAtMs,
@@ -267,6 +279,15 @@ export class ScheduledTaskStore {
     const completionWebhookUrl = input.completionWebhookUrl !== undefined
       ? (input.completionWebhookUrl?.trim() || null)
       : existing.completionWebhookUrl;
+    const feishuNotifyAgentRoleKey = input.feishuNotifyAgentRoleKey !== undefined
+      ? (input.feishuNotifyAgentRoleKey?.trim() || null)
+      : existing.feishuNotifyAgentRoleKey;
+    const feishuAppId = input.feishuAppId !== undefined
+      ? (input.feishuAppId?.trim() || null)
+      : existing.feishuAppId;
+    const feishuChatId = input.feishuChatId !== undefined
+      ? (input.feishuChatId?.trim() || null)
+      : existing.feishuChatId;
     // {标记} P0-BUG-FIX: 定时任务身份绑定 - 更新身份字段
     const agentRoleKey = input.agentRoleKey !== undefined ? input.agentRoleKey : existing.agentRoleKey;
     const modelId = input.modelId !== undefined ? input.modelId : existing.modelId;
@@ -284,7 +305,7 @@ export class ScheduledTaskStore {
       UPDATE scheduled_tasks
       SET name = ?, description = ?, enabled = ?, schedule_json = ?,
           prompt = ?, working_directory = ?, system_prompt = ?,
-          execution_mode = ?, expires_at = ?, skill_ids_json = ?, notify_platforms_json = ?, completion_webhook_url = ?,
+          execution_mode = ?, expires_at = ?, skill_ids_json = ?, notify_platforms_json = ?, completion_webhook_url = ?, feishu_notify_agent_role_key = ?, feishu_app_id = ?, feishu_chat_id = ?,
           agent_role_key = ?, model_id = ?,
           next_run_at_ms = ?, updated_at = ?
       WHERE id = ?
@@ -298,6 +319,9 @@ export class ScheduledTaskStore {
       JSON.stringify(skillIds),
       JSON.stringify(notifyPlatforms),
       completionWebhookUrl,
+      feishuNotifyAgentRoleKey,
+      feishuAppId,
+      feishuChatId,
       agentRoleKey, modelId,
       nextRunAtMs, now, id,
     ]);
@@ -578,6 +602,9 @@ export class ScheduledTaskStore {
       skillIds,
       notifyPlatforms,
       completionWebhookUrl: row.completion_webhook_url || null,
+      feishuNotifyAgentRoleKey: row.feishu_notify_agent_role_key || null,
+      feishuAppId: row.feishu_app_id || null,
+      feishuChatId: row.feishu_chat_id || null,
       // {标记} P0-新增：身份绑定字段
       agentRoleKey: row.agent_role_key || 'organizer',
       modelId: row.model_id || '',

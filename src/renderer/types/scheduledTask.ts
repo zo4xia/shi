@@ -50,6 +50,9 @@ export interface ScheduledTask {
   skillIds: string[];
   notifyPlatforms: NotifyPlatform[]; // 任务完成后通知的 IM 平台
   completionWebhookUrl?: string | null;
+  feishuNotifyAgentRoleKey?: string | null;
+  feishuAppId?: string | null;
+  feishuChatId?: string | null;
   // {标记} P0-新增：身份绑定字段
   // The stored identity key may be any preserved agentRoleKey. Runtime execution can still map to the 4 main role slots.
   agentRoleKey?: string;
@@ -91,6 +94,9 @@ export interface ScheduledTaskInput {
   skillIds: string[];
   notifyPlatforms: NotifyPlatform[]; // 任务完成后通知的 IM 平台
   completionWebhookUrl?: string | null;
+  feishuNotifyAgentRoleKey?: string | null;
+  feishuAppId?: string | null;
+  feishuChatId?: string | null;
   enabled: boolean;
   // {标记} P0-新增：身份绑定字段
   // The stored identity key may be any preserved agentRoleKey. Runtime execution can still map to the 4 main role slots.

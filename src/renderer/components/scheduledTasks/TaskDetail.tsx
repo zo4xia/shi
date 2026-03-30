@@ -176,11 +176,13 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ task, onRequestDelete }) => {
           <div>
             <div className={labelClass}>{'通知'}</div>
             <div className={valueClass}>
-              {'当前未接线，不会自动发送 IM 通知'}
+              {task.notifyPlatforms.includes('feishu')
+                ? '飞书 IM 文本推送'
+                : '无'}
             </div>
-            {task.notifyPlatforms && task.notifyPlatforms.length > 0 && (
+            {task.notifyPlatforms.includes('feishu') && (
               <div className="mt-1 text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary">
-                {'已保存的通知平台配置仍保留在任务数据中，但当前版本不会实际发送。'}
+                {`第一期：独立 sender 文本推送，不进入对话 session。通知角色：${task.feishuNotifyAgentRoleKey || '未配置'}；需先私聊 bot 发送 #开启定时#。`}
               </div>
             )}
           </div>

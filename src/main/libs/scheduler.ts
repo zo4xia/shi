@@ -12,6 +12,8 @@ import { ScheduledTaskStore, ScheduledTask, ScheduledTaskRun, Schedule, NotifyPl
 import type { CoworkStore } from '../coworkStore';
 import type { CoworkRunner } from './coworkRunner';
 import { broadcastToAll } from '../../../server/websocket';
+import { ENV_ALIAS_PAIRS, readEnvAliasPair } from '../../shared/envAliases';
+import { getFeishuSchedulerBindingKey, type FeishuSchedulerBinding } from '../../shared/feishuSchedulerBinding';
 
 interface SchedulerDeps {
   scheduledTaskStore: ScheduledTaskStore;
@@ -20,7 +22,24 @@ interface SchedulerDeps {
   getSkillsPrompt?: (skillIds?: string[]) => Promise<string | null>;
   runTaskDirectly?: (task: ScheduledTask) => Promise<{ handled: boolean; sessionId?: string | null }>;
   stopSessionDirectly?: (sessionId: string) => boolean;
+  getImConfig?: (() => unknown) | null;
+  getStoreValue?: (<T>(key: string) => T | undefined) | null;
 }
+
+type FeishuNotifyApp = {
+  id?: string;
+  appId?: string;
+  appSecret?: string;
+  name?: string;
+  enabled?: boolean;
+};
+
+type FeishuNotifyConfig = {
+  feishu?: {
+    enabled?: boolean;
+    apps?: FeishuNotifyApp[];
+  };
+};
 
 interface ActiveTaskExecution {
   abortController: AbortController;
@@ -97,6 +116,8 @@ export class Scheduler {
   private getSkillsPrompt: ((skillIds?: string[]) => Promise<string | null>) | null;
   private runTaskDirectly: ((task: ScheduledTask) => Promise<{ handled: boolean; sessionId?: string | null }>) | null;
   private stopSessionDirectly: ((sessionId: string) => boolean) | null;
+  private getImConfig: (() => unknown) | null;
+  private getStoreValue: (<T>(key: string) => T | undefined) | null;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private running = false;
   private activeTasks: Map<string, ActiveTaskExecution> = new Map();
@@ -113,6 +134,8 @@ export class Scheduler {
     this.getSkillsPrompt = deps.getSkillsPrompt ?? null;
     this.runTaskDirectly = deps.runTaskDirectly ?? null;
     this.stopSessionDirectly = deps.stopSessionDirectly ?? null;
+    this.getImConfig = deps.getImConfig ?? null;
+    this.getStoreValue = deps.getStoreValue ?? null;
   }
 
   // --- Lifecycle ---
@@ -449,7 +472,11 @@ export class Scheduler {
       this.emitRunUpdate(updatedRun);
     }
 
-    void this.sendCompletionWebhook(updatedTask ?? latestTask, success, durationMs, error, sessionId);
+    const completionTask = updatedTask ?? latestTask;
+    void Promise.allSettled([
+      this.sendCompletionWebhook(completionTask, success, durationMs, error, sessionId),
+      this.sendCompletionImNotification(completionTask, success, durationMs, error, sessionId),
+    ]);
 
     this.reschedule();
   }
@@ -512,6 +539,148 @@ export class Scheduler {
     } catch (webhookError) {
       console.warn(`[Scheduler] Failed to send completion webhook for task ${task.id}:`, webhookError);
     }
+  }
+
+  private async sendCompletionImNotification(
+    task: ScheduledTask,
+    success: boolean,
+    durationMs: number,
+    error: string | null,
+    sessionId: string | null
+  ): Promise<void> {
+    if (!task.notifyPlatforms.includes('feishu')) {
+      return;
+    }
+
+    if (!this.getImConfig) {
+      console.warn(`[Scheduler] Skip Feishu IM notify for task ${task.id}: im_config getter unavailable`);
+      return;
+    }
+
+    const binding = this.resolveFeishuNotifyBinding(task);
+    const chatId = binding?.chatId?.trim() || task.feishuChatId?.trim() || '';
+    if (!chatId) {
+      console.warn(`[Scheduler] Skip Feishu IM notify for task ${task.id}: missing feishu binding/chat target`);
+      return;
+    }
+
+    const rawConfig = this.getImConfig() as FeishuNotifyConfig | null | undefined;
+    const apps = Array.isArray(rawConfig?.feishu?.apps)
+      ? rawConfig!.feishu!.apps!.filter((app): app is FeishuNotifyApp => Boolean(
+        app
+        && app.enabled
+        && typeof app.appId === 'string'
+        && app.appId.trim()
+        && typeof app.appSecret === 'string'
+        && app.appSecret.trim()
+      ))
+      : [];
+
+    if (apps.length === 0) {
+      console.warn(`[Scheduler] Skip Feishu IM notify for task ${task.id}: no enabled feishu app configured`);
+      return;
+    }
+
+    const targetAppId = binding?.appId?.trim() || task.feishuAppId?.trim() || '';
+    const selectedApp = targetAppId
+      ? (apps.find((app) => app.appId?.trim() === targetAppId) ?? null)
+      : (apps[0] ?? null);
+
+    if (!selectedApp?.appId || !selectedApp.appSecret) {
+      console.warn(`[Scheduler] Skip Feishu IM notify for task ${task.id}: target app not found`);
+      return;
+    }
+
+    const notificationText = buildCompletionWebhookText({
+      task,
+      success,
+      durationMs,
+      error,
+      sessionId,
+    });
+
+    try {
+      const tokenResponse = await fetch(`${this.getFeishuApiBaseUrl()}/open-apis/auth/v3/tenant_access_token/internal`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          app_id: selectedApp.appId,
+          app_secret: selectedApp.appSecret,
+        }),
+        signal: AbortSignal.timeout(15_000),
+      });
+
+      const tokenPayload = await tokenResponse.json().catch(() => ({})) as {
+        code?: number;
+        tenant_access_token?: string;
+      };
+
+      if (!tokenResponse.ok || tokenPayload.code !== 0 || typeof tokenPayload.tenant_access_token !== 'string') {
+        throw new Error(`tenant_access_token failed: HTTP ${tokenResponse.status}`);
+      }
+
+      for (const chunk of this.splitFeishuTextChunks(notificationText)) {
+        const response = await fetch(`${this.getFeishuApiBaseUrl()}/open-apis/im/v1/messages?receive_id_type=chat_id`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${tokenPayload.tenant_access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            receive_id: chatId,
+            msg_type: 'text',
+            content: JSON.stringify({ text: chunk }),
+          }),
+          signal: AbortSignal.timeout(15_000),
+        });
+
+        const payload = await response.json().catch(() => ({})) as { code?: number };
+        if (!response.ok || payload.code !== 0) {
+          throw new Error(`send message failed: HTTP ${response.status}`);
+        }
+      }
+    } catch (notifyError) {
+      console.warn(`[Scheduler] Failed to send Feishu IM notify for task ${task.id}:`, notifyError);
+    }
+  }
+
+  private getFeishuApiBaseUrl(): string {
+    return readEnvAliasPair(ENV_ALIAS_PAIRS.feishuApiBaseUrl) ?? 'https://open.feishu.cn';
+  }
+
+  private resolveFeishuNotifyBinding(task: ScheduledTask): FeishuSchedulerBinding | null {
+    const notifyRoleKey = task.feishuNotifyAgentRoleKey?.trim() || '';
+    if (!notifyRoleKey || !this.getStoreValue) {
+      return null;
+    }
+    return this.getStoreValue<FeishuSchedulerBinding>(getFeishuSchedulerBindingKey(notifyRoleKey)) ?? null;
+  }
+
+  private splitFeishuTextChunks(text: string, maxChars: number = 3500): string[] {
+    const normalized = String(text || '').trim();
+    if (!normalized) {
+      return ['已收到任务完成通知，但本轮没有可发送的文本结果。'];
+    }
+
+    const chunks: string[] = [];
+    let remaining = normalized;
+    while (remaining.length > maxChars) {
+      let cutIndex = remaining.lastIndexOf('\n', maxChars);
+      if (cutIndex < Math.floor(maxChars * 0.5)) {
+        cutIndex = remaining.lastIndexOf(' ', maxChars);
+      }
+      if (cutIndex < Math.floor(maxChars * 0.5)) {
+        cutIndex = maxChars;
+      }
+      chunks.push(remaining.slice(0, cutIndex).trim());
+      remaining = remaining.slice(cutIndex).trim();
+    }
+    if (remaining) {
+      chunks.push(remaining);
+    }
+    return chunks.filter(Boolean);
   }
 
   // --- Event Emission ---

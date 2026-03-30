@@ -765,6 +765,8 @@ const getScheduler = (): Scheduler => {
         configStore: getStore(),
         buildSelectedSkillsPrompt: (skillIds: string[]) => getSkillManager().buildSelectedSkillsPrompt(skillIds),
       }).stopSession(sessionId as CoworkSessionId),
+      getImConfig: () => getStore().get('im_config'),
+      getStoreValue: (key) => getStore().get(key),
     });
 
     // Note: Scheduler does not emit events in web version

@@ -10,6 +10,11 @@ import path from 'path';
 import type { CoworkStore } from '../../src/main/coworkStore';
 import type { SkillManager } from '../../src/main/skillManager';
 import { getProjectRoot } from '../../src/shared/runtimeDataPaths';
+import {
+  getFeishuSchedulerBindingKey,
+  resolveFeishuSchedulerBindingCommand,
+  type FeishuSchedulerBinding,
+} from '../../src/shared/feishuSchedulerBinding';
 import type { SqliteStore } from '../sqliteStore.web';
 import { getOrCreateWebSessionExecutor } from './httpSessionExecutor';
 import {
@@ -37,6 +42,43 @@ const ROLE_LABELS: Record<string, string> = {
   designer: '美术编辑师',
   analyst: '数据分析师',
 };
+
+function buildFeishuSchedulerBindingReply(params: {
+  store: SqliteStore | null;
+  agentRoleKey: string;
+  appId: string;
+  appName: string;
+  chatId: string;
+  senderId: string;
+  chatType?: 'p2p' | 'group';
+  text: string;
+}): string | null {
+  const command = resolveFeishuSchedulerBindingCommand(params.text);
+  if (!command || !params.store) {
+    return null;
+  }
+  if (params.chatType !== 'p2p') {
+    return '当前只支持飞书私聊开启定时通知，不支持群聊。';
+  }
+
+  const key = getFeishuSchedulerBindingKey(params.agentRoleKey);
+  if (command === 'disable') {
+    params.store.delete(key);
+    return `已关闭 ${ROLE_LABELS[params.agentRoleKey] || params.agentRoleKey} 的飞书定时通知绑定。`;
+  }
+
+  const binding: FeishuSchedulerBinding = {
+    agentRoleKey: params.agentRoleKey,
+    appId: params.appId,
+    appName: params.appName,
+    chatId: params.chatId,
+    senderId: params.senderId,
+    chatType: 'p2p',
+    updatedAt: new Date().toISOString(),
+  };
+  params.store.set(key, binding);
+  return `已开启 ${ROLE_LABELS[params.agentRoleKey] || params.agentRoleKey} 的飞书定时通知绑定。后续在定时任务里启用飞书通知并选择该角色即可生效。`;
+}
 
 // Types
 export interface FeishuGatewayConfig {
@@ -460,10 +502,27 @@ export class FeishuGateway extends EventEmitter {
     this.status.lastInboundAt = Date.now();
     const chatId = msg.chat_id;
     const messageId = msg.message_id;
+    const senderId = String(sender?.sender_id?.open_id || sender?.sender_id?.user_id || '').trim();
 
     console.log(`[Feishu WS] Message: type=${msgType}, chatId=${chatId}, text=${(text || '').substring(0, 50)}, images=${imageAttachments.length}`);
 
     try {
+      const schedulerBindingReply = buildFeishuSchedulerBindingReply({
+        store: this.store,
+        agentRoleKey: this.config.agentRoleKey || DEFAULT_AGENT_ROLE_KEY,
+        appId: this.config.appId,
+        appName: ROLE_LABELS[this.config.agentRoleKey || DEFAULT_AGENT_ROLE_KEY] || this.config.appId,
+        chatId,
+        senderId,
+        chatType: msg.chat_type,
+        text,
+      });
+      if (schedulerBindingReply) {
+        await this.sendTextReply(chatId, schedulerBindingReply, messageId);
+        processedMessages.set(msg.message_id, Date.now());
+        return;
+      }
+
       await this.processConversation(chatId, messageId, text || '[图片]', imageAttachments.length > 0 ? imageAttachments : undefined);
       processedMessages.set(msg.message_id, Date.now());
     } catch (err: any) {
