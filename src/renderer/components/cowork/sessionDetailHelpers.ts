@@ -399,6 +399,71 @@ export function formatToolInput(
   return getToolInputSummary(toolName, input);
 }
 
+export type AssistantContentBlock =
+  | { type: 'markdown'; content: string }
+  | { type: 'tool_trace'; content: string }
+  | { type: 'html'; content: string };
+
+const TOOL_TRACE_START_RE = /^Tool call:/i;
+const TOOL_TRACE_DETAIL_RE = /^(?:[\u2022*-]\s+|Path:|•\s+|[-*]\s+)/i;
+const HTML_BLOCK_TAG_RE = /<\/?(?:br|hr|h[1-6]|table|thead|tbody|tr|td|th|p|blockquote|ul|ol|li|div|section|article|details|summary)\b/i;
+
+function normalizeAssistantSection(section: string): string {
+  return section.replace(/\r\n/g, '\n').trim();
+}
+
+export function isToolTraceSection(section: string): boolean {
+  const normalized = normalizeAssistantSection(section);
+  if (!normalized) return false;
+
+  const lines = normalized
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (lines.length === 0 || !lines.some((line) => TOOL_TRACE_START_RE.test(line))) {
+    return false;
+  }
+
+  return lines.every((line) => TOOL_TRACE_START_RE.test(line) || TOOL_TRACE_DETAIL_RE.test(line));
+}
+
+export function isHtmlSection(section: string): boolean {
+  const normalized = normalizeAssistantSection(section);
+  if (!normalized) return false;
+  return HTML_BLOCK_TAG_RE.test(normalized);
+}
+
+export function splitAssistantContentBlocks(content: string): AssistantContentBlock[] {
+  const normalized = (content || '').replace(/\r\n/g, '\n').trim();
+  if (!normalized) return [];
+
+  const sections = normalized
+    .split(/\n{2,}/)
+    .map((section) => section.trim())
+    .filter(Boolean);
+
+  const blocks: AssistantContentBlock[] = [];
+
+  for (const section of sections) {
+    const nextBlock: AssistantContentBlock = isToolTraceSection(section)
+      ? { type: 'tool_trace', content: section }
+      : isHtmlSection(section)
+        ? { type: 'html', content: section }
+        : { type: 'markdown', content: section };
+
+    const previous = blocks[blocks.length - 1];
+    if (previous && previous.type === nextBlock.type) {
+      previous.content = `${previous.content}\n\n${nextBlock.content}`;
+      continue;
+    }
+
+    blocks.push(nextBlock);
+  }
+
+  return blocks;
+}
+
 /**
  * 检查值是否是字符串
  * 

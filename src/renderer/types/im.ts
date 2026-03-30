@@ -7,6 +7,7 @@ export const IM_PLATFORMS = [
   'nim',
   'xiaomifeng',
   'wecom',
+  'wechatbot',
 ] as const;
 
 export type IMPlatform = (typeof IM_PLATFORMS)[number];
@@ -80,6 +81,17 @@ export interface ImaConfig {
   apiKey: string;
 }
 
+export interface WechatBotConfig {
+  enabled: boolean;
+  bridgeMode: 'official-relay';
+  agentRoleKey: string;
+  botAccountId: string;
+  linkedUserId: string;
+  baseUrl: string;
+  botToken: string;
+  syncBotReplies: boolean;
+}
+
 export interface IMGatewayConfig {
   dingtalk: DingTalkConfig;
   feishu: FeishuConfig;
@@ -89,6 +101,7 @@ export interface IMGatewayConfig {
   nim: NimConfig;
   xiaomifeng: XiaomifengConfig;
   wecom: WecomConfig;
+  wechatbot: WechatBotConfig;
   ima: ImaConfig;
 }
 
@@ -153,6 +166,16 @@ export const createDefaultIMConfig = (): IMGatewayConfig => ({
   },
   xiaomifeng: { enabled: false, clientId: '', secret: '' },
   wecom: { enabled: false, botId: '', secret: '' },
+  wechatbot: {
+    enabled: false,
+    bridgeMode: 'official-relay',
+    agentRoleKey: '',
+    botAccountId: '',
+    linkedUserId: '',
+    baseUrl: '',
+    botToken: '',
+    syncBotReplies: true,
+  },
   ima: { clientId: '', apiKey: '' },
 });
 
@@ -165,6 +188,7 @@ export const createDefaultIMStatus = (): IMGatewayStatusMap => ({
   nim: createDefaultPlatformStatus(),
   xiaomifeng: createDefaultPlatformStatus(),
   wecom: createDefaultPlatformStatus(),
+  wechatbot: createDefaultPlatformStatus(),
 });
 
 export const createDefaultIMState = (): IMState => ({
@@ -224,6 +248,7 @@ export const normalizeIMConfig = (config?: Partial<IMGatewayConfig> | null): IMG
     nim: { ...defaults.nim, ...(config.nim ?? {}) },
     xiaomifeng: { ...defaults.xiaomifeng, ...(config.xiaomifeng ?? {}) },
     wecom: { ...defaults.wecom, ...(config.wecom ?? {}) },
+    wechatbot: { ...defaults.wechatbot, ...(config.wechatbot ?? {}) },
     ima: { ...defaults.ima, ...(config.ima ?? {}) },
   };
 };
@@ -245,6 +270,7 @@ export const mergeIMConfig = (
     nim: { ...current.nim, ...(update.nim ?? {}) },
     xiaomifeng: { ...current.xiaomifeng, ...(update.xiaomifeng ?? {}) },
     wecom: { ...current.wecom, ...(update.wecom ?? {}) },
+    wechatbot: { ...current.wechatbot, ...(update.wechatbot ?? {}) },
     ima: { ...current.ima, ...(update.ima ?? {}) },
   });
 };
@@ -267,6 +293,8 @@ export const hasRequiredIMCredentials = (platform: IMPlatform, config: IMGateway
       return Boolean(config.xiaomifeng.clientId && config.xiaomifeng.secret);
     case 'wecom':
       return Boolean(config.wecom.botId && config.wecom.secret);
+    case 'wechatbot':
+      return Boolean(config.wechatbot.botAccountId && config.wechatbot.botToken && config.wechatbot.agentRoleKey);
     default:
       return false;
   }

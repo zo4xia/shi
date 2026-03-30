@@ -24,6 +24,10 @@ import {
   syncRoleSkillIndexes,
 } from '../libs/roleSkillFiles';
 import { syncRoleCapabilitySnapshots } from '../libs/roleRuntimeViews';
+import {
+  mergeWechatBotConfigWithRuntime,
+  syncWechatBotConfigToRuntime,
+} from '../libs/wechatbotBridgeRuntime';
 
 const IMA_SKILL_ID = 'ima-note';
 const APP_CONFIG_REQUIRED_TOP_LEVEL_KEYS = ['api', 'model', 'theme', 'language', 'useSystemProxy', 'app'] as const;
@@ -36,6 +40,16 @@ const APP_CONFIG_PROTECTED_TOP_LEVEL_KEYS = [
   'links',
   'shortcuts',
 ] as const;
+
+export function resolveEnvSyncTargetPath(): string {
+  const explicitEnvPath = process.env.UCLAW_ENV_FILE?.trim() || process.env.LOBSTERAI_ENV_FILE?.trim() || '';
+  if (!explicitEnvPath) {
+    return path.join(getProjectRoot(), '.env');
+  }
+  return path.isAbsolute(explicitEnvPath)
+    ? explicitEnvPath
+    : path.join(getProjectRoot(), explicitEnvPath);
+}
 
 function isPlainObject(value: unknown): value is Record<string, any> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -232,16 +246,20 @@ function resolveImaFallbackConfig(): { clientId: string; apiKey: string } {
 function hydrateImConfigWithRuntime(value: any): any {
   const config = value && typeof value === 'object' ? { ...value } : {};
   const currentIma = normalizeImaConfig(config);
+  const mergedWechatBot = mergeWechatBotConfigWithRuntime(config);
+
   if (currentIma.clientId || currentIma.apiKey) {
     return {
       ...config,
       ima: currentIma,
+      wechatbot: mergedWechatBot,
     };
   }
 
   return {
     ...config,
     ima: resolveImaFallbackConfig(),
+    wechatbot: mergedWechatBot,
   };
 }
 
@@ -322,8 +340,8 @@ function ensureImaSkillBindings(req: Request): void {
 // {埋点} 💾 .env同步 (ID: env-sync-001) 前端保存app_config时，4个角色的API配置分别写入.env
 export function syncAppConfigToEnv(config: any): void {
   try {
-    const envPath = path.join(getProjectRoot(), '.env');
-    if (!fs.existsSync(envPath)) { console.log('[env-sync] .env NOT FOUND at', envPath); return; }
+    const envPath = resolveEnvSyncTargetPath();
+    if (!fs.existsSync(envPath)) { console.log('[env-sync] env target NOT FOUND at', envPath); return; }
 
     let envContent = fs.readFileSync(envPath, 'utf8');
 
@@ -369,7 +387,7 @@ export function syncAppConfigToEnv(config: any): void {
 // {埋点} 💾 .env同步 (ID: env-sync-002) IM配置保存时，飞书凭证同步写入.env
 function syncImConfigToEnv(config: any): void {
   try {
-    const envPath = path.join(getProjectRoot(), '.env');
+    const envPath = resolveEnvSyncTargetPath();
     if (!fs.existsSync(envPath)) return;
 
     let envContent = fs.readFileSync(envPath, 'utf8');
@@ -476,6 +494,7 @@ export function setupStoreRoutes(app: Router) {
       if (req.params.key === 'im_config') {
         syncImConfigToEnv(nextValue);
         syncImaConfigToRoleSecrets(nextValue);
+        syncWechatBotConfigToRuntime(nextValue);
         ensureImaSkillBindings(req);
       }
 
@@ -512,6 +531,7 @@ export function setupStoreRoutes(app: Router) {
       if (req.params.key === 'im_config') {
         syncImConfigToEnv(nextValue);
         syncImaConfigToRoleSecrets(nextValue);
+        syncWechatBotConfigToRuntime(nextValue);
         ensureImaSkillBindings(req);
       }
 

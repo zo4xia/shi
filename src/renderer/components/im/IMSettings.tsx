@@ -10,12 +10,21 @@ import { EyeIcon, EyeSlashIcon, XCircleIcon as XCircleIconSolid } from '@heroico
 import { RootState } from '../../store';
 import { imService } from '../../services/im';
 import { showGlobalToast } from '../../services/toast';
-import { setDingTalkConfig, setFeishuConfig, setQQConfig, setTelegramConfig, setDiscordConfig, setNimConfig, setXiaomifengConfig, setWecomConfig, setImaConfig, clearError } from '../../store/slices/imSlice';
+import { setDingTalkConfig, setFeishuConfig, setQQConfig, setTelegramConfig, setDiscordConfig, setNimConfig, setXiaomifengConfig, setWecomConfig, setWechatBotConfig, setImaConfig, clearError } from '../../store/slices/imSlice';
 import type { IMPlatform, IMConnectivityCheck, IMConnectivityTestResult, IMGatewayConfig } from '../../types/im';
 import { getVisibleIMPlatforms, isComingSoonIMPlatform } from '../../utils/regionFilter';
-import { AGENT_ROLE_ICONS, AGENT_ROLE_LABELS } from '../../../shared/agentRoleConfig';
+import { AGENT_ROLE_ICONS, AGENT_ROLE_LABELS, AGENT_ROLE_ORDER } from '../../../shared/agentRoleConfig';
 
 type IMSidebarItem = IMPlatform | 'ima';
+type WechatBotQrLoginState = {
+  sessionId: string;
+  qrcodeUrl: string;
+  phase: 'wait' | 'scanned' | 'confirmed' | 'expired' | 'error';
+  expiresAt: number;
+  lastError: string | null;
+  usageTips: string[];
+  messageForms: string[];
+};
 
 // Platform metadata
 const platformMeta: Record<IMPlatform, { label: string; logo: string }> = {
@@ -27,6 +36,7 @@ const platformMeta: Record<IMPlatform, { label: string; logo: string }> = {
   nim: { label: '云信', logo: '' },
   xiaomifeng: { label: '小蜜蜂', logo: '' },
   wecom: { label: '企业微信', logo: '' },
+  wechatbot: { label: '个人微信 Bot', logo: '' },
 };
 
 const verdictColorClass: Record<IMConnectivityTestResult['verdict'], string> = {
@@ -44,7 +54,7 @@ const checkLevelColorClass: Record<IMConnectivityCheck['level'], string> = {
 
 const platformNameMap: Record<string, string> = {
   dingtalk: '钉钉', feishu: '飞书', qq: 'QQ', telegram: 'Telegram',
-  discord: 'Discord', nim: '云信', xiaomifeng: '小蜜蜂', wecom: '企业微信',
+  discord: 'Discord', nim: '云信', xiaomifeng: '小蜜蜂', wecom: '企业微信', wechatbot: '个人微信 Bot',
   ima: '微信拓展',
 };
 
@@ -95,6 +105,7 @@ const IMSettings: React.FC = () => {
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
   const [showImaHelp, setShowImaHelp] = useState(false);
   const [showFeishuPoolHint, setShowFeishuPoolHint] = useState(false);
+  const [wechatBotQrLogin, setWechatBotQrLogin] = useState<WechatBotQrLoginState | null>(null);
   const feishuAutoSaveToastTimerRef = useRef<number | null>(null);
   const feishuPersistTimerRef = useRef<number | null>(null);
   const feishuPersistVersionRef = useRef(0);
@@ -242,6 +253,13 @@ const IMSettings: React.FC = () => {
     dispatch(setWecomConfig({ [field]: value }));
   };
 
+  const handleWechatBotChange = (
+    field: 'agentRoleKey' | 'botAccountId' | 'linkedUserId' | 'baseUrl' | 'botToken' | 'syncBotReplies',
+    value: string | boolean
+  ) => {
+    dispatch(setWechatBotConfig({ [field]: value }));
+  };
+
   const handleImaChange = (field: 'clientId' | 'apiKey', value: string) => {
     dispatch(setImaConfig({ [field]: value }));
   };
@@ -252,6 +270,95 @@ const IMSettings: React.FC = () => {
     await imService.updateConfig({ ima: nextIma });
     showGlobalToast('设置已保存');
   };
+
+  const handleWechatBotQrLogin = async () => {
+    const result = await imService.startWechatBotQrLogin();
+    if (!result.success || !result.value) {
+      showGlobalToast(result.error || '个人微信官方扫码暂不可用');
+      return;
+    }
+    setWechatBotQrLogin({
+      sessionId: result.value.sessionId,
+      qrcodeUrl: result.value.qrcodeUrl,
+      phase: result.value.phase,
+      expiresAt: result.value.expiresAt,
+      lastError: result.value.lastError ?? null,
+      usageTips: result.value.usageTips ?? [],
+      messageForms: result.value.result?.messageForms ?? [],
+    });
+    showGlobalToast('二维码已获取，请用微信扫码确认');
+  };
+
+  useEffect(() => {
+    if (!wechatBotQrLogin) {
+      return;
+    }
+    if (wechatBotQrLogin.phase === 'confirmed' || wechatBotQrLogin.phase === 'expired' || wechatBotQrLogin.phase === 'error') {
+      return;
+    }
+
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        const result = await imService.waitWechatBotQrLogin(wechatBotQrLogin.sessionId);
+        if (cancelled) {
+          return;
+        }
+        if (!result.success || !result.value) {
+          setWechatBotQrLogin((prev) => (
+            prev && prev.sessionId === wechatBotQrLogin.sessionId
+              ? { ...prev, phase: 'error', lastError: result.error || '个人微信扫码状态获取失败' }
+              : prev
+          ));
+          showGlobalToast(result.error || '个人微信扫码状态获取失败');
+          return;
+        }
+
+        const login = result.value;
+        setWechatBotQrLogin((prev) => (
+          prev && prev.sessionId === login.sessionId
+            ? {
+                ...prev,
+                qrcodeUrl: login.qrcodeUrl || prev.qrcodeUrl,
+                phase: login.phase,
+                expiresAt: login.expiresAt,
+                lastError: login.lastError ?? null,
+                messageForms: login.result?.messageForms ?? prev.messageForms,
+              }
+            : prev
+        ));
+
+        if (login.phase === 'confirmed' && login.result) {
+          const nextWechatBotConfig = {
+            ...config.wechatbot,
+            botAccountId: login.result.botAccountId,
+            linkedUserId: login.result.linkedUserId,
+            baseUrl: login.result.baseUrl,
+            botToken: login.result.botToken,
+          };
+          dispatch(setWechatBotConfig(nextWechatBotConfig));
+          await imService.updateConfig({ wechatbot: nextWechatBotConfig });
+          await imService.refreshRuntimeStatus('wechatbot');
+          showGlobalToast('个人微信授权成功，Bot 信息已回填');
+          return;
+        }
+
+        if (login.phase === 'expired') {
+          showGlobalToast('二维码已过期，请重新发起扫码');
+          return;
+        }
+
+        if (login.phase === 'error') {
+          showGlobalToast(login.lastError || '个人微信扫码失败');
+        }
+      })();
+    }, wechatBotQrLogin.phase === 'scanned' ? 600 : 0);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [wechatBotQrLogin, config.wechatbot, dispatch]);
 
   // Save config on blur — also auto-triggers NIM connectivity test when
   // the NIM toggle is ON and credential fields have changed.
@@ -380,6 +487,7 @@ const IMSettings: React.FC = () => {
   const xiaomifengConnected = status.xiaomifeng?.connected ?? false;
   const qqConnected = status.qq?.connected ?? false;
   const wecomConnected = status.wecom?.connected ?? false;
+  const wechatbotConnected = status.wechatbot?.connected ?? false;
 
   // Compute visible platforms
   const platforms = useMemo<IMPlatform[]>(() => {
@@ -387,12 +495,12 @@ const IMSettings: React.FC = () => {
   }, []);
 
   const primaryPlatforms = useMemo<IMPlatform[]>(
-    () => platforms.filter((platform) => platform !== 'wecom'),
+    () => platforms.filter((platform) => platform !== 'wecom' && platform !== 'wechatbot'),
     [platforms]
   );
 
   const wechatExtensionPlatforms = useMemo<IMPlatform[]>(
-    () => platforms.filter((platform) => platform === 'wecom'),
+    () => platforms.filter((platform) => platform === 'wecom' || platform === 'wechatbot'),
     [platforms]
   );
 
@@ -427,6 +535,9 @@ const IMSettings: React.FC = () => {
     if (platform === 'wecom') {
       return !!(config.wecom.botId && config.wecom.secret);
     }
+    if (platform === 'wechatbot') {
+      return !!(config.wechatbot.botAccountId && config.wechatbot.botToken && config.wechatbot.agentRoleKey);
+    }
     if (platform === 'feishu') {
       return config.feishu.apps.some(app => app.enabled && Boolean(app.appId && app.appSecret));
     }
@@ -447,6 +558,7 @@ const IMSettings: React.FC = () => {
     if (platform === 'xiaomifeng') return xiaomifengConnected;
     if (platform === 'qq') return qqConnected;
     if (platform === 'wecom') return wecomConnected;
+    if (platform === 'wechatbot') return wechatbotConnected;
     return feishuConnected;
   };
 
@@ -497,6 +609,7 @@ const IMSettings: React.FC = () => {
       nim: setNimConfig,
       xiaomifeng: setXiaomifengConfig,
       wecom: setWecomConfig,
+      wechatbot: setWechatBotConfig,
     };
     return actionMap[platform];
   };
@@ -976,6 +1089,213 @@ const IMSettings: React.FC = () => {
                 <div>{'这里只统一保管 IMA 凭证，不再散落到角色 secret 面板。'}</div>
                 <div>{'是否给哪个角色使用，请去 Skills 安装 ima-note 到全局或指定角色。'}</div>
                 <div>{'后续微信插件扫码授权之类的特例，也会继续收口到这里。'}</div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activePlatform === 'wechatbot' && (
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-emerald-200/60 bg-gradient-to-br from-[#eef7ef] via-white to-[#f7fbf7] px-4 py-4 shadow-subtle dark:border-emerald-900/30 dark:from-claude-darkSurface dark:via-claude-darkSurface/90 dark:to-claude-darkSurface/70">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold dark:text-claude-darkText text-claude-text">
+                    {'个人微信 WechatBot'}
+                  </div>
+                  <div className="mt-1 text-xs leading-5 dark:text-claude-darkTextSecondary text-claude-textSecondary">
+                    {'这里收口个人微信官方桥接配置。微信官方负责消息收发与媒体处理，我们只负责角色绑定、记忆贯通与消息同步。'}
+                  </div>
+                </div>
+                <div className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium ${
+                  config.wechatbot.botAccountId && config.wechatbot.botToken
+                    ? 'bg-green-500/15 text-green-700 dark:text-green-300'
+                    : 'bg-amber-500/15 text-amber-700 dark:text-amber-300'
+                }`}>
+                  {config.wechatbot.botAccountId && config.wechatbot.botToken ? '已登记' : '待扫码'}
+                </div>
+              </div>
+
+              <div className="mt-3 rounded-xl border border-amber-500/20 bg-amber-500/8 px-3 py-3 text-[11px] leading-5 text-amber-800 dark:text-amber-200">
+                <div>{'一个微信号同一时刻只能绑定一个角色。'}</div>
+                <div>{'绑定后，微信对话会和该角色在飞书/Web 的记忆贯通。'}</div>
+                <div>{'如果改绑角色，旧角色会自动解绑。bot 自己的回复只做同步，不会反向再触发 AI。'}</div>
+              </div>
+
+              <div className="mt-3 rounded-xl border border-sky-500/20 bg-sky-500/8 px-3 py-3 text-[11px] leading-5 text-sky-800 dark:text-sky-200">
+                <div>{'一期范围：文本消息 + 文档类内容。'}</div>
+                <div>{'语音消息请先使用微信侧转文字后再发送给 Bot。'}</div>
+                <div>{'多媒体回传和复杂文件形态暂不作为这期硬目标。'}</div>
+              </div>
+
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => { void handleWechatBotQrLogin(); }}
+                  disabled={wechatBotQrLogin !== null && (wechatBotQrLogin.phase === 'wait' || wechatBotQrLogin.phase === 'scanned')}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-emerald-500"
+                >
+                  <SignalIcon className="h-3.5 w-3.5" />
+                  {wechatBotQrLogin !== null && (wechatBotQrLogin.phase === 'wait' || wechatBotQrLogin.phase === 'scanned')
+                    ? '扫码进行中'
+                    : '扫码授权（官方）'}
+                </button>
+                {wechatBotQrLogin && (
+                  <button
+                    type="button"
+                    onClick={() => setWechatBotQrLogin(null)}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-claude-border/60 bg-white/80 px-3 py-1.5 text-xs font-medium text-claude-text transition-colors hover:bg-claude-surface dark:border-claude-darkBorder/60 dark:bg-claude-darkSurface/70 dark:text-claude-darkText"
+                  >
+                    {'关闭扫码窗'}
+                  </button>
+                )}
+                <span className="rounded-full bg-white/80 px-2.5 py-1 text-[11px] font-medium text-claude-text shadow-sm dark:bg-claude-darkSurface/70 dark:text-claude-darkText">
+                  {'模式：官方桥接 / 我方记忆主线'}
+                </span>
+                {wechatBotQrLogin?.messageForms?.length ? (
+                  <span className="rounded-full bg-sky-500/10 px-2.5 py-1 text-[11px] font-medium text-sky-700 dark:text-sky-300">
+                    {`消息形式：${wechatBotQrLogin.messageForms.join(' / ')}`}
+                  </span>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+              <div className="space-y-1.5">
+                <label className="block text-xs font-medium dark:text-claude-darkTextSecondary text-claude-textSecondary">
+                  {'绑定角色'}
+                </label>
+                <select
+                  value={config.wechatbot.agentRoleKey}
+                  onChange={(e) => {
+                    handleWechatBotChange('agentRoleKey', e.target.value);
+                    void imService.updateConfig({ wechatbot: { ...config.wechatbot, agentRoleKey: e.target.value } });
+                  }}
+                  className="block w-full rounded-lg dark:bg-claude-darkSurface/80 bg-claude-surface/80 dark:border-claude-darkBorder/60 border-claude-border/60 border focus:border-claude-accent focus:ring-1 focus:ring-claude-accent/30 dark:text-claude-darkText text-claude-text px-3 py-2 text-sm transition-colors"
+                >
+                  <option value="">{'请选择一个角色'}</option>
+                  {AGENT_ROLE_ORDER.map((roleKey) => (
+                    <option key={roleKey} value={roleKey}>
+                      {AGENT_ROLE_LABELS[roleKey]}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center justify-between rounded-xl border px-4 py-3 dark:border-claude-darkBorder/60 border-claude-border/60">
+                <div>
+                  <div className="text-xs font-medium dark:text-claude-darkTextSecondary text-claude-textSecondary">
+                    {'同步 Bot 回复'}
+                  </div>
+                  <div className="mt-1 text-[11px] leading-5 dark:text-claude-darkTextSecondary text-claude-textSecondary">
+                    {'把微信 Bot 自己发出的回复同步回我们的系统时间线，但不再次触发 AI。'}
+                  </div>
+                </div>
+                <div
+                  className={`w-10 h-5 rounded-full flex items-center transition-colors cursor-pointer ${
+                    config.wechatbot.syncBotReplies ? 'bg-green-500' : 'dark:bg-claude-darkBorder bg-claude-border'
+                  }`}
+                  onClick={() => {
+                    const nextValue = !config.wechatbot.syncBotReplies;
+                    handleWechatBotChange('syncBotReplies', nextValue);
+                    void imService.updateConfig({ wechatbot: { ...config.wechatbot, syncBotReplies: nextValue } });
+                  }}
+                >
+                  <div
+                    className={`w-4 h-4 rounded-full bg-white shadow-md transform transition-transform ${
+                      config.wechatbot.syncBotReplies ? 'translate-x-5' : 'translate-x-0.5'
+                    }`}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+              <div className="space-y-1.5">
+                <label className="block text-xs font-medium dark:text-claude-darkTextSecondary text-claude-textSecondary">
+                  {'Bot Account ID'}
+                </label>
+                <input
+                  type="text"
+                  value={config.wechatbot.botAccountId}
+                  onChange={(e) => handleWechatBotChange('botAccountId', e.target.value)}
+                  onBlur={handleSaveConfig}
+                  className="block w-full rounded-lg dark:bg-claude-darkSurface/80 bg-claude-surface/80 dark:border-claude-darkBorder/60 border-claude-border/60 border focus:border-claude-accent focus:ring-1 focus:ring-claude-accent/30 dark:text-claude-darkText text-claude-text px-3 py-2 text-sm transition-colors"
+                  placeholder="扫码成功后由官方返回"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-medium dark:text-claude-darkTextSecondary text-claude-textSecondary">
+                  {'扫码用户 ID'}
+                </label>
+                <input
+                  type="text"
+                  value={config.wechatbot.linkedUserId}
+                  onChange={(e) => handleWechatBotChange('linkedUserId', e.target.value)}
+                  onBlur={handleSaveConfig}
+                  className="block w-full rounded-lg dark:bg-claude-darkSurface/80 bg-claude-surface/80 dark:border-claude-darkBorder/60 border-claude-border/60 border focus:border-claude-accent focus:ring-1 focus:ring-claude-accent/30 dark:text-claude-darkText text-claude-text px-3 py-2 text-sm transition-colors"
+                  placeholder="扫码成功后由官方返回"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-medium dark:text-claude-darkTextSecondary text-claude-textSecondary">
+                  {'官方 Base URL'}
+                </label>
+                <input
+                  type="text"
+                  value={config.wechatbot.baseUrl}
+                  onChange={(e) => handleWechatBotChange('baseUrl', e.target.value)}
+                  onBlur={handleSaveConfig}
+                  className="block w-full rounded-lg dark:bg-claude-darkSurface/80 bg-claude-surface/80 dark:border-claude-darkBorder/60 border-claude-border/60 border focus:border-claude-accent focus:ring-1 focus:ring-claude-accent/30 dark:text-claude-darkText text-claude-text px-3 py-2 text-sm transition-colors"
+                  placeholder="https://ilinkai.weixin.qq.com"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-medium dark:text-claude-darkTextSecondary text-claude-textSecondary">
+                  {'Bot Token'}
+                </label>
+                <div className="relative">
+                  <input
+                    type={showSecrets['wechatbot.botToken'] ? 'text' : 'password'}
+                    value={config.wechatbot.botToken}
+                    onChange={(e) => handleWechatBotChange('botToken', e.target.value)}
+                    onBlur={handleSaveConfig}
+                    className="block w-full rounded-lg dark:bg-claude-darkSurface/80 bg-claude-surface/80 dark:border-claude-darkBorder/60 border-claude-border/60 border focus:border-claude-accent focus:ring-1 focus:ring-claude-accent/30 dark:text-claude-darkText text-claude-text px-3 py-2 pr-10 text-sm transition-colors"
+                    placeholder="扫码成功后由官方返回"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowSecrets(prev => ({ ...prev, 'wechatbot.botToken': !prev['wechatbot.botToken'] }))}
+                    className="absolute right-2 inset-y-0 flex items-center p-0.5 rounded text-claude-textSecondary dark:text-claude-darkTextSecondary hover:text-claude-accent transition-colors"
+                    title={showSecrets['wechatbot.botToken'] ? '隐藏' : '显示'}
+                  >
+                    {showSecrets['wechatbot.botToken'] ? <EyeIcon className="h-4 w-4" /> : <EyeSlashIcon className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-1">
+              {renderConnectivityTestButton('wechatbot', '检查桥接')}
+            </div>
+
+            {status.wechatbot?.botId && (
+              <div className="text-xs text-green-600 dark:text-green-400 bg-green-500/10 px-3 py-2 rounded-lg">
+                {`已登记 Bot：${status.wechatbot.botId}`}
+              </div>
+            )}
+
+            {status.wechatbot?.botUsername && (
+              <div className="text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary bg-claude-surfaceHover/60 dark:bg-claude-darkSurfaceHover/40 px-3 py-2 rounded-lg">
+                {`扫码用户：${status.wechatbot.botUsername}`}
+              </div>
+            )}
+
+            {status.wechatbot?.lastError && (
+              <div className="text-xs text-red-500 bg-red-500/10 px-3 py-2 rounded-lg">
+                {status.wechatbot.lastError}
               </div>
             )}
           </div>
@@ -1945,6 +2265,90 @@ const IMSettings: React.FC = () => {
 
               <div className="px-4 py-3 border-t dark:border-claude-darkBorder border-claude-border flex items-center justify-end">
                 {renderConnectivityTestButton(connectivityModalPlatform)}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {wechatBotQrLogin && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
+            <div className="w-full max-w-2xl overflow-hidden rounded-2xl border border-claude-border bg-claude-surface shadow-modal dark:border-claude-darkBorder dark:bg-claude-darkSurface">
+              <div className="flex items-center justify-between border-b border-claude-border px-4 py-3 dark:border-claude-darkBorder">
+                <div>
+                  <div className="text-sm font-semibold text-claude-text dark:text-claude-darkText">
+                    {'个人微信扫码授权'}
+                  </div>
+                  <div className="mt-1 text-xs text-claude-textSecondary dark:text-claude-darkTextSecondary">
+                    {'扫码成功后会自动回填 Bot 信息；角色绑定仍由你自己确认。'}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setWechatBotQrLogin(null)}
+                  className="p-1 rounded-md dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover dark:text-claude-darkTextSecondary text-claude-textSecondary"
+                >
+                  <XMarkIcon className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="grid gap-4 px-4 py-4 lg:grid-cols-[280px_minmax(0,1fr)]">
+                <div className="space-y-3">
+                  <div className="overflow-hidden rounded-xl border border-claude-border/60 bg-white dark:border-claude-darkBorder/60">
+                    <iframe
+                      src={wechatBotQrLogin.qrcodeUrl}
+                      title="wechatbot-qr"
+                      className="h-[320px] w-full"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => window.open(wechatBotQrLogin.qrcodeUrl, '_blank', 'noopener,noreferrer')}
+                    className="w-full rounded-xl bg-emerald-600 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-emerald-500"
+                  >
+                    {'二维码没显示？在新窗口打开'}
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="rounded-xl border border-claude-border/60 bg-white/70 px-3 py-3 dark:border-claude-darkBorder/60 dark:bg-claude-darkSurface/40">
+                    <div className="text-xs font-medium text-claude-text dark:text-claude-darkText">
+                      {'当前状态'}
+                    </div>
+                    <div className="mt-2 text-sm text-claude-textSecondary dark:text-claude-darkTextSecondary">
+                      {wechatBotQrLogin.phase === 'wait' && '等待扫码'}
+                      {wechatBotQrLogin.phase === 'scanned' && '已扫码，等待微信确认'}
+                      {wechatBotQrLogin.phase === 'confirmed' && '授权成功，Bot 信息已回填'}
+                      {wechatBotQrLogin.phase === 'expired' && '二维码已过期'}
+                      {wechatBotQrLogin.phase === 'error' && (wechatBotQrLogin.lastError || '扫码失败')}
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-amber-500/20 bg-amber-500/8 px-3 py-3 text-[11px] leading-5 text-amber-800 dark:text-amber-200">
+                    <div>{'一期先支持文本与文档类内容。'}</div>
+                    <div>{'语音消息请在微信侧先转文字，再发给 Bot。'}</div>
+                  </div>
+
+                  {wechatBotQrLogin.usageTips.map((tip) => (
+                    <div
+                      key={tip}
+                      className="rounded-lg border border-sky-500/20 bg-sky-500/8 px-3 py-2 text-[11px] leading-5 text-sky-800 dark:text-sky-200"
+                    >
+                      {tip}
+                    </div>
+                  ))}
+
+                  {wechatBotQrLogin.messageForms.length > 0 && (
+                    <div className="rounded-lg border border-green-500/20 bg-green-500/10 px-3 py-2 text-xs text-green-700 dark:text-green-300">
+                      {`当前识别到的消息形式：${wechatBotQrLogin.messageForms.join(' / ')}`}
+                    </div>
+                  )}
+
+                  {wechatBotQrLogin.lastError && wechatBotQrLogin.phase !== 'confirmed' && (
+                    <div className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs text-red-600 dark:text-red-300">
+                      {wechatBotQrLogin.lastError}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>

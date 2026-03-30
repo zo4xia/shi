@@ -1,0 +1,7 @@
+[DailyMemory] Startup catch-up failed: Error: 没有可用的 Agent Role 配置，无法调用 LLM 进行摘要
+    at runDailyMemoryPipeline (file:///D:/Users/Admin/Desktop/3-main/worktrees/wechatbot-bridge/server/dist/server/libs/dailyMemoryPipeline.js:102:15)
+    at file:///D:/Users/Admin/Desktop/3-main/worktrees/wechatbot-bridge/server/dist/server/libs/dailyMemoryPipeline.js:156:30
+    at runAndMarkDailyMemoryPipeline (file:///D:/Users/Admin/Desktop/3-main/worktrees/wechatbot-bridge/server/dist/server/libs/dailyMemoryPipeline.js:168:7)
+    at file:///D:/Users/Admin/Desktop/3-main/worktrees/wechatbot-bridge/server/dist/server/src/index.js:508:34
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+[browserObserverRuntime] observer failed: fetch failed

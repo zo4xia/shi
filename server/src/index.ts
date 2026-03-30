@@ -71,6 +71,7 @@ import { setupFilesRoutes } from '../routes/files';
 import { setupRoleRuntimeRoutes } from '../routes/roleRuntime';
 import { setupFeishuWebhookRoutes } from '../routes/feishuWebhook';
 import { setupDingTalkWebhookRoutes } from '../routes/dingtalkWebhook';
+import { setupWechatBotBridgeRoutes } from '../routes/wechatbotBridge';
 // {标记} P1-技能隔离：导入角色技能配置路由
 import { setupSkillRoleConfigRoutes } from '../routes/skillRoleConfigs';
 import { setupBackupRoutes } from '../routes/backup';
@@ -111,6 +112,8 @@ import {
 import { syncRoleCapabilitySnapshots, syncRoleSettingsViews } from '../libs/roleRuntimeViews';
 import { runRoleRuntimeHealthCheck } from '../libs/roleRuntimeHealthCheck';
 import { recoverSkillBindingsFromRuntimeTruth } from '../libs/skillBindingRecovery';
+import { mergeWechatBotConfigWithRuntime } from '../libs/wechatbotBridgeRuntime';
+import { startWechatBotGateway, stopWechatBotGateway } from '../libs/wechatbotGateway';
 
 // Types for context passed to routes
 export interface RequestContext {
@@ -207,6 +210,64 @@ const WEB_DIRECT_NATIVE_SKILL_IDS = new Set([
   'ima-note',
 ]);
 let dailyMemoryCatchupPromise: Promise<void> | null = null;
+
+interface RuntimeBootstrapPayload {
+  backendOrigin: string;
+  apiBase: string;
+  wsUrl: string;
+}
+
+function getForwardedHeaderValue(raw: string | string[] | undefined): string {
+  if (Array.isArray(raw)) {
+    return String(raw[0] || '').trim();
+  }
+  return String(raw || '').split(',')[0].trim();
+}
+
+function getRequestProtocol(req: Request): string {
+  const forwardedProto = getForwardedHeaderValue(req.headers['x-forwarded-proto']);
+  if (forwardedProto) {
+    return forwardedProto === 'https' ? 'https' : 'http';
+  }
+  const protocol = typeof req.protocol === 'string' ? req.protocol.trim() : '';
+  return protocol === 'https' ? 'https' : 'http';
+}
+
+function getRequestHost(req: Request): string {
+  const forwardedHost = getForwardedHeaderValue(req.headers['x-forwarded-host']);
+  if (forwardedHost) {
+    return forwardedHost;
+  }
+  return getForwardedHeaderValue(req.headers.host);
+}
+
+function buildRuntimeBootstrapPayload(req: Request): RuntimeBootstrapPayload {
+  const protocol = getRequestProtocol(req);
+  const host = getRequestHost(req);
+  if (!host) {
+    return {
+      backendOrigin: '',
+      apiBase: '/api',
+      wsUrl: '/ws',
+    };
+  }
+
+  const backendOrigin = `${protocol}://${host}`;
+  const wsProtocol = protocol === 'https' ? 'wss' : 'ws';
+  return {
+    backendOrigin,
+    apiBase: `${backendOrigin}/api`,
+    wsUrl: `${wsProtocol}://${host}/ws`,
+  };
+}
+
+function injectRuntimeBootstrap(indexTemplate: string, req: Request): string {
+  const payload = JSON.stringify(buildRuntimeBootstrapPayload(req)).replace(/</g, '\\u003c');
+  const runtimeScript = `<script>window.__UCLAW_RUNTIME__=${payload};</script>`;
+  return indexTemplate.includes('</head>')
+    ? indexTemplate.replace('</head>', `${runtimeScript}\n</head>`)
+    : `${runtimeScript}\n${indexTemplate}`;
+}
 
 const normalizeScheduledTaskRoleKey = (value: string | null | undefined): SharedAgentRoleKey => {
   return value === 'writer' || value === 'designer' || value === 'analyst'
@@ -900,6 +961,39 @@ const initFeishuGateway = async (): Promise<void> => {
   }
 };
 
+const initWechatBotGateway = async (): Promise<void> => {
+  try {
+    const currentStore = getStore();
+    const userDataPath = getUserDataPath(serverOptions.dataDir);
+    const wechatbot = mergeWechatBotConfigWithRuntime(currentStore.get('im_config'), userDataPath);
+
+    if (!wechatbot.enabled) {
+      console.log('[WechatBot] Disabled in config, skipping');
+      return;
+    }
+
+    if (!wechatbot.botAccountId || !wechatbot.botToken || !wechatbot.agentRoleKey) {
+      console.warn('[WechatBot] Skip auto-start: missing botAccountId, botToken or agentRoleKey');
+      return;
+    }
+
+    await startWechatBotGateway({
+      config: wechatbot,
+      deps: {
+        coworkStore: getCoworkStore(),
+        store: currentStore,
+        skillManager: getSkillManager(),
+        userDataPath,
+        workspaceRoot: serverOptions.workspace,
+      },
+    });
+
+    console.log('[WechatBot] Auto-started official relay bridge');
+  } catch (error) {
+    console.error('[WechatBot] Init error:', error);
+  }
+};
+
 const getFeishuGateway = (): FeishuGateway | null => feishuGateway;
 
 // User data path (export for compatibility with older imports).
@@ -1000,6 +1094,7 @@ setupFilesRoutes(app);
 setupRoleRuntimeRoutes(app);
 setupFeishuWebhookRoutes(app);
 setupDingTalkWebhookRoutes(app);
+setupWechatBotBridgeRoutes(app);
 // {标记} P1-技能隔离：注册角色技能配置路由
 setupSkillRoleConfigRoutes(app);
 setupBackupRoutes(app);
@@ -1027,14 +1122,24 @@ if (!isDev) {
         : null;
 
   if (staticRoot) {
-    app.use(express.static(staticRoot));
+    const indexTemplate = fs.readFileSync(path.join(staticRoot, 'index.html'), 'utf8');
+
+    app.use(express.static(staticRoot, { index: false }));
+
+    const shouldBypassSpaFallback = (requestPath: string): boolean => (
+      requestPath.startsWith('/api')
+      || requestPath.startsWith('/ws')
+      || requestPath.startsWith('/health')
+      || requestPath.startsWith('/workspace')
+      || /\.[a-zA-Z0-9]+$/.test(requestPath)
+    );
 
     // SPA fallback — only for non-API routes
     app.get('*', (req: Request, res: Response) => {
-      if (req.path.startsWith('/api') || req.path.startsWith('/ws') || req.path.startsWith('/health')) {
+      if (shouldBypassSpaFallback(req.path)) {
         return res.status(404).json({ error: 'Not found' });
       }
-      res.sendFile(path.join(staticRoot, 'index.html'));
+      res.type('html').send(injectRuntimeBootstrap(indexTemplate, req));
     });
   }
 } else {
@@ -1119,6 +1224,7 @@ const startServer = async (options: ServerOptions = {}): Promise<http.Server> =>
 
     // Auto-start Feishu WSClient gateway (non-blocking)
     initFeishuGateway().catch(err => console.error('[Feishu WS] Init error:', err));
+    initWechatBotGateway().catch(err => console.error('[WechatBot] Init error:', err));
 
     return new Promise((resolve) => {
       server.listen(serverOptions.port, serverOptions.host, () => {
@@ -1157,9 +1263,11 @@ process.on('SIGTERM', () => {
     store.flush();
   }
   server.close(() => {
-    void stopCoworkOpenAICompatProxy().finally(() => {
-      console.log('[Server] Server closed');
-      process.exit(0);
+    void stopWechatBotGateway().catch(() => undefined).finally(() => {
+      void stopCoworkOpenAICompatProxy().finally(() => {
+        console.log('[Server] Server closed');
+        process.exit(0);
+      });
     });
   });
 });
@@ -1178,9 +1286,11 @@ process.on('SIGINT', () => {
     store.flush();
   }
   server.close(() => {
-    void stopCoworkOpenAICompatProxy().finally(() => {
-      console.log('[Server] Server closed');
-      process.exit(0);
+    void stopWechatBotGateway().catch(() => undefined).finally(() => {
+      void stopCoworkOpenAICompatProxy().finally(() => {
+        console.log('[Server] Server closed');
+        process.exit(0);
+      });
     });
   });
 });

@@ -1,0 +1,22 @@
+
+> uclaw@0.3.0 web:dev
+> vite --config vite.config.web.ts --host 127.0.0.1 --port 5176
+
+Re-optimizing dependencies because lockfile has changed
+
+  [32m[1mVITE[22m v5.4.21[39m  [2mready in [0m[1m1740[22m[2m[0m ms[22m
+
+  [32m➜[39m  [1mLocal[22m:   [36mhttp://127.0.0.1:[1m5176[22m/[39m
+[2m[32m  ➜[39m[22m[2m  press [22m[1mh + enter[22m[2m to show help[22m
+[2m05:24:49[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/renderer/components/cowork/CoworkSessionDetail.tsx, /src/renderer/index.css[22m
+[2m05:43:52[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/renderer/index.css, /src/renderer/components/cowork/CoworkSessionDetail.tsx[22m
+[2m05:44:53[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/renderer/components/cowork/CoworkSessionDetail.tsx, /src/renderer/index.css[22m
+[2m05:45:07[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/renderer/components/cowork/CoworkSessionDetail.tsx, /src/renderer/index.css[22m
+[2m05:45:16[22m [36m[1m[vite][22m[39m [32m✨ new dependencies optimized: [33mdompurify[32m[39m
+[2m05:45:16[22m [36m[1m[vite][22m[39m [32m✨ optimized dependencies changed. reloading[39m
+[2m05:45:24[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/renderer/components/cowork/CoworkSessionDetail.tsx, /src/renderer/index.css[22m
+[2m05:49:54[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/renderer/components/cowork/CoworkSessionDetail.tsx, /src/renderer/index.css[22m
+[2m06:01:07[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/renderer/components/cowork/CoworkSessionDetail.tsx, /src/renderer/index.css[22m
+[2m06:22:34[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/renderer/App.tsx, /src/renderer/index.css[22m
+[2m06:23:13[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/renderer/App.tsx, /src/renderer/index.css[22m
+[2m06:25:46[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/renderer/index.css[22m

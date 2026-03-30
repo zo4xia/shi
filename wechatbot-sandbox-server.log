@@ -1,0 +1,408 @@
+[Env] No .env found (searched up from D:\Users\Admin\Desktop\3-main\worktrees\wechatbot-bridge\server\dist\server\src), using process.env or database config
+🦞 Starting UCLAW...
+   Port: 3001
+   Host: 127.0.0.1
+   Workspace: D:\Users\Admin\Desktop\3-main\worktrees\wechatbot-bridge
+[Scheduler] Started
+[MCP] Updated built-in "Playwright Browser" (id=c16b6dbb-0324-41cb-86b0-b5afc13bb597)
+[MCP] Updated built-in "Memory" (id=6735da96-a37e-4d7d-9445-3a65e8ff6d3d)
+[DailyMemory] Cron task already registered
+[Feishu WS] No credentials configured, skipping auto-start
+[DailyMemory] Startup catch-up for slot 2026-03-28
+[Server] UCLAW Web Server running on http://127.0.0.1:3001
+[Server] WebSocket server initialized
+[Server] User data path: D:\Users\Admin\Desktop\3-main\worktrees\wechatbot-bridge\.uclaw\web
+[Server] Runtime root: D:\Users\Admin\Desktop\3-main\worktrees\wechatbot-bridge\.uclaw
+[Server] Workspace: D:\Users\Admin\Desktop\3-main\worktrees\wechatbot-bridge
+[Server] Environment: development
+
+✅ UCLAW is running at http://127.0.0.1:3001
+   Opening browser...
+[skills] syncBundledSkillsToUserData: start
+[skills] syncBundledSkillsToUserData: userRoot = D:\Users\Admin\Desktop\3-main\worktrees\wechatbot-bridge\.uclaw\web\SKILLs
+[skills] syncBundledSkillsToUserData: bundledRoot = D:\Users\Admin\Desktop\3-main\worktrees\wechatbot-bridge\SKILLs
+[skills] syncBundledSkillsToUserData: found 15 bundled skills
+[skills] syncBundledSkillsToUserData: copying "agent-browser" from D:\Users\Admin\Desktop\3-main\worktrees\wechatbot-bridge\SKILLs\agent-browser to D:\Users\Admin\Desktop\3-main\worktrees\wechatbot-bridge\.uclaw\web\SKILLs\agent-browser
+[skills] syncBundledSkillsToUserData: copied "agent-browser" successfully
+[skills] syncBundledSkillsToUserData: copying "blingbling-little-eye" from D:\Users\Admin\Desktop\3-main\worktrees\wechatbot-bridge\SKILLs\blingbling-little-eye to D:\Users\Admin\Desktop\3-main\worktrees\wechatbot-bridge\.uclaw\web\SKILLs\blingbling-little-eye
+[skills] syncBundledSkillsToUserData: copied "blingbling-little-eye" successfully
+[skills] syncBundledSkillsToUserData: copying "blogwatcher" from D:\Users\Admin\Desktop\3-main\worktrees\wechatbot-bridge\SKILLs\blogwatcher to D:\Users\Admin\Desktop\3-main\worktrees\wechatbot-bridge\.uclaw\web\SKILLs\blogwatcher
+[skills] syncBundledSkillsToUserData: copied "blogwatcher" successfully
+[skills] syncBundledSkillsToUserData: copying "content-strategy" from D:\Users\Admin\Desktop\3-main\worktrees\wechatbot-bridge\SKILLs\content-strategy to D:\Users\Admin\Desktop\3-main\worktrees\wechatbot-bridge\.uclaw\web\SKILLs\content-strategy
+[skills] syncBundledSkillsToUserData: copied "content-strategy" successfully
+[skills] syncBundledSkillsToUserData: copying "copywriting" from D:\Users\Admin\Desktop\3-main\worktrees\wechatbot-bridge\SKILLs\copywriting to D:\Users\Admin\Desktop\3-main\worktrees\wechatbot-bridge\.uclaw\web\SKILLs\copywriting
+[skills] syncBundledSkillsToUserData: copied "copywriting" successfully
+[skills] syncBundledSkillsToUserData: copying "data-analysis" from D:\Users\Admin\Desktop\3-main\worktrees\wechatbot-bridge\SKILLs\data-analysis to D:\Users\Admin\Desktop\3-main\worktrees\wechatbot-bridge\.uclaw\web\SKILLs\data-analysis
+[skills] syncBundledSkillsToUserData: copied "data-analysis" successfully
+[skills] syncBundledSkillsToUserData: copying "ima-note" from D:\Users\Admin\Desktop\3-main\worktrees\wechatbot-bridge\SKILLs\ima-note to D:\Users\Admin\Desktop\3-main\worktrees\wechatbot-bridge\.uclaw\web\SKILLs\ima-note
+[skills] syncBundledSkillsToUserData: copied "ima-note" successfully
+[skills] syncBundledSkillsToUserData: copying "nano-banana-pro" from D:\Users\Admin\Desktop\3-main\worktrees\wechatbot-bridge\SKILLs\nano-banana-pro to D:\Users\Admin\Desktop\3-main\worktrees\wechatbot-bridge\.uclaw\web\SKILLs\nano-banana-pro
+[skills] syncBundledSkillsToUserData: copied "nano-banana-pro" successfully
+[skills] syncBundledSkillsToUserData: copying "obsidian" from D:\Users\Admin\Desktop\3-main\worktrees\wechatbot-bridge\SKILLs\obsidian to D:\Users\Admin\Desktop\3-main\worktrees\wechatbot-bridge\.uclaw\web\SKILLs\obsidian
+[skills] syncBundledSkillsToUserData: copied "obsidian" successfully
+[skills] syncBundledSkillsToUserData: copying "openai-image-gen" from D:\Users\Admin\Desktop\3-main\worktrees\wechatbot-bridge\SKILLs\openai-image-gen to D:\Users\Admin\Desktop\3-main\worktrees\wechatbot-bridge\.uclaw\web\SKILLs\openai-image-gen
+[skills] syncBundledSkillsToUserData: copied "openai-image-gen" successfully
+[skills] syncBundledSkillsToUserData: copying "summarize" from D:\Users\Admin\Desktop\3-main\worktrees\wechatbot-bridge\SKILLs\summarize to D:\Users\Admin\Desktop\3-main\worktrees\wechatbot-bridge\.uclaw\web\SKILLs\summarize
+[skills] syncBundledSkillsToUserData: copied "summarize" successfully
+[skills] syncBundledSkillsToUserData: copying "using-superpowers" from D:\Users\Admin\Desktop\3-main\worktrees\wechatbot-bridge\SKILLs\using-superpowers to D:\Users\Admin\Desktop\3-main\worktrees\wechatbot-bridge\.uclaw\web\SKILLs\using-superpowers
+[skills] syncBundledSkillsToUserData: copied "using-superpowers" successfully
+[skills] syncBundledSkillsToUserData: copying "writing-skills" from D:\Users\Admin\Desktop\3-main\worktrees\wechatbot-bridge\SKILLs\writing-skills to D:\Users\Admin\Desktop\3-main\worktrees\wechatbot-bridge\.uclaw\web\SKILLs\writing-skills
+[skills] syncBundledSkillsToUserData: copied "writing-skills" successfully
+[skills] syncBundledSkillsToUserData: copying "xlsx" from D:\Users\Admin\Desktop\3-main\worktrees\wechatbot-bridge\SKILLs\xlsx to D:\Users\Admin\Desktop\3-main\worktrees\wechatbot-bridge\.uclaw\web\SKILLs\xlsx
+[skills] syncBundledSkillsToUserData: copied "xlsx" successfully
+[skills] pruned bundled runtime mirrors: 14
+[skills] syncBundledSkillsToUserData: done
+[roles] P0-RUNTIME-FILE-SELF-CHECK ok (5 file families / D:\Users\Admin\Desktop\3-main\worktrees\wechatbot-bridge\.uclaw\web)
+[API] GET / 200 10ms
+[API] GET /favicon.ico 404 3ms
+[API] GET /status 200 8ms
+[API] GET /im_config 200 4ms
+[API] GET / 304 1ms
+[API] POST /bridge/start 200 26ms
+[API] GET / 304 1ms
+[WebSocket] Client connected: aae04fc3-c6f9-4d49-bb37-b762e53edb95
+[API] GET /app_config 200 2ms
+[env-sync] .env NOT FOUND at D:\Users\Admin\Desktop\3-main\worktrees\wechatbot-bridge\.env
+[API] PUT /app_config 200 564ms
+[API] GET /im_config 200 6ms
+[API] GET /config 200 3ms
+[API] GET /version 200 1ms
+[API] GET /gateway/status 200 2ms
+[API] GET /sessions 200 3ms
+[API] GET /status 200 3ms
+[API] GET /check 200 4ms
+[API] GET /check 200 1ms
+[API] POST /fetch 200 135ms
+[API] GET /gateway/status 200 1ms
+[API] GET /version 200 1ms
+[API] GET /workspace 200 1ms
+[API] GET /app_config 200 2ms
+[API] GET /version 200 1ms
+[API] GET /workspace 200 1ms
+[API] GET /app_config 200 2ms
+[API] GET /conversationFileCache.lastBackupDate 200 1ms
+[API] GET / 200 1ms
+[API] GET / 200 8ms
+[API] GET /all 200 125ms
+[API] GET / 200 5ms
+[API] GET /all 200 121ms
+[API] GET /organizer 200 40ms
+[API] GET /writer 200 41ms
+[API] GET /designer 200 42ms
+[API] GET /analyst 200 33ms
+[API] GET /organizer 200 37ms
+[API] GET /writer 200 38ms
+[API] GET /designer 200 36ms
+[API] GET /analyst 200 37ms
+[API] GET /version 200 1ms
+[API] GET /workspace 200 1ms
+[API] GET /app_config 200 2ms
+[API] GET /version 200 0ms
+[API] GET /workspace 200 1ms
+[API] GET /app_config 200 1ms
+[API] GET /conversationFileCache.lastBackupDate 200 2ms
+[API] GET /conversationFileCache.lastBackupDate 200 1ms
+[API] POST /fetch 200 2590ms
+[env-sync] .env NOT FOUND at D:\Users\Admin\Desktop\3-main\worktrees\wechatbot-bridge\.env
+[API] PUT /app_config 200 159ms
+[env-sync] .env NOT FOUND at D:\Users\Admin\Desktop\3-main\worktrees\wechatbot-bridge\.env
+[API] PUT /app_config 200 225ms
+[API] GET /check 200 2ms
+[API] POST /sessions 200 17ms
+[API] GET /sessions 200 1ms
+[WebSocket] Client aae04fc3-c6f9-4d49-bb37-b762e53edb95 subscribed to room: cowork:5adc0569-1dda-4412-907f-33ee09455b41
+[API] POST /generateTitle 200 3ms
+[API] GET /version 200 1ms
+[API] GET /workspace 200 1ms
+[API] GET /app_config 200 3ms
+[API] GET /version 200 0ms
+[API] GET /workspace 200 1ms
+[API] GET /app_config 200 2ms
+[API] GET /conversationFileCache.lastBackupDate 200 1ms
+[API] POST /fetch 200 2740ms
+[API] POST /fetch 200 2745ms
+[WebSocket] Client disconnected: aae04fc3-c6f9-4d49-bb37-b762e53edb95
+[WebSocket] Client connected: 1c79560a-4a32-4cd7-b67f-12125a58e377
+[API] GET /app_config 200 3ms
+[API] GET /im_config 200 10ms
+[API] GET /config 200 2ms
+[API] GET /version 200 1ms
+[API] GET /sessions 200 1ms
+[API] GET /gateway/status 200 9ms
+[API] POST /fetch 200 238ms
+[API] GET /status 200 2ms
+[API] GET /check 200 2ms
+[API] GET /check 200 1ms
+[API] GET /gateway/status 200 1ms
+[WebSocket] Client 1c79560a-4a32-4cd7-b67f-12125a58e377 subscribed to room: cowork:5adc0569-1dda-4412-907f-33ee09455b41
+[API] GET /sessions/5adc0569-1dda-4412-907f-33ee09455b41 200 2ms
+[API] POST /sessions/5adc0569-1dda-4412-907f-33ee09455b41/continue 200 15ms
+[API] GET /sessions/5adc0569-1dda-4412-907f-33ee09455b41 200 3ms
+[API] GET /sessions 200 1ms
+[API] GET /sessions 200 1ms
+[API] GET /im_config 200 3ms
+[API] GET /app_config 200 2ms
+[API] GET /sessions/5adc0569-1dda-4412-907f-33ee09455b41 200 4ms
+[API] GET /config 200 2ms
+[API] POST /login/start 200 156ms
+[API] POST /login/wait 200 136ms
+[API] GET /status 200 2ms
+[API] PUT /im_config 200 9ms
+[API] POST /bridge/start 200 5ms
+[API] GET /config 200 3ms
+[API] GET /config 200 2ms
+[API] PUT /config 200 5ms
+[Continuity] role=writer source=none status=empty day=2026-03-29
+[API] GET /sessions 200 1ms
+[API] GET /sessions/5adc0569-1dda-4412-907f-33ee09455b41 200 1ms
+[TurnCache] STORE session=756e2893-7d06-48f9-a4b4-f8931fd14db6 role=writer model=glm-5.1
+[API] GET /sessions 200 1ms
+[API] GET /sessions/5adc0569-1dda-4412-907f-33ee09455b41 200 1ms
+[Continuity] role=writer source=shared-thread status=hit day=2026-03-29
+[API] GET /sessions 200 0ms
+[API] GET /sessions/5adc0569-1dda-4412-907f-33ee09455b41 200 3ms
+[TurnCache] STORE session=756e2893-7d06-48f9-a4b4-f8931fd14db6 role=writer model=glm-5.1
+[API] GET /sessions 200 0ms
+[API] GET /sessions/5adc0569-1dda-4412-907f-33ee09455b41 200 2ms
+[Continuity] role=writer source=shared-thread status=hit day=2026-03-29
+[API] GET /sessions 200 1ms
+[API] GET /sessions/5adc0569-1dda-4412-907f-33ee09455b41 200 1ms
+[TurnCache] STORE session=756e2893-7d06-48f9-a4b4-f8931fd14db6 role=writer model=glm-5.1
+[API] GET /sessions 200 1ms
+[API] GET /sessions/5adc0569-1dda-4412-907f-33ee09455b41 200 1ms
+[WebSocket] Client disconnected: 1c79560a-4a32-4cd7-b67f-12125a58e377
+[WebSocket] Client connected: de3558f7-c726-4a13-9469-4e215c7090ba
+[API] GET /app_config 200 2ms
+[API] GET /im_config 200 2ms
+[API] GET /config 200 1ms
+[API] GET /version 200 1ms
+[API] GET /gateway/status 200 1ms
+[API] GET /sessions 200 1ms
+[API] GET /status 200 2ms
+[API] GET /check 200 2ms
+[API] GET /check 200 2ms
+[API] POST /fetch 200 148ms
+[API] GET /gateway/status 200 1ms
+[WebSocket] Client de3558f7-c726-4a13-9469-4e215c7090ba subscribed to room: cowork:756e2893-7d06-48f9-a4b4-f8931fd14db6
+[API] GET /sessions/756e2893-7d06-48f9-a4b4-f8931fd14db6 200 2ms
+[API] GET /status 200 2ms
+[API] GET /uclaw.room.sessions.v1 200 1ms
+[API] PUT /uclaw.room.sessions.v1 200 2ms
+[API] PUT /uclaw.room.sessions.v1 200 3ms
+[API] GET /uclaw.room.sessions.v1 200 1ms
+[API] PUT /uclaw.room.sessions.v1 200 2ms
+[Continuity] role=writer source=shared-thread status=hit day=2026-03-29
+[API] GET /sessions 200 1ms
+[API] GET /sessions/756e2893-7d06-48f9-a4b4-f8931fd14db6 200 3ms
+[API] GET /sessions 200 1ms
+[TurnCache] STORE session=756e2893-7d06-48f9-a4b4-f8931fd14db6 role=writer model=glm-5.1
+[API] GET /sessions 200 1ms
+[API] GET /sessions/756e2893-7d06-48f9-a4b4-f8931fd14db6 200 2ms
+[API] GET /sessions/756e2893-7d06-48f9-a4b4-f8931fd14db6 200 2ms
+[API] GET /check 200 1ms
+[API] GET /check 200 1ms
+[Continuity] role=writer source=shared-thread status=hit day=2026-03-29
+[API] POST /sessions/756e2893-7d06-48f9-a4b4-f8931fd14db6/continue 200 25ms
+[API] GET /sessions 200 1ms
+[API] GET /sessions/756e2893-7d06-48f9-a4b4-f8931fd14db6 200 2ms
+[TurnCache] STORE session=756e2893-7d06-48f9-a4b4-f8931fd14db6 role=writer model=glm-5.1
+[API] GET /sessions 200 2ms
+[API] GET /sessions/756e2893-7d06-48f9-a4b4-f8931fd14db6 200 3ms
+[API] GET /status 200 2ms
+[API] GET /sessions/756e2893-7d06-48f9-a4b4-f8931fd14db6 200 2ms
+[API] GET /uclaw.room.sessions.v1 200 0ms
+[API] PUT /uclaw.room.sessions.v1 200 2ms
+[API] GET /uclaw.room.sessions.v1 200 1ms
+[API] PUT /uclaw.room.sessions.v1 200 2ms
+[API] PUT /uclaw.room.sessions.v1 200 1ms
+[API] PUT /uclaw.room.sessions.v1 200 2ms
+[API] GET / 200 3ms
+[API] GET / 200 7ms
+[API] GET /all 200 152ms
+[API] GET / 200 8ms
+[API] GET /all 200 140ms
+[API] GET /organizer 200 36ms
+[API] GET /writer 200 40ms
+[API] GET /designer 200 38ms
+[API] GET /analyst 200 41ms
+[API] GET /organizer 200 35ms
+[API] GET /writer 200 43ms
+[API] GET /designer 200 43ms
+[API] GET /analyst 200 32ms
+[API] POST /import-upload 200 1341ms
+[API] GET / 200 6ms
+[API] POST /batch-install 200 130ms
+[API] GET /all 200 108ms
+[API] GET / 200 9ms
+[API] GET /organizer 200 48ms
+[API] GET /writer 200 48ms
+[API] GET /designer 200 41ms
+[API] GET /analyst 200 35ms
+[API] GET /all 200 111ms
+[API] GET /organizer 200 40ms
+[API] GET /writer 200 42ms
+[API] GET /designer 200 39ms
+[API] GET /analyst 200 35ms
+[API] POST / 200 96ms
+[API] GET / 200 6ms
+[API] GET /all 200 105ms
+[API] GET /all 200 125ms
+[API] GET /organizer 200 49ms
+[API] GET /writer 200 45ms
+[API] GET /designer 200 38ms
+[API] GET /analyst 200 40ms
+[API] GET /organizer 200 54ms
+[API] GET /writer 200 49ms
+[API] GET /designer 200 56ms
+[API] GET /analyst 200 50ms
+[API] DELETE /1d44e1b8-0d0a-4347-8c71-e134d04f8084 200 90ms
+[API] GET / 200 5ms
+[API] GET /all 200 95ms
+[API] GET /all 200 105ms
+[API] GET /organizer 200 39ms
+[API] GET /writer 200 38ms
+[API] GET /designer 200 36ms
+[API] GET /analyst 200 40ms
+[API] GET /organizer 200 42ms
+[API] GET /writer 200 44ms
+[API] GET /designer 200 56ms
+[API] GET /analyst 200 39ms
+[WebSocket] Client de3558f7-c726-4a13-9469-4e215c7090ba unsubscribed from room: cowork:756e2893-7d06-48f9-a4b4-f8931fd14db6
+[API] GET /check 200 2ms
+[API] GET /check 200 4ms
+[API] GET /recentCwds 200 2ms
+[API] GET /resolve-dir 200 1ms
+[API] GET /drives 200 2ms
+[API] GET /browse 200 2ms
+[API] GET /drives 200 2ms
+[API] GET /browse 200 2ms
+[API] GET /recentCwds 200 1ms
+[API] GET /resolve-dir 200 1ms
+[API] PUT /config 200 5ms
+[API] GET /index/writer 200 144ms
+[API] GET /writer 200 48ms
+[API] GET /index/writer 200 105ms
+[API] GET /writer 200 37ms
+[API] GET /check 200 0ms
+[Continuity] role=writer source=shared-thread status=hit day=2026-03-29
+[API] POST /sessions 200 33ms
+[WebSocket] Client de3558f7-c726-4a13-9469-4e215c7090ba subscribed to room: cowork:33920045-c4bc-4b02-a48a-df7905280a91
+[API] GET /sessions 200 2ms
+[API] POST /generateTitle 200 1ms
+[TurnCache] STORE session=33920045-c4bc-4b02-a48a-df7905280a91 role=writer model=glm-5.1
+[API] GET /sessions 200 1ms
+[API] GET /sessions/33920045-c4bc-4b02-a48a-df7905280a91 200 3ms
+[Continuity] role=writer source=shared-thread status=hit day=2026-03-29
+[API] POST /sessions/33920045-c4bc-4b02-a48a-df7905280a91/continue 200 34ms
+[API] GET /sessions 200 1ms
+[API] GET /sessions/33920045-c4bc-4b02-a48a-df7905280a91 200 3ms
+[TurnCache] STORE session=33920045-c4bc-4b02-a48a-df7905280a91 role=writer model=glm-5.1
+[API] GET /sessions 200 1ms
+[API] GET /sessions/33920045-c4bc-4b02-a48a-df7905280a91 200 4ms
+[Continuity] role=writer source=shared-thread status=hit day=2026-03-29
+[API] POST /sessions/33920045-c4bc-4b02-a48a-df7905280a91/continue 200 33ms
+[API] GET /sessions 200 1ms
+[API] GET /sessions/33920045-c4bc-4b02-a48a-df7905280a91 200 2ms
+[TurnCache] STORE session=33920045-c4bc-4b02-a48a-df7905280a91 role=writer model=glm-5.1
+[API] GET /sessions 200 1ms
+[API] GET /sessions/33920045-c4bc-4b02-a48a-df7905280a91 200 4ms
+[Continuity] role=writer source=shared-thread status=hit day=2026-03-29
+[API] POST /sessions/33920045-c4bc-4b02-a48a-df7905280a91/continue 200 32ms
+[API] GET /sessions 200 1ms
+[API] GET /sessions/33920045-c4bc-4b02-a48a-df7905280a91 200 3ms
+[TurnCache] STORE session=33920045-c4bc-4b02-a48a-df7905280a91 role=writer model=glm-5.1
+[API] GET /sessions 200 1ms
+[API] GET /sessions/33920045-c4bc-4b02-a48a-df7905280a91 200 3ms
+[Continuity] role=writer source=shared-thread status=hit day=2026-03-29
+[API] POST /sessions/33920045-c4bc-4b02-a48a-df7905280a91/continue 200 31ms
+[API] GET /sessions 200 1ms
+[API] GET /sessions/33920045-c4bc-4b02-a48a-df7905280a91 200 4ms
+[TurnCache] STORE session=33920045-c4bc-4b02-a48a-df7905280a91 role=writer model=glm-5.1
+[API] GET /sessions 200 2ms
+[API] GET /sessions/33920045-c4bc-4b02-a48a-df7905280a91 200 3ms
+[WebSocket] Client disconnected: de3558f7-c726-4a13-9469-4e215c7090ba
+[WebSocket] Client connected: 9c42fa35-aafe-4088-b0fa-69e84dfc6e01
+[API] GET /app_config 200 1ms
+[API] GET /im_config 200 3ms
+[API] GET /config 200 1ms
+[API] GET /version 200 1ms
+[API] GET /sessions 200 1ms
+[API] GET /gateway/status 200 1ms
+[API] GET /check 200 2ms
+[API] GET /check 200 2ms
+[API] POST /fetch 200 204ms
+[API] GET /status 200 3ms
+[API] GET /gateway/status 200 0ms
+[WebSocket] Client 9c42fa35-aafe-4088-b0fa-69e84dfc6e01 subscribed to room: cowork:33920045-c4bc-4b02-a48a-df7905280a91
+[API] GET /sessions/33920045-c4bc-4b02-a48a-df7905280a91 200 3ms
+[Continuity] role=writer source=shared-thread status=hit day=2026-03-29
+[API] POST /sessions/33920045-c4bc-4b02-a48a-df7905280a91/continue 200 47ms
+[API] GET /sessions 200 1ms
+[API] GET /sessions/33920045-c4bc-4b02-a48a-df7905280a91 200 4ms
+[API] GET /uclaw.room.sessions.v1 200 1ms
+[API] PUT /uclaw.room.sessions.v1 200 4ms
+[API] PUT /uclaw.room.sessions.v1 200 1ms
+[API] GET /uclaw.room.sessions.v1 200 1ms
+[API] PUT /uclaw.room.sessions.v1 200 2ms
+[API] PUT /uclaw.room.sessions.v1 200 1ms
+[API] GET / 200 4ms
+[API] GET / 200 6ms
+[API] GET /all 200 141ms
+[API] GET / 200 7ms
+[API] GET /all 200 122ms
+[API] GET /organizer 200 87ms
+[API] GET /writer 200 43ms
+[API] GET /designer 200 54ms
+[API] GET /analyst 200 45ms
+[API] GET /organizer 200 53ms
+[API] GET /writer 200 43ms
+[API] GET /designer 200 49ms
+[API] GET /analyst 200 43ms
+[API] GET /sessions 200 2ms
+[API] GET /sessions/33920045-c4bc-4b02-a48a-df7905280a91 200 4ms
+[API] GET /app_config 200 1ms
+[API] GET /gateway/status 200 1ms
+[API] GET /version 200 0ms
+[API] GET /check 200 1ms
+[API] GET /check 200 1ms
+[API] POST /fetch 200 75ms
+[env-sync] .env NOT FOUND at D:\Users\Admin\Desktop\3-main\worktrees\wechatbot-bridge\.env
+[API] PUT /app_config 200 160ms
+[API] GET /version 200 0ms
+[API] GET /check 200 1ms
+[API] POST /fetch 200 80ms
+[API] GET /health 200 1ms
+[API] GET /writer 200 66ms
+[WebSocket] Client disconnected: 9c42fa35-aafe-4088-b0fa-69e84dfc6e01
+[WebSocket] Client connected: 6d87859b-b371-494d-be6e-25ec705b6ee0
+[API] GET /app_config 200 1ms
+[API] GET /im_config 200 4ms
+[API] GET /config 200 2ms
+[API] GET /version 200 1ms
+[API] GET /gateway/status 200 0ms
+[API] GET /sessions 200 2ms
+[API] GET /status 200 2ms
+[API] GET /check 200 3ms
+[API] GET /check 200 2ms
+[API] POST /fetch 200 104ms
+[API] GET /gateway/status 200 0ms
+[WebSocket] Client 6d87859b-b371-494d-be6e-25ec705b6ee0 subscribed to room: cowork:33920045-c4bc-4b02-a48a-df7905280a91
+[API] GET /sessions/33920045-c4bc-4b02-a48a-df7905280a91 200 4ms
+[API] GET /health 200 0ms
+[API] GET /api/mcp/playwright-health 404 3ms
+[API] GET / 200 1ms
+[Continuity] role=writer source=shared-thread status=hit day=2026-03-29
+[API] POST /sessions 200 32ms
+[API] GET /sessions 200 2ms
+[Continuity] role=writer source=shared-thread status=hit day=2026-03-29
+[API] POST /sessions 200 34ms
+[API] GET /sessions 200 2ms
+[API] GET /api/store 404 1ms
+[API] GET /sessions/33920045-c4bc-4b02-a48a-df7905280a91 200 5ms
+[TurnCache] STORE session=f92ced76-d97c-4fc3-9409-9d04f8b31209 role=writer model=glm-5.1
+[API] GET /sessions 200 1ms
+[API] GET /sessions/33920045-c4bc-4b02-a48a-df7905280a91 200 3ms
+[API] GET /sessions 200 1ms
+[API] GET /sessions/33920045-c4bc-4b02-a48a-df7905280a91 200 2ms
+[API] GET /sessions/9d34c38b-1b01-4171-8676-ff59c104890f 200 1ms
+[API] GET /sessions/f92ced76-d97c-4fc3-9409-9d04f8b31209 200 1ms
