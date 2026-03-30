@@ -173,19 +173,12 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ task, onRequestDelete }) => {
                 : '永不过期'}
             </div>
           </div>
-          <div>
-            <div className={labelClass}>{'通知'}</div>
-            <div className={valueClass}>
-              {task.notifyPlatforms.includes('feishu')
-                ? '飞书 IM 文本推送'
-                : '无'}
-            </div>
-            {task.notifyPlatforms.includes('feishu') && (
-              <div className="mt-1 text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary">
-                {`第一期：独立 sender 文本推送，不进入对话 session。通知角色：${task.feishuNotifyAgentRoleKey || '未配置'}；需先私聊 bot 发送 #开启定时#。`}
+            <div>
+              <div className={labelClass}>{'通知'}</div>
+              <div className={valueClass}>
+              {'功能冻结中'}
               </div>
-            )}
-          </div>
+            </div>
           <div className="col-span-2">
             <div className={labelClass}>{'完成回调 Webhook'}</div>
             <div className={valueClass + ' break-all font-mono text-xs'}>

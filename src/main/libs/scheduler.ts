@@ -54,6 +54,7 @@ function formatWebhookTimestamp(date: Date): string {
 }
 
 const WEBHOOK_TEXT_PLACEHOLDER = '{{这里面是回调的文字内容}}';
+const IM_NOTIFICATION_FEATURE_FROZEN = true;
 
 function buildCompletionWebhookText(params: {
   task: ScheduledTask;
@@ -548,6 +549,9 @@ export class Scheduler {
     error: string | null,
     sessionId: string | null
   ): Promise<void> {
+    if (IM_NOTIFICATION_FEATURE_FROZEN) {
+      return;
+    }
     if (!task.notifyPlatforms.includes('feishu')) {
       return;
     }

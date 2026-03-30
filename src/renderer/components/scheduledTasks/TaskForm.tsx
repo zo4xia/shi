@@ -21,6 +21,7 @@ interface TaskFormProps {
 type ScheduleMode = 'once' | 'daily' | 'weekly' | 'monthly';
 
 const WEEKDAYS = [0, 1, 2, 3, 4, 5, 6] as const; // 0=Sunday
+const IM_NOTIFICATION_FEATURE_FROZEN = true;
 
 // Parse existing schedule into UI state
 function parseScheduleToUI(schedule: Schedule): {
@@ -88,7 +89,9 @@ const TaskForm: React.FC<TaskFormProps> = ({ mode, task, onCancel, onSaved }) =>
   const [workingDirectory, setWorkingDirectory] = useState(task?.workingDirectory ?? '');
   const [expiresAt, setExpiresAt] = useState(task?.expiresAt ?? '');
   const [skillIds, setSkillIds] = useState<string[]>(task?.skillIds ?? []);
-  const [notifyPlatforms, setNotifyPlatforms] = useState<NotifyPlatform[]>(task?.notifyPlatforms ?? []);
+  const [notifyPlatforms, setNotifyPlatforms] = useState<NotifyPlatform[]>(
+    IM_NOTIFICATION_FEATURE_FROZEN ? [] : (task?.notifyPlatforms ?? [])
+  );
   const [completionWebhookUrl, setCompletionWebhookUrl] = useState(task?.completionWebhookUrl ?? '');
   const [feishuNotifyAgentRoleKey, setFeishuNotifyAgentRoleKey] = useState(task?.feishuNotifyAgentRoleKey ?? '');
   const [feishuApps, setFeishuApps] = useState<FeishuApp[]>([]);
@@ -268,7 +271,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ mode, task, onCancel, onSaved }) =>
     if (!scheduleTime) {
       newErrors.schedule = '请选择时间';
     }
-    if (notifyPlatforms.includes('feishu')) {
+    if (!IM_NOTIFICATION_FEATURE_FROZEN && notifyPlatforms.includes('feishu')) {
       if (onlineFeishuRoleOptions.length === 0) {
         newErrors.feishuNotify = '当前没有在线的飞书绑定角色，请先去 IM 设置检查飞书网关状态';
       }
@@ -287,10 +290,14 @@ const TaskForm: React.FC<TaskFormProps> = ({ mode, task, onCancel, onSaved }) =>
     if (!validate()) return;
     setSubmitting(true);
     try {
-      const legacyNotifyPlatforms = (task?.notifyPlatforms ?? []).filter((platform) => platform !== 'feishu');
-      const finalNotifyPlatforms = notifyPlatforms.includes('feishu')
-        ? [...legacyNotifyPlatforms, 'feishu']
-        : legacyNotifyPlatforms;
+      const legacyNotifyPlatforms = IM_NOTIFICATION_FEATURE_FROZEN
+        ? []
+        : (task?.notifyPlatforms ?? []).filter((platform) => platform !== 'feishu');
+      const finalNotifyPlatforms = IM_NOTIFICATION_FEATURE_FROZEN
+        ? []
+        : (notifyPlatforms.includes('feishu')
+          ? [...legacyNotifyPlatforms, 'feishu']
+          : legacyNotifyPlatforms);
       const input: ScheduledTaskInput = {
         name: name.trim(),
         description: '',
@@ -303,7 +310,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ mode, task, onCancel, onSaved }) =>
         skillIds,
         notifyPlatforms: finalNotifyPlatforms,
         completionWebhookUrl: completionWebhookUrl.trim() || null,
-        feishuNotifyAgentRoleKey: finalNotifyPlatforms.includes('feishu') ? (feishuNotifyAgentRoleKey.trim() || null) : null,
+        feishuNotifyAgentRoleKey: (!IM_NOTIFICATION_FEATURE_FROZEN && finalNotifyPlatforms.includes('feishu')) ? (feishuNotifyAgentRoleKey.trim() || null) : null,
         feishuAppId: null,
         feishuChatId: null,
         enabled: task?.enabled ?? true,
@@ -657,67 +664,68 @@ const TaskForm: React.FC<TaskFormProps> = ({ mode, task, onCancel, onSaved }) =>
         </div>
       </div>
 
-      {/* Notification */}
-      <div>
-        <label className={labelClass}>
-          {'IM 通知'}
-          <span className="text-xs font-normal dark:text-claude-darkTextSecondary text-claude-textSecondary ml-1">
-            {'（可选）'}
-          </span>
-        </label>
-        <div className="space-y-3">
-          <label className="flex items-center gap-3 rounded-lg border dark:border-claude-darkBorder border-claude-border px-3 py-3">
-            <input
-              type="checkbox"
-              checked={feishuNotifyEnabled}
-              onChange={toggleFeishuNotify}
-            />
-            <div className="min-w-0">
-              <div className="text-sm dark:text-claude-darkText text-claude-text">
-                {'飞书 IM 推送'}
-              </div>
-              <div className="text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary">
-                {'第一期只支持文本消息，任务完成后独立推送，不进入对话 session。'}
-              </div>
-            </div>
+      {!IM_NOTIFICATION_FEATURE_FROZEN && (
+        <div>
+          <label className={labelClass}>
+            {'IM 通知'}
+            <span className="text-xs font-normal dark:text-claude-darkTextSecondary text-claude-textSecondary ml-1">
+              {'（可选）'}
+            </span>
           </label>
-
-          {feishuNotifyEnabled && (
-            <div className="space-y-3 rounded-lg border dark:border-claude-darkBorder border-claude-border p-3">
-              <div>
-                <label className={labelClass}>{'当前在线的绑定角色'}</label>
-                <select
-                  value={feishuNotifyAgentRoleKey}
-                  onChange={(e) => setFeishuNotifyAgentRoleKey(e.target.value)}
-                  className={inputClass}
-                >
-                  <option value="">{onlineFeishuRoleOptions.length > 0 ? '请选择当前在线的飞书绑定角色' : '当前没有在线的飞书绑定角色'}</option>
-                  {onlineFeishuRoleOptions.map((option) => (
-                    <option key={option.roleKey} value={option.roleKey}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-                {errors.feishuNotifyAgentRoleKey && <p className={errorClass}>{errors.feishuNotifyAgentRoleKey}</p>}
-              </div>
-              <div>
-                <p className="mt-1 text-xs dark:text-claude-darkTextSecondary/70 text-claude-textSecondary/70">
-                  {'请选择一个当前在线的飞书绑定角色，然后用该 bot 的飞书私聊发送 #开启定时#。系统检测到绑定成功后，这里会显示已生效。当前不支持群聊。'}
-                </p>
-                <div className={`mt-2 rounded-lg border px-3 py-2 text-sm ${
-                  feishuBindingVerified
-                    ? 'border-green-200 bg-green-50 text-green-700 dark:border-green-900/40 dark:bg-green-950/20 dark:text-green-300'
-                    : 'dark:border-claude-darkBorder border-claude-border dark:text-claude-darkTextSecondary text-claude-textSecondary'
-                }`}>
-                  {feishuBindingVerified ? '✔ 已检测到飞书私聊通知绑定，保存后会生效。' : '等待绑定：请先私聊 bot 发送 #开启定时#。'}
+          <div className="space-y-3">
+            <label className="flex items-center gap-3 rounded-lg border dark:border-claude-darkBorder border-claude-border px-3 py-3">
+              <input
+                type="checkbox"
+                checked={feishuNotifyEnabled}
+                onChange={toggleFeishuNotify}
+              />
+              <div className="min-w-0">
+                <div className="text-sm dark:text-claude-darkText text-claude-text">
+                  {'飞书 IM 推送'}
+                </div>
+                <div className="text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary">
+                  {'第一期只支持文本消息，任务完成后独立推送，不进入对话 session。'}
                 </div>
               </div>
-              {errors.feishuNotify && <p className={errorClass}>{errors.feishuNotify}</p>}
-              {errors.feishuBinding && <p className={errorClass}>{errors.feishuBinding}</p>}
-            </div>
-          )}
+            </label>
+
+            {feishuNotifyEnabled && (
+              <div className="space-y-3 rounded-lg border dark:border-claude-darkBorder border-claude-border p-3">
+                <div>
+                  <label className={labelClass}>{'当前在线的绑定角色'}</label>
+                  <select
+                    value={feishuNotifyAgentRoleKey}
+                    onChange={(e) => setFeishuNotifyAgentRoleKey(e.target.value)}
+                    className={inputClass}
+                  >
+                    <option value="">{onlineFeishuRoleOptions.length > 0 ? '请选择当前在线的飞书绑定角色' : '当前没有在线的飞书绑定角色'}</option>
+                    {onlineFeishuRoleOptions.map((option) => (
+                      <option key={option.roleKey} value={option.roleKey}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  {errors.feishuNotifyAgentRoleKey && <p className={errorClass}>{errors.feishuNotifyAgentRoleKey}</p>}
+                </div>
+                <div>
+                  <p className="mt-1 text-xs dark:text-claude-darkTextSecondary/70 text-claude-textSecondary/70">
+                    {'请选择一个当前在线的飞书绑定角色，然后用该 bot 的飞书私聊发送 #开启定时#。系统检测到绑定成功后，这里会显示已生效。当前不支持群聊。'}
+                  </p>
+                  <div className={`mt-2 rounded-lg border px-3 py-2 text-sm ${
+                    feishuBindingVerified
+                      ? 'border-green-200 bg-green-50 text-green-700 dark:border-green-900/40 dark:bg-green-950/20 dark:text-green-300'
+                      : 'dark:border-claude-darkBorder border-claude-border dark:text-claude-darkTextSecondary text-claude-textSecondary'
+                  }`}>
+                    {feishuBindingVerified ? '✔ 已检测到飞书私聊通知绑定，保存后会生效。' : '等待绑定：请先私聊 bot 发送 #开启定时#。'}
+                  </div>
+                </div>
+                {errors.feishuNotify && <p className={errorClass}>{errors.feishuNotify}</p>}
+                {errors.feishuBinding && <p className={errorClass}>{errors.feishuBinding}</p>}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       <div>
         <label className={labelClass}>

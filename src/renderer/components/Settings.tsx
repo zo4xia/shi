@@ -315,6 +315,15 @@ const providerMeta: Record<ProviderType, { label: string; icon: React.ReactNode 
   custom: { label: 'Custom', icon: <CustomProviderIcon /> },
 };
 
+// {标记} UI-ONLY-PRESET: 这里只做前端展示层隐藏，不追求绝对安全。
+// 真实地址仍会保存到运行配置里，但不会在设置页对普通用户明文展示。
+const SYSTEM_API_PRESET_BASE_URLS: Record<AgentRoleKey, string> = {
+  organizer: 'https://api.ujiapp.com/v1',
+  writer: 'https://api.ujiapp.com/v1',
+  designer: 'https://api.ujiapp.com/v1',
+  analyst: 'https://api.ujiapp.com/v1',
+};
+
 // All helper functions are now imported from './settings/settingsHelpers'
 
 // Local helper functions (not in settingsHelpers)
@@ -981,6 +990,12 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
       },
     }));
   }, []);
+
+  const handleApplySystemApiPreset = useCallback((roleKey: AgentRoleKey) => {
+    const presetUrl = SYSTEM_API_PRESET_BASE_URLS[roleKey];
+    handleAgentRoleChange(roleKey, 'apiUrl', presetUrl);
+    showGlobalToast('已应用系统预设线路');
+  }, [handleAgentRoleChange]);
 
   // {埋点} ⚡ API连通性测试入口 (ID: api-test-001) → settingsHelpers.buildURL → electronShim.api.fetch → apiProxy /api/api/fetch
   const handleTestAgentRoleConnection = useCallback(async () => {
@@ -1862,24 +1877,37 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
               <div>
                 <div className="mb-1 flex items-center justify-between gap-3">
                   <label htmlFor={`${activeRole}-apiUrl`} className="block text-xs font-medium dark:text-claude-darkText text-claude-text">
-                    {'API Base URL（必须带版本号）'}
+                    {'API 线路'}
                   </label>
-                  <button
-                    type="button"
-                    onClick={() => { void window.electron?.shell?.openExternal?.('https://api.ujiapp.com'); }}
-                    className="shrink-0 rounded-lg border px-2 py-1 text-[11px] font-medium dark:border-claude-darkBorder border-claude-border dark:text-claude-darkTextSecondary text-claude-textSecondary dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover transition-colors"
-                  >
-                    {'点击开通'}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleApplySystemApiPreset(activeRole)}
+                      className="shrink-0 rounded-lg border px-2 py-1 text-[11px] font-medium border-claude-accent/30 text-claude-accent dark:border-claude-accent/40 dark:text-claude-accent dark:hover:bg-claude-accent/10 hover:bg-claude-accent/5 transition-colors"
+                    >
+                      {'使用系统预设'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { void window.electron?.shell?.openExternal?.('https://api.ujiapp.com'); }}
+                      className="shrink-0 rounded-lg border px-2 py-1 text-[11px] font-medium dark:border-claude-darkBorder border-claude-border dark:text-claude-darkTextSecondary text-claude-textSecondary dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover transition-colors"
+                    >
+                      {'点击购买 Key'}
+                    </button>
+                  </div>
                 </div>
                 <div className="relative">
                   <input
                     id={`${activeRole}-apiUrl`}
-                    type="text"
-                    value={activeRoleConfig.apiUrl}
-                    onChange={(event) => handleAgentRoleChange(activeRole, 'apiUrl', event.target.value)}
-                    className="block w-full rounded-xl bg-claude-surfaceInset dark:bg-claude-darkSurfaceInset dark:border-claude-darkBorder border-claude-border border focus:border-claude-accent focus:ring-1 focus:ring-claude-accent/30 dark:text-claude-darkText text-claude-text px-3 py-2 pr-8 text-xs"
-                    placeholder={'https://ark.cn-beijing.volces.com/api/v3'}
+                    type={activeRoleConfig.apiUrl ? 'password' : 'text'}
+                    value={activeRoleConfig.apiUrl ? '已使用系统预设线路' : ''}
+                    readOnly
+                    className="block w-full rounded-xl bg-claude-surfaceInset dark:bg-claude-darkSurfaceInset dark:border-claude-darkBorder border-claude-border border dark:text-claude-darkText text-claude-text px-3 py-2 pr-8 text-xs select-none"
+                    placeholder={'点击“使用系统预设”后自动应用'}
+                    onCopy={(event) => event.preventDefault()}
+                    onCut={(event) => event.preventDefault()}
+                    onPaste={(event) => event.preventDefault()}
+                    onContextMenu={(event) => event.preventDefault()}
                   />
                   {activeRoleConfig.apiUrl && (
                     <div className="absolute right-2 inset-y-0 flex items-center">
@@ -1893,34 +1921,6 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
                       </button>
                     </div>
                   )}
-                </div>
-                <div className="mt-1 space-y-1 text-[11px] dark:text-claude-darkTextSecondary text-claude-textSecondary">
-                  <p>
-                    {'必须由用户自己填写到版本层，例如 '}
-                    <code className="font-mono">/v1</code>
-                    {'、'}
-                    <code className="font-mono">/api/v3</code>
-                    {'。没填版本号就是不对。'}
-                  </p>
-                  <p>
-                    {'系统只会自动拼接后缀，不会帮你猜版本：OpenAI 兼容自动补 '}
-                    <code className="font-mono">/chat/completions</code>
-                    {'，Anthropic 兼容自动补 '}
-                    <code className="font-mono">/messages</code>
-                    {'。'}
-                  </p>
-                  <p>
-                    {'不要把完整接口填进来，例如不要直接填 '}
-                    <code className="font-mono">/chat/completions</code>
-                    {' 或 '}
-                    <code className="font-mono">/messages</code>
-                    {'。'}
-                  </p>
-                  <p>
-                    {'示例：火山 Ark / 豆包填写 '}
-                    <code className="font-mono">https://ark.cn-beijing.volces.com/api/v3</code>
-                    {'。'}
-                  </p>
                 </div>
               </div>
 
@@ -2026,12 +2026,19 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
                       label: option.label,
                     }))}
                   />
-                  <p className="mt-1 text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary">
-                    {'这里按接口形态分流：Base URL 必须先填到版本层；`generic` 自动拼 `/chat/completions`，`images` 自动拼 `/images/generations`，`google` 走 `generateContent`。旧值仅保留展示，标记为可疑1。'}
-                  </p>
-                  <p className="mt-1 text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary">
-                    {`当前已确认图片模型：${CONFIRMED_DESIGNER_IMAGE_MODEL_HINTS.map((item) => `${item.label} → ${item.apiType}`).join('；')}。Sora / Veo 这类视频链路先不做。`}
-                  </p>
+                  <details className="mt-2 rounded-lg border dark:border-claude-darkBorder border-claude-border px-3 py-2 dark:bg-claude-darkSurface/30 bg-claude-surface/30">
+                    <summary className="cursor-pointer text-xs font-medium dark:text-claude-darkTextSecondary text-claude-textSecondary select-none">
+                      {'高级说明'}
+                    </summary>
+                    <div className="mt-2 space-y-1 text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary">
+                      <p>
+                        {'这里按接口形态分流：Base URL 必须先填到版本层；`generic` 自动拼 `/chat/completions`，`images` 自动拼 `/images/generations`，`google` 走 `generateContent`。旧值仅保留展示，标记为可疑1。'}
+                      </p>
+                      <p>
+                        {`当前已确认图片模型：${CONFIRMED_DESIGNER_IMAGE_MODEL_HINTS.map((item) => `${item.label} → ${item.apiType}`).join('；')}。Sora / Veo 这类视频链路先不做。`}
+                      </p>
+                    </div>
+                  </details>
                 </div>
               )}
 
