@@ -17,7 +17,13 @@ import { setSkills, toggleActiveSkill } from '../../store/slices/skillSlice';
 import { Skill } from '../../types/skill';
 import { CoworkImageAttachment } from '../../types/cowork';
 import { getCompactFolderName } from '../../utils/path';
-import { chunkTextForAttachment, shouldSplitTextFile, splitLargeTextFile } from '../../utils/textFileChunking';
+import {
+  chunkTextForAttachment,
+  parseGeneratedTextChunkName,
+  shouldSplitTextFile,
+  splitLargeTextFile,
+  type GeneratedTextChunkDescriptor,
+} from '../../utils/textFileChunking';
 import type { AgentRoleKey } from '../../../shared/agentRoleConfig';
 import {
   BROWSER_EYES_CURRENT_PAGE_STORE_KEY,
@@ -29,6 +35,7 @@ type CoworkAttachment = {
   name: string;
   isImage?: boolean;
   dataUrl?: string;
+  chunkDescriptor?: GeneratedTextChunkDescriptor | null;
 };
 
 const INPUT_FILE_LABEL = '输入文件';
@@ -154,6 +161,59 @@ const buildInlinedSkillPrompt = (skill: Skill): string => {
     '',
     skill.prompt,
   ].join('\n');
+};
+
+const describeAttachmentDisplay = (attachment: CoworkAttachment): { primary: string; secondary?: string } => {
+  if (!attachment.chunkDescriptor) {
+    return { primary: attachment.name };
+  }
+
+  const sequence = `${String(attachment.chunkDescriptor.partNumber).padStart(2, '0')}/${String(attachment.chunkDescriptor.totalParts).padStart(2, '0')}`;
+  return {
+    primary: attachment.chunkDescriptor.sourceName,
+    secondary: attachment.chunkDescriptor.kind === 'parsed_extract'
+      ? `解析分块 ${sequence}`
+      : `文本分片 ${sequence}`,
+  };
+};
+
+const buildAttachmentPromptLines = (attachments: CoworkAttachment[]): string[] => {
+  const lines: string[] = [];
+  const chunkGroups = new Map<string, GeneratedTextChunkDescriptor & { paths: string[] }>();
+
+  for (const attachment of attachments) {
+    if (attachment.path.startsWith('inline:')) {
+      continue;
+    }
+
+    if (!attachment.chunkDescriptor) {
+      lines.push(`${INPUT_FILE_LABEL}: ${attachment.path}`);
+      continue;
+    }
+
+    const groupKey = `${attachment.chunkDescriptor.kind}:${attachment.chunkDescriptor.sourceName}:${attachment.chunkDescriptor.totalParts}`;
+    const existing = chunkGroups.get(groupKey);
+    if (existing) {
+      existing.paths.push(attachment.path);
+      continue;
+    }
+
+    chunkGroups.set(groupKey, {
+      ...attachment.chunkDescriptor,
+      paths: [attachment.path],
+    });
+  }
+
+  for (const group of chunkGroups.values()) {
+    lines.push(
+      `${INPUT_FILE_LABEL}说明: ${group.sourceName} 已按顺序拆成 ${group.totalParts} 份，请把这些 part 视为同一份文件连续处理。`
+    );
+    for (const path of group.paths) {
+      lines.push(`${INPUT_FILE_LABEL}: ${path}`);
+    }
+  }
+
+  return lines;
 };
 
 export interface CoworkPromptInputRef {
@@ -373,10 +433,7 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
     // Image attachments also need their file paths in the prompt so the model knows
     // where the original files are located (e.g., for skills like seedream that need --image <path>).
     // Note: inline/clipboard images have pseudo-paths starting with 'inline:' and are excluded.
-    const attachmentLines = attachments
-      .filter((a) => !a.path.startsWith('inline:'))
-      .map((attachment) => `${INPUT_FILE_LABEL}: ${attachment.path}`)
-      .join('\n');
+    const attachmentLines = buildAttachmentPromptLines(attachments).join('\n');
     const finalPrompt = trimmedValue
       ? (attachmentLines ? `${trimmedValue}\n\n${attachmentLines}` : trimmedValue)
       : attachmentLines;
@@ -480,11 +537,13 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
       if (prev.some((attachment) => attachment.path === filePath)) {
         return prev;
       }
+      const fileName = getFileNameFromPath(filePath);
       return [...prev, {
         path: filePath,
-        name: getFileNameFromPath(filePath),
+        name: fileName,
         isImage: imageInfo?.isImage,
         dataUrl: imageInfo?.dataUrl,
+        chunkDescriptor: parseGeneratedTextChunkName(fileName),
       }];
     });
   }, []);
@@ -833,12 +892,15 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
       <input
         ref={fileInputRef}
         type="file"
+        multiple
         className="hidden"
         onChange={handleFileInputChange}
       />
       {attachments.length > 0 && (
         <div className="mb-2 flex flex-wrap gap-2">
-          {attachments.map((attachment) => (
+          {attachments.map((attachment) => {
+              const display = describeAttachmentDisplay(attachment);
+              return (
               <div
                 key={attachment.path}
                 className="inline-flex items-center gap-2 rounded-full border border-white/20 dark:border-white/10 bg-white/60 dark:bg-white/5 px-3 py-1.5 text-sm dark:text-white/90 text-[#5A5248] backdrop-blur-sm max-w-full shadow-sm transition-colors hover:bg-white/70 dark:hover:bg-white/8"
@@ -849,7 +911,14 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
                 ) : (
                   <PaperClipIcon className="h-4 w-4 flex-shrink-0 text-[#9A9085]/80" />
                 )}
-                <span className="truncate max-w-[180px]">{attachment.name}</span>
+                <span className="flex min-w-0 max-w-[220px] flex-col leading-tight">
+                  <span className="truncate max-w-[220px] text-[12px]">{display.primary}</span>
+                  {display.secondary && (
+                    <span className="truncate max-w-[220px] text-[10px] text-[#9A9085]/85 dark:text-white/55">
+                      {display.secondary}
+                    </span>
+                  )}
+                </span>
                 <button
                   type="button"
                   onClick={() => handleRemoveAttachment(attachment.path)}
@@ -860,7 +929,8 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
                   <XMarkIcon className="h-3.5 w-3.5 text-[#9A9085]/70" />
                 </button>
               </div>
-          ))}
+          );
+          })}
         </div>
       )}
       <div

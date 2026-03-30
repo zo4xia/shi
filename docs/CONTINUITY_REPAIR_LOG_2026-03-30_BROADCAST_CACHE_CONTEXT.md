@@ -167,6 +167,29 @@
      三个面同时收口。
    - 这一步的目标不是让 agent 少说话，而是把“正式回复”和“过程信息”边界焊死，避免下一轮又把状态消息当正文。
 
+## 文件输入链补丁
+
+1. 前端文本大文件分片补成用户可见主链
+   - 文件：`src/renderer/utils/textFileChunking.ts`
+   - 文件：`src/renderer/components/cowork/CoworkPromptInput.tsx`
+   - 变更：
+     - 把生成出来的文本分片文件名规则抽成可识别 descriptor
+     - 输入区附件 chip 不再只显示 `part-01-of-xx` 原始碎片名，而是显示：
+       - 原文件名
+       - `文本分片 01/xx` 或 `解析分块 01/xx`
+   - 原因：用户需要看得出“这些碎片其实属于同一份源文件”，否则很像系统自己炸成一堆无关附件。
+
+2. prompt 明示“这些分片属于同一份文件”
+   - 文件：`src/renderer/components/cowork/CoworkPromptInput.tsx`
+   - 变更：提交时会对分片附件按源文件分组，额外补一行：
+     - `输入文件说明: xxx 已按顺序拆成 N 份，请把这些 part 视为同一份文件连续处理。`
+   - 原因：降低模型把同一文档分片误判成多份独立材料的概率。
+
+3. 文件选择器允许一次选多份
+   - 文件：`src/renderer/components/cowork/CoworkPromptInput.tsx`
+   - 变更：隐藏 `input[type=file]` 补上 `multiple`
+   - 原因：拖拽早就支持多文件，但点击上传还只允许单选，口径不一致。
+
 ### 当前口径
 
 - 身份锚点看 `agentRoleKey`，不是 `modelId`
