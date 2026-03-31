@@ -19,6 +19,16 @@ import {
   stopWechatBotGateway,
 } from '../libs/wechatbotGateway';
 
+const LOCALHOST_ORIGIN_RE = /^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/i;
+
+function isWechatBotQrLoginAllowed(req: Request): boolean {
+  const origin = String(req.get('origin') || '').trim();
+  if (!origin) {
+    return true;
+  }
+  return LOCALHOST_ORIGIN_RE.test(origin);
+}
+
 function buildWechatBotStatus(req: Request) {
   const { store } = req.context as RequestContext;
   const userDataPath = String(req.app.get('userDataPath') || resolveRuntimeUserDataPath());
@@ -132,6 +142,13 @@ export function setupWechatBotBridgeRoutes(app: Router) {
 
   router.post('/login/start', async (req: Request, res: Response) => {
     try {
+      if (!isWechatBotQrLoginAllowed(req)) {
+        return res.status(400).json({
+          success: false,
+          error: '个人微信官方扫码仅支持在本机 127.0.0.1 发起。服务器环境请先在本地完成扫码，再回填 Bot 信息。',
+        });
+      }
+
       const { store } = req.context as RequestContext;
       const currentValue = store.get('im_config');
       const wechatbot = mergeWechatBotConfigWithRuntime(currentValue);

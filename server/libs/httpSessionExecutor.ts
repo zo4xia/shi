@@ -154,6 +154,9 @@ const CACHE_REPLAY_CHUNK_DELAY_MS = 10;
 const FORWARDED_RAW_CONTEXT_MESSAGE_LIMIT = 3;
 const BOUNDED_LOOP_MAX_STEPS = 10;
 const BOUNDED_LOOP_MAX_DURATION_MS = 90_000;
+const PER_TURN_TOOL_LIMITS: Record<string, number> = {
+  broadcast_board_write: 1,
+};
 const MAX_PARSED_ATTACHMENT_COUNT = 4;
 const MAX_PARSED_ATTACHMENT_TOTAL_CHARS = 24000;
 const MAX_PARSED_ATTACHMENT_BYTES = 20 * 1024 * 1024;
@@ -505,6 +508,7 @@ export class HttpSessionExecutor implements SessionExecutor {
       '- You have a `broadcast_board_write` tool for leaving a short baton note to your same-role future self.',
       '- Use it during the turn when one of these becomes clear: key user requirement, important judgment, freshly confirmed pitfall, fix already completed, or next-step handoff.',
       '- Keep each baton factual and compact. It is a 24h relay note, not a full transcript.',
+      '- At most one `broadcast_board_write` call is allowed per turn. If a baton note is already written in this turn, continue the user-facing answer instead of writing another.',
       '- The default continuity path is: broadcast board first, then the most recent raw messages, then longer history only when exact detail is needed.',
       '',
       '## Tool Grounding',
@@ -1093,6 +1097,7 @@ export class HttpSessionExecutor implements SessionExecutor {
     const attachmentContext = buildAttachmentRuntimeContext(prompt);
     const boundedLoopMaxSteps = attachmentContext.hasChunkedSources ? 24 : BOUNDED_LOOP_MAX_STEPS;
     const boundedLoopMaxDurationMs = attachmentContext.hasChunkedSources ? 180_000 : BOUNDED_LOOP_MAX_DURATION_MS;
+    const toolInvocationCounts = new Map<string, number>();
     const timeoutController = new AbortController();
     const timeoutId = setTimeout(() => {
       timeoutController.abort(new Error('bounded-tool-loop-timeout'));
@@ -1172,6 +1177,27 @@ export class HttpSessionExecutor implements SessionExecutor {
             : rawToolInput;
           this.emitToolUseMessage(sessionId, toolCall, toolInput);
 
+          const toolName = toolCall.function.name || '';
+          const currentInvocationCount = toolInvocationCounts.get(toolName) ?? 0;
+          const perTurnLimit = PER_TURN_TOOL_LIMITS[toolName];
+          if (perTurnLimit && currentInvocationCount >= perTurnLimit) {
+            const limitedText = [
+              'action=skip',
+              'success=0',
+              'reason=per-turn-tool-limit-reached',
+              `tool=${toolName}`,
+              `limit=${perTurnLimit}`,
+              'hint=continue-with-final-answer',
+            ].join('\n');
+            this.emitToolResultMessage(sessionId, toolCall, limitedText, false);
+            messages.push({
+              role: 'tool',
+              tool_call_id: toolCall.id,
+              content: limitedText,
+            });
+            continue;
+          }
+
           if (!resolvedTool) {
             const unsupportedText = `Unsupported executor tool: ${toolCall.function.name || '(empty)'}`;
             this.emitToolResultMessage(sessionId, toolCall, unsupportedText, true);
@@ -1183,6 +1209,7 @@ export class HttpSessionExecutor implements SessionExecutor {
             continue;
           }
 
+          toolInvocationCounts.set(toolName, currentInvocationCount + 1);
           const toolResult = await resolvedTool.handler(toolInput);
           this.emitToolResultMessage(sessionId, toolCall, toolResult.text, Boolean(toolResult.isError));
           messages.push({

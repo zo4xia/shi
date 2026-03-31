@@ -23,6 +23,14 @@ type DedicatedDailyMemoryConfig = {
   source: string;
 };
 
+type ResolvedDailyMemoryConfig = {
+  apiUrl: string;
+  apiKey: string;
+  modelId: string;
+  apiFormat: 'openai' | 'anthropic';
+  source: string;
+};
+
 function readFirstNonEmptyEnv(names: string[]): string {
   for (const name of names) {
     const value = String(process.env[name] || '').trim();
@@ -61,6 +69,26 @@ function resolveDedicatedDailyMemoryConfig(): DedicatedDailyMemoryConfig | null 
     modelId,
     apiFormat: apiFormatRaw === 'anthropic' ? 'anthropic' : 'openai',
     source: 'env:daily-memory-dedicated',
+  };
+}
+
+function resolveFirstRoleDailyMemoryConfig(
+  agentRoles: Record<string, any>
+): ResolvedDailyMemoryConfig | null {
+  const firstRoleEntry = Object.entries(agentRoles).find(([, role]: [string, any]) => (
+    role?.enabled && role.apiUrl && role.apiKey && role.modelId
+  )) as [string, any] | undefined;
+  if (!firstRoleEntry) {
+    return null;
+  }
+
+  const [firstRoleKey, firstRole] = firstRoleEntry;
+  return {
+    apiUrl: String(firstRole.apiUrl || '').trim(),
+    apiKey: pickNextApiKey(firstRole.apiKey, `daily-memory:${firstRoleKey}`) || String(firstRole.apiKey || '').trim(),
+    modelId: String(firstRole.modelId || '').trim(),
+    apiFormat: 'openai',
+    source: `agent-role:${firstRoleKey}`,
   };
 }
 
@@ -139,13 +167,8 @@ export async function runDailyMemoryPipeline(params: {
   const appConfig = (store.get('app_config') as Record<string, any>) || {};
   const agentRoles = appConfig.agentRoles || {};
   const dedicatedConfig = resolveDedicatedDailyMemoryConfig();
-
-  const firstRoleEntry = dedicatedConfig
-    ? undefined
-    : Object.entries(agentRoles).find(([, role]: [string, any]) => (
-      role?.enabled && role.apiUrl && role.apiKey && role.modelId
-    )) as [string, any] | undefined;
-  if (!dedicatedConfig && !firstRoleEntry) {
+  const fallbackRoleConfig = resolveFirstRoleDailyMemoryConfig(agentRoles);
+  if (!dedicatedConfig && !fallbackRoleConfig) {
     throw new Error('没有可用的 Agent Role 配置，无法调用 LLM 进行摘要');
   }
 
@@ -156,7 +179,7 @@ export async function runDailyMemoryPipeline(params: {
     warnings.push(`conversation-backup: ${backup.error}`);
   }
 
-  const resolvedConfig = dedicatedConfig
+  const resolvedConfig: ResolvedDailyMemoryConfig = dedicatedConfig
     ? {
       apiUrl: dedicatedConfig.apiUrl,
       apiKey: pickNextApiKey(dedicatedConfig.apiKey, 'daily-memory:dedicated') || dedicatedConfig.apiKey,
@@ -164,19 +187,10 @@ export async function runDailyMemoryPipeline(params: {
       apiFormat: dedicatedConfig.apiFormat,
       source: dedicatedConfig.source,
     }
-    : (() => {
-      const [firstRoleKey, firstRole] = firstRoleEntry as [string, any];
-      return {
-        apiUrl: String(firstRole.apiUrl || '').trim(),
-        apiKey: pickNextApiKey(firstRole.apiKey, `daily-memory:${firstRoleKey}`) || String(firstRole.apiKey || '').trim(),
-        modelId: String(firstRole.modelId || '').trim(),
-        apiFormat: 'openai' as const,
-        source: `agent-role:${firstRoleKey}`,
-      };
-    })();
+    : (fallbackRoleConfig as ResolvedDailyMemoryConfig);
   console.log(`[DailyMemory] Summary LLM source=${resolvedConfig.source} model=${resolvedConfig.modelId}`);
   const { extractDailyMemory } = await import('../../SKILLs/daily-memory-extraction/dailyMemoryExtraction');
-  const extraction = await extractDailyMemory({
+  let extraction = await extractDailyMemory({
     db,
     saveDb,
     apiUrl: resolvedConfig.apiUrl,
@@ -184,6 +198,29 @@ export async function runDailyMemoryPipeline(params: {
     modelId: resolvedConfig.modelId,
     apiFormat: resolvedConfig.apiFormat,
   });
+
+  const shouldFallbackToRoleModel = Boolean(
+    dedicatedConfig
+    && fallbackRoleConfig
+    && extraction.extractedCount === 0
+    && extraction.clearedHotCacheCount === 0
+    && extraction.skippedCount > 0
+  );
+
+  if (shouldFallbackToRoleModel) {
+    warnings.push(`daily-memory-dedicated-fallback: ${resolvedConfig.modelId} -> ${fallbackRoleConfig?.modelId || 'unknown'}`);
+    console.warn(
+      `[DailyMemory] Dedicated summary model produced no persisted extraction; retrying with fallback ${fallbackRoleConfig?.source} model=${fallbackRoleConfig?.modelId}`
+    );
+    extraction = await extractDailyMemory({
+      db,
+      saveDb,
+      apiUrl: fallbackRoleConfig!.apiUrl,
+      apiKey: fallbackRoleConfig!.apiKey,
+      modelId: fallbackRoleConfig!.modelId,
+      apiFormat: fallbackRoleConfig!.apiFormat,
+    });
+  }
 
   return {
     backup,

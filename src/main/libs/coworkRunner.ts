@@ -1766,7 +1766,7 @@ export class CoworkRunner extends EventEmitter {
       '- Shared context is only a compact cross-channel handoff, not full chat history.',
       '- Each shared-thread entry keeps only: channel + time + short intent/result summary.',
       '- Channel markers and per-channel sequence numbers are anchors for locating the original conversation when exact detail is needed.',
-      '- Shared context summary must stay within 300 Chinese characters.',
+      '- Shared context summary must stay within 480 Chinese characters.',
       '- Exact detail belongs to chat records or memory, not the shared thread.',
       '- Never hallucinate missing detail from a short shared summary.',
       '- If the topic is long, scientific, technical, or work-critical, use the anchor to revisit the original chat history instead of guessing.',

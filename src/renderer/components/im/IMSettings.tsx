@@ -90,6 +90,14 @@ function translateIMError(error: string | null): string {
   return error;
 }
 
+function isLocalWechatBotQrHost(): boolean {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+  const hostname = String(window.location.hostname || '').trim().toLowerCase();
+  return hostname === '127.0.0.1' || hostname === 'localhost';
+}
+
 const IMSettings: React.FC = () => {
   const dispatch = useDispatch();
   const { config, status, isLoading } = useSelector((state: RootState) => state.im);
@@ -109,6 +117,7 @@ const IMSettings: React.FC = () => {
   const feishuAutoSaveToastTimerRef = useRef<number | null>(null);
   const feishuPersistTimerRef = useRef<number | null>(null);
   const feishuPersistVersionRef = useRef(0);
+  const wechatBotQrLoginSupported = isLocalWechatBotQrHost();
 
   // Track the last-persisted NIM credentials so we can detect real changes on save
   const savedNimConfigRef = useRef<{ appKey: string; account: string; token: string }>({
@@ -1207,11 +1216,20 @@ const IMSettings: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => { void handleWechatBotQrLogin(); }}
-                  disabled={wechatBotQrLogin !== null && (wechatBotQrLogin.phase === 'wait' || wechatBotQrLogin.phase === 'scanned')}
-                  className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-emerald-500"
+                  disabled={
+                    !wechatBotQrLoginSupported
+                    || (wechatBotQrLogin !== null && (wechatBotQrLogin.phase === 'wait' || wechatBotQrLogin.phase === 'scanned'))
+                  }
+                  className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-medium text-white transition-colors ${
+                    wechatBotQrLoginSupported
+                      ? 'bg-emerald-600 hover:bg-emerald-500'
+                      : 'cursor-not-allowed bg-slate-400 hover:bg-slate-400'
+                  }`}
                 >
                   <SignalIcon className="h-3.5 w-3.5" />
-                  {wechatBotQrLogin !== null && (wechatBotQrLogin.phase === 'wait' || wechatBotQrLogin.phase === 'scanned')
+                  {!wechatBotQrLoginSupported
+                    ? '仅本机可扫'
+                    : wechatBotQrLogin !== null && (wechatBotQrLogin.phase === 'wait' || wechatBotQrLogin.phase === 'scanned')
                     ? '扫码进行中'
                     : '扫码授权（官方）'}
                 </button>
@@ -1233,6 +1251,13 @@ const IMSettings: React.FC = () => {
                   </span>
                 ) : null}
               </div>
+
+              {!wechatBotQrLoginSupported && (
+                <div className="mt-3 rounded-xl border border-red-500/20 bg-red-500/8 px-3 py-3 text-[11px] leading-5 text-red-700 dark:text-red-300">
+                  <div>{'官方扫码只支持在本机 127.0.0.1 / localhost 打开设置页时发起。'}</div>
+                  <div>{'服务器部署环境请先在本地完成扫码，再把自动回填的 Bot 信息填写到这里。'}</div>
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">

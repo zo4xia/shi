@@ -236,7 +236,7 @@ export class ScheduledTaskStore {
          skill_ids_json, notify_platforms_json, completion_webhook_url, feishu_notify_agent_role_key, feishu_app_id, feishu_chat_id,
          agent_role_key, model_id,
          next_run_at_ms, consecutive_errors, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
     `, [
       id, input.name, input.description,
       input.enabled ? 1 : 0,

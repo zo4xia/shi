@@ -42,6 +42,9 @@ export interface ExtractionConfig {
   apiFormat: 'openai' | 'anthropic';
 }
 
+const DAILY_MEMORY_LLM_TIMEOUT_MS = 90_000;
+const DAILY_MEMORY_TIMEOUT_RETRY_MS = 150_000;
+
 /** 抽取结果 */
 export interface ExtractionResult {
   /** 成功提炼的身份数 */
@@ -288,19 +291,23 @@ async function fetchOpenAI(prompt: string, config: ExtractionConfig): Promise<st
       ? `${base}/chat/completions`
       : `${base}/v1/chat/completions`;
 
-  const resp = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${config.apiKey}`,
+  const resp = await fetchWithDailyMemoryRetry(
+    url,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${config.apiKey}`,
+      },
+      body: JSON.stringify({
+        model: config.modelId,
+        max_tokens: 4096,
+        temperature: 0.2,
+        messages: [{ role: 'user', content: prompt }],
+      }),
     },
-    body: JSON.stringify({
-      model: config.modelId,
-      max_tokens: 4096,
-      temperature: 0.2,
-      messages: [{ role: 'user', content: prompt }],
-    }),
-  });
+    'openai',
+  );
 
   if (!resp.ok) {
     const body = await resp.text().catch(() => '');
@@ -318,19 +325,23 @@ async function fetchAnthropic(prompt: string, config: ExtractionConfig): Promise
     ? base
     : `${base}/v1/messages`;
 
-  const resp = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': config.apiKey,
-      'anthropic-version': '2023-06-01',
+  const resp = await fetchWithDailyMemoryRetry(
+    url,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': config.apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: config.modelId,
+        max_tokens: 4096,
+        messages: [{ role: 'user', content: prompt }],
+      }),
     },
-    body: JSON.stringify({
-      model: config.modelId,
-      max_tokens: 4096,
-      messages: [{ role: 'user', content: prompt }],
-    }),
-  });
+    'anthropic',
+  );
 
   if (!resp.ok) {
     const body = await resp.text().catch(() => '');
@@ -339,6 +350,39 @@ async function fetchAnthropic(prompt: string, config: ExtractionConfig): Promise
 
   const data = await resp.json() as any;
   return data?.content?.[0]?.text || '';
+}
+
+function isDailyMemoryTimeoutError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+  const message = `${error.message} ${(error as any)?.cause?.message || ''}`;
+  return /headers timeout|timeout|UND_ERR_HEADERS_TIMEOUT|fetch failed/i.test(message);
+}
+
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+  return fetch(url, {
+    ...init,
+    signal: init.signal ?? AbortSignal.timeout(timeoutMs),
+  });
+}
+
+async function fetchWithDailyMemoryRetry(
+  url: string,
+  init: RequestInit,
+  provider: 'openai' | 'anthropic',
+): Promise<Response> {
+  try {
+    return await fetchWithTimeout(url, init, DAILY_MEMORY_LLM_TIMEOUT_MS);
+  } catch (error) {
+    if (!isDailyMemoryTimeoutError(error)) {
+      throw error;
+    }
+    console.warn(
+      `[DailyExtraction] ${provider} 首次请求超时，准备重试 (timeout=${DAILY_MEMORY_LLM_TIMEOUT_MS}ms -> ${DAILY_MEMORY_TIMEOUT_RETRY_MS}ms)`
+    );
+    return await fetchWithTimeout(url, init, DAILY_MEMORY_TIMEOUT_RETRY_MS);
+  }
 }
 
 /** 构建 LLM 提炼 prompt — 输出字段严格对齐 identityMemoryManager 类型 */
