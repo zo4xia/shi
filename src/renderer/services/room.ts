@@ -1,10 +1,9 @@
 import { localStore } from './store';
 import { configService } from './config';
 import {
-  AGENT_ROLE_ICONS,
-  AGENT_ROLE_LABELS,
   AGENT_ROLE_ORDER,
-  AGENT_ROLE_SHORT_LABELS,
+  getAgentRoleDisplayAvatar,
+  getAgentRoleDisplayLabel,
   normalizeAgentRolesForSave,
   pickNextApiKey,
   resolveAgentRolesFromConfig,
@@ -197,13 +196,14 @@ export async function saveRooms(rooms: RoomSessionRecord[]): Promise<void> {
 }
 
 export function buildRoomParticipants(roleKeys: AgentRoleKey[]): RoomParticipant[] {
+  const roles = normalizeAgentRolesForSave(resolveAgentRolesFromConfig(configService.getConfig()));
   return roleKeys.slice(0, ROOM_SEATS.length).map((roleKey, index) => ({
     seat: ROOM_SEATS[index].seat,
     seatLabel: ROOM_SEATS[index].seatLabel,
     roleKey,
-    roleLabel: AGENT_ROLE_LABELS[roleKey],
-    roleShortLabel: AGENT_ROLE_SHORT_LABELS[roleKey] ?? AGENT_ROLE_LABELS[roleKey],
-    icon: AGENT_ROLE_ICONS[roleKey],
+    roleLabel: getAgentRoleDisplayLabel(roleKey, roles),
+    roleShortLabel: getAgentRoleDisplayLabel(roleKey, roles),
+    icon: getAgentRoleDisplayAvatar(roleKey, roles),
   }));
 }
 
@@ -375,10 +375,11 @@ export function getRoomRoleChoices(): Array<{
   shortLabel: string;
   icon: string;
 }> {
+  const roles = normalizeAgentRolesForSave(resolveAgentRolesFromConfig(configService.getConfig()));
   return AGENT_ROLE_ORDER.map((roleKey) => ({
     roleKey,
-    label: AGENT_ROLE_LABELS[roleKey],
-    shortLabel: AGENT_ROLE_SHORT_LABELS[roleKey] ?? AGENT_ROLE_LABELS[roleKey],
-    icon: AGENT_ROLE_ICONS[roleKey],
+    label: getAgentRoleDisplayLabel(roleKey, roles),
+    shortLabel: getAgentRoleDisplayLabel(roleKey, roles),
+    icon: getAgentRoleDisplayAvatar(roleKey, roles),
   }));
 }

@@ -1,6 +1,7 @@
 import type { SqliteStore } from '../sqliteStore.web';
 import type { CoworkStore, DailyConversationBackupRunResult } from '../../src/main/coworkStore';
 import { pickNextApiKey } from '../../src/shared/agentRoleConfig';
+import { ENV_ALIAS_PAIRS, readEnvAliasPair } from '../../src/shared/envAliases';
 
 export interface DailyMemoryPipelineResult {
   backup: DailyConversationBackupRunResult;
@@ -31,33 +32,28 @@ type ResolvedDailyMemoryConfig = {
   source: string;
 };
 
-function readFirstNonEmptyEnv(names: string[]): string {
-  for (const name of names) {
-    const value = String(process.env[name] || '').trim();
-    if (value) {
-      return value;
-    }
-  }
-  return '';
-}
+function resolveDedicatedDailyMemoryConfig(appConfig?: Record<string, any>): DedicatedDailyMemoryConfig | null {
+  const configCandidate = appConfig?.dailyMemory && typeof appConfig.dailyMemory === 'object'
+    ? appConfig.dailyMemory
+    : null;
+  const configEnabled = configCandidate?.enabled === true;
 
-function resolveDedicatedDailyMemoryConfig(): DedicatedDailyMemoryConfig | null {
-  const apiUrl = readFirstNonEmptyEnv([
-    'UCLAW_DAILY_MEMORY_API_BASE_URL',
-    'LOBSTERAI_DAILY_MEMORY_API_BASE_URL',
-  ]).replace(/\/+$/, '');
-  const apiKey = readFirstNonEmptyEnv([
-    'UCLAW_DAILY_MEMORY_API_KEY',
-    'LOBSTERAI_DAILY_MEMORY_API_KEY',
-  ]);
-  const modelId = readFirstNonEmptyEnv([
-    'UCLAW_DAILY_MEMORY_MODEL',
-    'LOBSTERAI_DAILY_MEMORY_MODEL',
-  ]);
-  const apiFormatRaw = readFirstNonEmptyEnv([
-    'UCLAW_DAILY_MEMORY_API_FORMAT',
-    'LOBSTERAI_DAILY_MEMORY_API_FORMAT',
-  ]).toLowerCase();
+  const apiUrl = (
+    configEnabled
+      ? String(configCandidate?.apiUrl || '').trim()
+      : (readEnvAliasPair(ENV_ALIAS_PAIRS.dailyMemoryApiBaseUrl) || '').trim()
+  ).replace(/\/+$/, '');
+  const apiKey = configEnabled
+    ? String(configCandidate?.apiKey || '').trim()
+    : (readEnvAliasPair(ENV_ALIAS_PAIRS.dailyMemoryApiKey) || '').trim();
+  const modelId = configEnabled
+    ? String(configCandidate?.modelId || '').trim()
+    : (readEnvAliasPair(ENV_ALIAS_PAIRS.dailyMemoryModel) || '').trim();
+  const apiFormatRaw = (
+    configEnabled
+      ? String(configCandidate?.apiFormat || 'openai').trim()
+      : (readEnvAliasPair(ENV_ALIAS_PAIRS.dailyMemoryApiFormat) || '').trim()
+  ).toLowerCase();
 
   if (!apiUrl || !apiKey || !modelId) {
     return null;
@@ -166,7 +162,7 @@ export async function runDailyMemoryPipeline(params: {
   const saveDb = store.getSaveFunction();
   const appConfig = (store.get('app_config') as Record<string, any>) || {};
   const agentRoles = appConfig.agentRoles || {};
-  const dedicatedConfig = resolveDedicatedDailyMemoryConfig();
+  const dedicatedConfig = resolveDedicatedDailyMemoryConfig(appConfig);
   const fallbackRoleConfig = resolveFirstRoleDailyMemoryConfig(agentRoles);
   if (!dedicatedConfig && !fallbackRoleConfig) {
     throw new Error('没有可用的 Agent Role 配置，无法调用 LLM 进行摘要');

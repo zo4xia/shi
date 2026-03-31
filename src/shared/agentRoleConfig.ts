@@ -17,6 +17,7 @@ export type AgentRoleKey = 'organizer' | 'writer' | 'designer' | 'analyst';
 export interface AgentRoleConfigEntry {
   key: AgentRoleKey;
   label: string;
+  avatar?: string;
   description: string;
   recommendation: string;
   apiUrl: string;
@@ -54,6 +55,13 @@ export type AppConfigLike = {
   conversationFileCache?: {
     directory?: string;
     autoBackupDaily?: boolean;
+  };
+  dailyMemory?: {
+    enabled?: boolean;
+    apiUrl?: string;
+    apiKey?: string;
+    modelId?: string;
+    apiFormat?: CompatibleApiFormat;
   };
   helpers?: SkillsMcpAssistantHelpersConfig;
   nativeCapabilities?: Partial<NativeCapabilitiesConfig>;
@@ -190,6 +198,7 @@ export function createDefaultAgentRoles(): AgentRoleConfigMap {
     result[key] = {
       key,
       label: meta.label,
+      avatar: AGENT_ROLE_ICONS[key],
       description: meta.description,
       recommendation: meta.recommendation,
       apiUrl: '',
@@ -209,6 +218,8 @@ export function normalizeAgentRolesForSave(roles: AgentRoleConfigMap): AgentRole
     const role = roles[key];
     result[key] = {
       ...role,
+      label: role.label.trim() || AGENT_ROLE_LABELS[key],
+      avatar: role.avatar?.trim() || AGENT_ROLE_ICONS[key],
       apiUrl: role.apiUrl.trim().replace(/\/+$/, ''),
       apiKey: role.apiKey.trim(),
       modelId: role.modelId.trim(),
@@ -318,7 +329,8 @@ export function resolveAgentRolesFromConfig(config?: AppConfigLike | null): Agen
         ...defaults[key],
         ...explicitRole,
         key,
-        label: defaults[key].label,
+        label: explicitRole.label ?? defaults[key].label,
+        avatar: explicitRole.avatar ?? defaults[key].avatar,
         description: defaults[key].description,
         recommendation: defaults[key].recommendation,
         apiUrl: explicitRole.apiUrl ?? defaults[key].apiUrl,
@@ -388,4 +400,20 @@ export function buildAvailableModelsFromAgentRoles(roles: AgentRoleConfigMap): A
 
 export function isAgentRoleProviderKey(value: string | undefined | null): value is AgentRoleKey {
   return Boolean(value && roleProviderKeys.has(value as AgentRoleKey));
+}
+
+export function getAgentRoleDisplayLabel(
+  roleKey: AgentRoleKey,
+  roles?: Partial<Record<AgentRoleKey, Partial<AgentRoleConfigEntry>>> | null,
+): string {
+  const explicitLabel = typeof roles?.[roleKey]?.label === 'string' ? roles[roleKey]!.label!.trim() : '';
+  return explicitLabel || AGENT_ROLE_LABELS[roleKey];
+}
+
+export function getAgentRoleDisplayAvatar(
+  roleKey: AgentRoleKey,
+  roles?: Partial<Record<AgentRoleKey, Partial<AgentRoleConfigEntry>>> | null,
+): string {
+  const explicitAvatar = typeof roles?.[roleKey]?.avatar === 'string' ? roles[roleKey]!.avatar!.trim() : '';
+  return explicitAvatar || AGENT_ROLE_ICONS[roleKey];
 }

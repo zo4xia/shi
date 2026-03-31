@@ -11,7 +11,7 @@ import CoworkPromptInput, { type CoworkPromptInputRef } from './CoworkPromptInpu
 import CoworkSessionDetail from './CoworkSessionDetail';
 import { buildSessionPreviewText, type SessionSourceFilter } from './sessionRecordUtils';
 import ModelSelector from '../ModelSelector';
-import { AGENT_ROLE_ORDER, type AgentRoleKey } from '../../../shared/agentRoleConfig';
+import { AGENT_ROLE_ORDER, getAgentRoleDisplayAvatar, getAgentRoleDisplayLabel, resolveAgentRolesFromConfig, type AgentRoleKey } from '../../../shared/agentRoleConfig';
 import { setSelectedModel } from '../../store/slices/modelSlice';
 import { coworkService as coworkServiceForRole } from '../../services/cowork';
 import SidebarToggleIcon from '../icons/SidebarToggleIcon';
@@ -19,6 +19,8 @@ import ComposeIcon from '../icons/ComposeIcon';
 import WindowTitleBar from '../window/WindowTitleBar';
 import type { SettingsOpenOptions } from '../Settings';
 import type { CoworkImageAttachment } from '../../types/cowork';
+import { configService } from '../../services/config';
+import { renderAgentRoleAvatar } from '../../utils/agentRoleDisplay';
 
 export interface CoworkViewProps {
   onRequestAppSettings?: (options?: SettingsOpenOptions) => void;
@@ -367,11 +369,12 @@ const CoworkView: React.FC<CoworkViewProps> = ({ onRequestAppSettings, onShowSki
           {/* Prompt Input Area - 精致输入框容器 */}
           <div className="uclaw-home-chip-row mb-5 flex flex-wrap items-center justify-start gap-3 px-2">
             {(() => {
+              const resolvedRoles = resolveAgentRolesFromConfig(configService.getConfig());
               const roleCards: { key: AgentRoleKey; label: string; icon: string; color: string; bg: string; border: string; activeTone: string; activeShadow: string }[] = [
-                { key: 'organizer', label: '浏览器助手', icon: '🌐', color: 'text-blue-600 dark:text-blue-400', bg: 'from-blue-500/10 to-blue-400/5', border: 'border-blue-400/30 hover:border-blue-400/60', activeTone: 'from-blue-400/22 to-blue-300/12 ring-blue-300/35 border-blue-400/55', activeShadow: 'shadow-[0_10px_22px_rgba(96,165,250,0.22)]' },
-                { key: 'writer', label: '文字撰写员', icon: '✍️', color: 'text-emerald-600 dark:text-emerald-400', bg: 'from-emerald-500/10 to-emerald-400/5', border: 'border-emerald-400/30 hover:border-emerald-400/60', activeTone: 'from-emerald-400/22 to-emerald-300/12 ring-emerald-300/35 border-emerald-400/55', activeShadow: 'shadow-[0_10px_22px_rgba(52,211,153,0.20)]' },
-                { key: 'designer', label: '美术编辑师', icon: '🎨', color: 'text-purple-600 dark:text-purple-400', bg: 'from-purple-500/10 to-purple-400/5', border: 'border-purple-400/30 hover:border-purple-400/60', activeTone: 'from-purple-400/24 to-purple-300/14 ring-purple-300/35 border-purple-400/55', activeShadow: 'shadow-[0_10px_22px_rgba(192,132,252,0.22)]' },
-                { key: 'analyst', label: '数据分析师', icon: '📊', color: 'text-amber-600 dark:text-amber-400', bg: 'from-amber-500/10 to-amber-400/5', border: 'border-amber-400/30 hover:border-amber-400/60', activeTone: 'from-amber-400/24 to-amber-300/14 ring-amber-300/35 border-amber-400/55', activeShadow: 'shadow-[0_10px_22px_rgba(251,191,36,0.20)]' },
+                { key: 'organizer', label: getAgentRoleDisplayLabel('organizer', resolvedRoles), icon: getAgentRoleDisplayAvatar('organizer', resolvedRoles), color: 'text-blue-600 dark:text-blue-400', bg: 'from-blue-500/10 to-blue-400/5', border: 'border-blue-400/30 hover:border-blue-400/60', activeTone: 'from-blue-400/22 to-blue-300/12 ring-blue-300/35 border-blue-400/55', activeShadow: 'shadow-[0_10px_22px_rgba(96,165,250,0.22)]' },
+                { key: 'writer', label: getAgentRoleDisplayLabel('writer', resolvedRoles), icon: getAgentRoleDisplayAvatar('writer', resolvedRoles), color: 'text-emerald-600 dark:text-emerald-400', bg: 'from-emerald-500/10 to-emerald-400/5', border: 'border-emerald-400/30 hover:border-emerald-400/60', activeTone: 'from-emerald-400/22 to-emerald-300/12 ring-emerald-300/35 border-emerald-400/55', activeShadow: 'shadow-[0_10px_22px_rgba(52,211,153,0.20)]' },
+                { key: 'designer', label: getAgentRoleDisplayLabel('designer', resolvedRoles), icon: getAgentRoleDisplayAvatar('designer', resolvedRoles), color: 'text-purple-600 dark:text-purple-400', bg: 'from-purple-500/10 to-purple-400/5', border: 'border-purple-400/30 hover:border-purple-400/60', activeTone: 'from-purple-400/24 to-purple-300/14 ring-purple-300/35 border-purple-400/55', activeShadow: 'shadow-[0_10px_22px_rgba(192,132,252,0.22)]' },
+                { key: 'analyst', label: getAgentRoleDisplayLabel('analyst', resolvedRoles), icon: getAgentRoleDisplayAvatar('analyst', resolvedRoles), color: 'text-amber-600 dark:text-amber-400', bg: 'from-amber-500/10 to-amber-400/5', border: 'border-amber-400/30 hover:border-amber-400/60', activeTone: 'from-amber-400/24 to-amber-300/14 ring-amber-300/35 border-amber-400/55', activeShadow: 'shadow-[0_10px_22px_rgba(251,191,36,0.20)]' },
               ];
               const currentModel = selectedModelRef.current;
               const currentRoleKey = currentModel?.providerKey && AGENT_ROLE_ORDER.includes(currentModel.providerKey as AgentRoleKey) ? currentModel.providerKey as AgentRoleKey : 'organizer';
@@ -389,7 +392,12 @@ const CoworkView: React.FC<CoworkViewProps> = ({ onRequestAppSettings, onShowSki
                     }}
                     className={`inline-flex min-h-10 items-center justify-start gap-2.5 rounded-full border bg-gradient-to-r px-4 py-2 text-sm transition-all duration-200 ${card.bg} ${card.border} ${isActive ? `scale-[1.04] ring-2 ${card.activeTone} ${card.activeShadow}` : 'opacity-90 hover:scale-[1.02] hover:shadow-sm'} `}
                   >
-                    <span className={`text-[18px] transition-transform duration-200 ${isActive ? 'scale-110' : ''}`}>{card.icon}</span>
+                    <span className={`inline-flex h-7 w-7 items-center justify-center overflow-hidden rounded-full border border-white/60 bg-white/75 text-[18px] shadow-sm transition-transform duration-200 dark:border-white/10 dark:bg-white/[0.08] ${isActive ? 'scale-110' : ''}`}>
+                      {renderAgentRoleAvatar(card.icon, {
+                        alt: card.label,
+                        className: 'h-full w-full object-cover text-[18px] leading-none flex items-center justify-center',
+                      })}
+                    </span>
                     <span className={`font-medium ${card.color}`}>{card.label}</span>
                   </button>
                 );

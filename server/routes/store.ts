@@ -35,6 +35,7 @@ const APP_CONFIG_REQUIRED_TOP_LEVEL_KEYS = ['api', 'model', 'theme', 'language',
 const APP_CONFIG_PROTECTED_TOP_LEVEL_KEYS = [
   'agentRoles',
   'conversationFileCache',
+  'dailyMemory',
   'helpers',
   'nativeCapabilities',
   'providers',
@@ -130,6 +131,7 @@ export function prepareAppConfigForStore(
     currentConfig.conversationFileCache,
     incomingConfig.conversationFileCache,
   );
+  next.dailyMemory = mergeOptionalObject(currentConfig.dailyMemory, incomingConfig.dailyMemory);
   next.providers = mergeRecordOfObjects(currentConfig.providers, incomingConfig.providers);
   next.agentRoles = mergeRecordOfObjects(currentConfig.agentRoles, incomingConfig.agentRoles);
   next.nativeCapabilities = mergeRecordOfObjects(
@@ -398,6 +400,7 @@ export function syncAppConfigToEnv(config: any): void {
 
     const roles = config.agentRoles;
     const fallbackApi = config?.api && typeof config.api === 'object' ? config.api : null;
+    const dailyMemory = config?.dailyMemory && typeof config.dailyMemory === 'object' ? config.dailyMemory : null;
     console.log('[env-sync] agentRoles keys:', roles ? Object.keys(roles) : 'NONE');
     if (roles) {
       // 按角色写入各自的变量: UCLAW_* 为主，LOBSTERAI_* 兼容同步
@@ -426,6 +429,27 @@ export function syncAppConfigToEnv(config: any): void {
         fallbackApi?.defaultModel || config?.model?.defaultModel || primary?.modelId || '',
       );
     }
+
+    envContent = upsertEnvAliasLines(
+      envContent,
+      ENV_ALIAS_PAIRS.dailyMemoryApiBaseUrl,
+      dailyMemory?.enabled ? (dailyMemory.apiUrl || '') : '',
+    );
+    envContent = upsertEnvAliasLines(
+      envContent,
+      ENV_ALIAS_PAIRS.dailyMemoryApiKey,
+      dailyMemory?.enabled ? (dailyMemory.apiKey || '') : '',
+    );
+    envContent = upsertEnvAliasLines(
+      envContent,
+      ENV_ALIAS_PAIRS.dailyMemoryModel,
+      dailyMemory?.enabled ? (dailyMemory.modelId || '') : '',
+    );
+    envContent = upsertEnvAliasLines(
+      envContent,
+      ENV_ALIAS_PAIRS.dailyMemoryApiFormat,
+      dailyMemory?.enabled ? (dailyMemory.apiFormat || 'openai') : '',
+    );
 
     fs.writeFileSync(envPath, envContent, 'utf8');
     console.log('[env-sync] .env written successfully');

@@ -18,6 +18,22 @@ export const ENV_ALIAS_PAIRS = {
   feishuAppName: { primary: 'UCLAW_FEISHU_APP_NAME', legacy: 'LOBSTERAI_FEISHU_APP_NAME' },
   imaOpenapiClientId: { primary: 'IMA_OPENAPI_CLIENTID', legacy: 'UCLAW_IMA_OPENAPI_CLIENTID' },
   imaOpenapiApiKey: { primary: 'IMA_OPENAPI_APIKEY', legacy: 'UCLAW_IMA_OPENAPI_APIKEY' },
+  dailyMemoryApiBaseUrl: {
+    primary: 'UCLAW_DAILY_MEMORY_API_BASE_URL',
+    legacy: 'LOBSTERAI_DAILY_MEMORY_API_BASE_URL',
+  },
+  dailyMemoryApiKey: {
+    primary: 'UCLAW_DAILY_MEMORY_API_KEY',
+    legacy: 'LOBSTERAI_DAILY_MEMORY_API_KEY',
+  },
+  dailyMemoryModel: {
+    primary: 'UCLAW_DAILY_MEMORY_MODEL',
+    legacy: 'LOBSTERAI_DAILY_MEMORY_MODEL',
+  },
+  dailyMemoryApiFormat: {
+    primary: 'UCLAW_DAILY_MEMORY_API_FORMAT',
+    legacy: 'LOBSTERAI_DAILY_MEMORY_API_FORMAT',
+  },
   skillsMcpAssistantApiUrl: {
     primary: 'UCLAW_SKILLS_MCP_ASSISTANT_API_URL',
     legacy: 'LOBSTERAI_SKILLS_MCP_ASSISTANT_API_URL',

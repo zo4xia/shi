@@ -214,6 +214,7 @@ export interface AppConfig {
   agentRoles?: Record<string, {
     key?: string;
     label?: string;
+    avatar?: string;
     description?: string;
     recommendation?: string;
     apiUrl?: string;
@@ -226,6 +227,13 @@ export interface AppConfig {
   conversationFileCache?: {
     directory: string;
     autoBackupDaily?: boolean;
+  };
+  dailyMemory?: {
+    enabled?: boolean;
+    apiUrl?: string;
+    apiKey?: string;
+    modelId?: string;
+    apiFormat?: 'anthropic' | 'openai';
   };
   helpers?: SkillsMcpAssistantHelpersConfig;
   nativeCapabilities?: NativeCapabilitiesConfig;
@@ -434,6 +442,13 @@ export const defaultConfig: AppConfig = {
   theme: 'system',
   language: 'zh',
   useSystemProxy: false,
+  dailyMemory: {
+    enabled: false,
+    apiUrl: '',
+    apiKey: '',
+    modelId: '',
+    apiFormat: 'openai',
+  },
   helpers: {
     skillsMcpAssistantByRole: createDefaultSkillsMcpAssistantByRole(),
   },

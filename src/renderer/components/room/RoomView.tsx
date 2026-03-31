@@ -16,6 +16,7 @@ import {
   type RoomSessionRecord,
 } from '../../services/room';
 import type { AgentRoleKey } from '../../../shared/agentRoleConfig';
+import { renderAgentRoleAvatar } from '../../utils/agentRoleDisplay';
 
 interface RoomViewProps {
   isSidebarCollapsed?: boolean;
@@ -248,7 +249,12 @@ const RoomView: React.FC<RoomViewProps> = ({
                         onClick={() => handleToggleRole(choice.roleKey)}
                         className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm transition-all ${active ? 'bg-white text-claude-text shadow-sm border-white/70 ring-2 ring-violet-200/60 dark:bg-white/[0.08] dark:text-claude-darkText dark:border-white/10 dark:ring-violet-400/20' : 'bg-white/50 text-claude-textSecondary border-white/45 hover:bg-white/70 dark:bg-white/[0.04] dark:text-claude-darkTextSecondary dark:border-white/10'}`}
                       >
-                        <span className="text-[18px]">{choice.icon}</span>
+                        <span className="inline-flex h-7 w-7 items-center justify-center overflow-hidden rounded-full border border-white/55 bg-white/80 text-[18px] shadow-sm dark:border-white/10 dark:bg-white/[0.08]">
+                          {renderAgentRoleAvatar(choice.icon, {
+                            alt: choice.label,
+                            className: 'h-full w-full object-cover text-[18px] leading-none flex items-center justify-center',
+                          })}
+                        </span>
                         <span>{choice.label}</span>
                       </button>
                     );
@@ -359,7 +365,12 @@ const RoomView: React.FC<RoomViewProps> = ({
               <div className="mb-4 flex flex-wrap gap-2">
                 {activeRoom.participants.map((participant) => (
                   <div key={participant.seat} className="inline-flex items-center gap-2 rounded-full border border-white/50 bg-white/70 px-3 py-1.5 text-sm text-claude-text shadow-sm dark:border-white/10 dark:bg-white/[0.06] dark:text-claude-darkText">
-                    <span>{participant.icon}</span>
+                    <span className="inline-flex h-6 w-6 items-center justify-center overflow-hidden rounded-full border border-white/55 bg-white/80 text-[15px] shadow-sm dark:border-white/10 dark:bg-white/[0.08]">
+                      {renderAgentRoleAvatar(participant.icon, {
+                        alt: participant.roleLabel,
+                        className: 'h-full w-full object-cover text-[15px] leading-none flex items-center justify-center',
+                      })}
+                    </span>
                     <span>{participant.seatLabel}</span>
                     <span className="text-claude-textSecondary dark:text-claude-darkTextSecondary">{participant.roleLabel}</span>
                   </div>

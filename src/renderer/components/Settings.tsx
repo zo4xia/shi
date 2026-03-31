@@ -34,6 +34,7 @@ import {
   buildAvailableModelsFromAgentRoles,
   buildProviderConfigsFromAgentRoles,
   createDefaultAgentRoles,
+  getAgentRoleDisplayAvatar,
   getDesignerImageApiTypeOptions,
   isAgentRoleProviderKey,
   normalizeAgentRolesForSave,
@@ -85,6 +86,7 @@ import {
   resolveBaseUrl,
 } from './settings/settingsConstants';
 import CoworkMemorySettingsPanel from './settings/CoworkMemorySettingsPanel';
+import { renderAgentRoleAvatar } from '../utils/agentRoleDisplay';
 
 // 特价 API 套餐卡片 — 珍珠白风格
 const ClawApiIframeView: React.FC = () => {
@@ -494,6 +496,11 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
   const [coworkMemoryEditingId, setCoworkMemoryEditingId] = useState<string | null>(null);
   const [coworkMemoryDraftText, setCoworkMemoryDraftText] = useState<string>('');
   const [showMemoryModal, setShowMemoryModal] = useState<boolean>(false);
+  const [dailyMemoryEnabled, setDailyMemoryEnabled] = useState<boolean>(false);
+  const [dailyMemoryApiUrl, setDailyMemoryApiUrl] = useState<string>('');
+  const [dailyMemoryApiKey, setDailyMemoryApiKey] = useState<string>('');
+  const [dailyMemoryModelId, setDailyMemoryModelId] = useState<string>('');
+  const [dailyMemoryApiFormat, setDailyMemoryApiFormat] = useState<'anthropic' | 'openai'>('openai');
 
   const conversationBackupDir = useMemo(() => (
     conversationBackupStamp ? joinDisplayPath(conversationCacheDirectory, conversationBackupStamp) : ''
@@ -540,6 +547,11 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
         setUseSystemProxy(config.useSystemProxy ?? false);
         const conversationFileCache = resolveConversationFileCacheConfig(config);
         setConversationCacheDirectory(conversationFileCache.directory);
+        setDailyMemoryEnabled(config.dailyMemory?.enabled === true);
+        setDailyMemoryApiUrl(config.dailyMemory?.apiUrl ?? '');
+        setDailyMemoryApiKey(config.dailyMemory?.apiKey ?? '');
+        setDailyMemoryModelId(config.dailyMemory?.modelId ?? '');
+        setDailyMemoryApiFormat(config.dailyMemory?.apiFormat === 'anthropic' ? 'anthropic' : 'openai');
         void loadConversationBackupState();
         const savedTestMode = config.app?.testMode ?? false;
         setTestMode(savedTestMode);
@@ -1185,6 +1197,13 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
         providers: mergedProviders,
         agentRoles: normalizedAgentRoles,
         nativeCapabilities,
+        dailyMemory: {
+          enabled: dailyMemoryEnabled,
+          apiUrl: dailyMemoryApiUrl.trim(),
+          apiKey: dailyMemoryApiKey.trim(),
+          modelId: dailyMemoryModelId.trim(),
+          apiFormat: dailyMemoryApiFormat,
+        },
         theme,
         language,
         useSystemProxy,
@@ -1789,9 +1808,19 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
             showMemoryModal={showMemoryModal}
             coworkMemoryEditingId={coworkMemoryEditingId}
             coworkMemoryDraftText={coworkMemoryDraftText}
+            dailyMemoryEnabled={dailyMemoryEnabled}
+            dailyMemoryApiUrl={dailyMemoryApiUrl}
+            dailyMemoryApiKey={dailyMemoryApiKey}
+            dailyMemoryModelId={dailyMemoryModelId}
+            dailyMemoryApiFormat={dailyMemoryApiFormat}
             onToggleContinuityNote={() => setShowCoworkContinuityNote((value) => !value)}
             onCoworkMemoryEnabledChange={setCoworkMemoryEnabled}
             onCoworkMemoryLlmJudgeEnabledChange={setCoworkMemoryLlmJudgeEnabled}
+            onDailyMemoryEnabledChange={setDailyMemoryEnabled}
+            onDailyMemoryApiUrlChange={setDailyMemoryApiUrl}
+            onDailyMemoryApiKeyChange={setDailyMemoryApiKey}
+            onDailyMemoryModelIdChange={setDailyMemoryModelId}
+            onDailyMemoryApiFormatChange={setDailyMemoryApiFormat}
             onRefresh={handleRefreshCoworkMemoryData}
             onOpenModal={handleOpenCoworkMemoryModal}
             onRoleFilterChange={setCoworkMemoryAgentRoleKey}
@@ -1839,6 +1868,12 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
+                          <span className="inline-flex h-7 w-7 items-center justify-center overflow-hidden rounded-full border border-white/60 bg-white/80 text-base shadow-sm dark:border-white/10 dark:bg-white/[0.08]">
+                            {renderAgentRoleAvatar(getAgentRoleDisplayAvatar(roleKey, agentRoles), {
+                              alt: role.label,
+                              className: 'h-full w-full object-cover text-[16px] leading-none flex items-center justify-center',
+                            })}
+                          </span>
                           <span className={`text-sm font-medium ${activeRole === roleKey ? 'text-claude-accent' : 'dark:text-claude-darkText text-claude-text'}`}>
                             {role.label}
                           </span>
@@ -1879,17 +1914,63 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
 
             <div className="w-3/5 pl-1 pr-2 space-y-4 overflow-y-auto [scrollbar-gutter:stable]">
               <div className="flex items-center justify-between rounded-xl border px-4 py-3 dark:border-claude-darkBorder border-claude-border dark:bg-claude-darkSurface/40 bg-claude-surface/40">
-                <div>
+                <div className="flex items-center gap-3">
+                  <span className="inline-flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-claude-border bg-white/80 text-lg shadow-sm dark:border-claude-darkBorder dark:bg-white/[0.08]">
+                    {renderAgentRoleAvatar(activeRoleConfig.avatar, {
+                      alt: activeRoleConfig.label,
+                      fallback: getAgentRoleDisplayAvatar(activeRole, null),
+                      className: 'h-full w-full object-cover text-lg leading-none flex items-center justify-center',
+                    })}
+                  </span>
+                  <div>
                   <h3 className="text-base font-medium dark:text-claude-darkText text-claude-text">
                     {activeRoleConfig.label}
                   </h3>
                   <p className="mt-1 text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary">
                     {activeRoleConfig.description}
                   </p>
+                  </div>
                 </div>
                 <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${isAgentRoleReady(activeRoleConfig) ? 'bg-green-500/15 text-green-600 dark:text-green-400' : 'bg-amber-500/15 text-amber-600 dark:text-amber-300'}`}>
                   {isAgentRoleReady(activeRoleConfig) ? '已配置' : '待配置'}
                 </span>
+              </div>
+
+              <div>
+                <label htmlFor={`${activeRole}-label`} className="block text-xs font-medium dark:text-claude-darkText text-claude-text mb-1">
+                  {'角色昵称'}
+                </label>
+                <input
+                  id={`${activeRole}-label`}
+                  type="text"
+                  value={activeRoleConfig.label}
+                  onChange={(event) => handleAgentRoleChange(activeRole, 'label', event.target.value)}
+                  className="block w-full rounded-xl bg-claude-surfaceInset dark:bg-claude-darkSurfaceInset dark:border-claude-darkBorder border-claude-border border focus:border-claude-accent focus:ring-1 focus:ring-claude-accent/30 dark:text-claude-darkText text-claude-text px-3 py-2 text-xs"
+                  placeholder="给这个角色起个好认的名字"
+                />
+              </div>
+
+              <div>
+                <label htmlFor={`${activeRole}-avatar`} className="block text-xs font-medium dark:text-claude-darkText text-claude-text mb-1">
+                  {'角色头像'}
+                </label>
+                <div className="flex items-center gap-3">
+                  <span className="inline-flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-claude-border bg-white/80 text-lg shadow-sm dark:border-claude-darkBorder dark:bg-white/[0.08]">
+                    {renderAgentRoleAvatar(activeRoleConfig.avatar, {
+                      alt: activeRoleConfig.label,
+                      fallback: getAgentRoleDisplayAvatar(activeRole, null),
+                      className: 'h-full w-full object-cover text-lg leading-none flex items-center justify-center',
+                    })}
+                  </span>
+                  <input
+                    id={`${activeRole}-avatar`}
+                    type="text"
+                    value={activeRoleConfig.avatar ?? ''}
+                    onChange={(event) => handleAgentRoleChange(activeRole, 'avatar', event.target.value)}
+                    className="block w-full rounded-xl bg-claude-surfaceInset dark:bg-claude-darkSurfaceInset dark:border-claude-darkBorder border-claude-border border focus:border-claude-accent focus:ring-1 focus:ring-claude-accent/30 dark:text-claude-darkText text-claude-text px-3 py-2 text-xs"
+                    placeholder="可填 emoji、短字符，或图片 URL"
+                  />
+                </div>
               </div>
 
 

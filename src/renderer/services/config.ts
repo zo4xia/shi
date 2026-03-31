@@ -167,6 +167,10 @@ class ConfigService {
             ...defaultConfig.shortcuts!,
             ...(storedConfig.shortcuts ?? {}),
           } as AppConfig['shortcuts'],
+          dailyMemory: {
+            ...(defaultConfig.dailyMemory ?? {}),
+            ...(storedConfig.dailyMemory ?? {}),
+          },
           helpers: normalizeHelpersConfig({
             ...(defaultConfig.helpers ?? {}),
             ...(storedConfig.helpers ?? {}),
@@ -218,6 +222,10 @@ class ConfigService {
         ...(this.config.shortcuts ?? {}),
         ...(newConfig.shortcuts ?? {}),
       } as AppConfig['shortcuts'],
+      dailyMemory: {
+        ...(this.config.dailyMemory ?? {}),
+        ...(newConfig.dailyMemory ?? {}),
+      },
       ...(normalizedHelpers ? { helpers: normalizedHelpers } : {}),
       nativeCapabilities: normalizeNativeCapabilitiesConfig(newConfig.nativeCapabilities ?? this.config.nativeCapabilities),
       ...(normalizedProviders ? { providers: normalizedProviders } : {}),

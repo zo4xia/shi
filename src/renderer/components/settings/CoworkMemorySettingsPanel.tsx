@@ -24,9 +24,19 @@ interface CoworkMemorySettingsPanelProps {
   showMemoryModal: boolean;
   coworkMemoryEditingId: string | null;
   coworkMemoryDraftText: string;
+  dailyMemoryEnabled: boolean;
+  dailyMemoryApiUrl: string;
+  dailyMemoryApiKey: string;
+  dailyMemoryModelId: string;
+  dailyMemoryApiFormat: 'anthropic' | 'openai';
   onToggleContinuityNote: () => void;
   onCoworkMemoryEnabledChange: (value: boolean) => void;
   onCoworkMemoryLlmJudgeEnabledChange: (value: boolean) => void;
+  onDailyMemoryEnabledChange: (value: boolean) => void;
+  onDailyMemoryApiUrlChange: (value: string) => void;
+  onDailyMemoryApiKeyChange: (value: string) => void;
+  onDailyMemoryModelIdChange: (value: string) => void;
+  onDailyMemoryApiFormatChange: (value: 'anthropic' | 'openai') => void;
   onRefresh: () => void;
   onOpenModal: () => void;
   onRoleFilterChange: (value: string | 'all') => void;
@@ -80,9 +90,19 @@ const CoworkMemorySettingsPanel: React.FC<CoworkMemorySettingsPanelProps> = ({
   showMemoryModal,
   coworkMemoryEditingId,
   coworkMemoryDraftText,
+  dailyMemoryEnabled,
+  dailyMemoryApiUrl,
+  dailyMemoryApiKey,
+  dailyMemoryModelId,
+  dailyMemoryApiFormat,
   onToggleContinuityNote,
   onCoworkMemoryEnabledChange,
   onCoworkMemoryLlmJudgeEnabledChange,
+  onDailyMemoryEnabledChange,
+  onDailyMemoryApiUrlChange,
+  onDailyMemoryApiKeyChange,
+  onDailyMemoryModelIdChange,
+  onDailyMemoryApiFormatChange,
   onRefresh,
   onOpenModal,
   onRoleFilterChange,
@@ -161,6 +181,70 @@ const CoworkMemorySettingsPanel: React.FC<CoworkMemorySettingsPanelProps> = ({
               </span>
             </span>
           </label>
+        </div>
+
+        <div className="space-y-4 rounded-xl border px-4 py-4 dark:border-claude-darkBorder border-claude-border">
+          <div className="space-y-1">
+            <div className="text-sm font-medium dark:text-claude-darkText text-claude-text">
+              {'每日记忆摘要模型'}
+            </div>
+            <div className="text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary">
+              {'给每日记忆抽取单独配置一条轻量摘要线路；配不稳时会自动回退到普通角色模型。'}
+            </div>
+          </div>
+
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={dailyMemoryEnabled}
+              onChange={(event) => onDailyMemoryEnabledChange(event.target.checked)}
+              className="mt-1"
+            />
+            <span>
+              <span className="block text-sm dark:text-claude-darkText text-claude-text">
+                {'启用独立每日记忆模型'}
+              </span>
+              <span className="block text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary">
+                {'建议只给稳定、擅长长文本摘要、能稳定返回 JSON 的模型。'}
+              </span>
+            </span>
+          </label>
+
+          <div className={`grid grid-cols-1 gap-3 ${dailyMemoryEnabled ? '' : 'opacity-60'}`}>
+            <select
+              value={dailyMemoryApiFormat}
+              onChange={(event) => onDailyMemoryApiFormatChange(event.target.value as 'anthropic' | 'openai')}
+              disabled={!dailyMemoryEnabled}
+              className="rounded-lg border px-3 py-2 text-sm dark:border-claude-darkBorder border-claude-border dark:bg-claude-darkSurface bg-claude-surface"
+            >
+              <option value="openai">OpenAI 兼容</option>
+              <option value="anthropic">Anthropic 兼容</option>
+            </select>
+            <input
+              type="text"
+              value={dailyMemoryApiUrl}
+              onChange={(event) => onDailyMemoryApiUrlChange(event.target.value)}
+              disabled={!dailyMemoryEnabled}
+              placeholder="每日记忆摘要 API URL"
+              className="w-full rounded-lg border px-3 py-2 text-sm dark:border-claude-darkBorder border-claude-border dark:bg-claude-darkSurface bg-claude-surface"
+            />
+            <input
+              type="password"
+              value={dailyMemoryApiKey}
+              onChange={(event) => onDailyMemoryApiKeyChange(event.target.value)}
+              disabled={!dailyMemoryEnabled}
+              placeholder="每日记忆摘要 API Key"
+              className="w-full rounded-lg border px-3 py-2 text-sm dark:border-claude-darkBorder border-claude-border dark:bg-claude-darkSurface bg-claude-surface"
+            />
+            <input
+              type="text"
+              value={dailyMemoryModelId}
+              onChange={(event) => onDailyMemoryModelIdChange(event.target.value)}
+              disabled={!dailyMemoryEnabled}
+              placeholder="每日记忆摘要 Model ID"
+              className="w-full rounded-lg border px-3 py-2 text-sm dark:border-claude-darkBorder border-claude-border dark:bg-claude-darkSurface bg-claude-surface"
+            />
+          </div>
         </div>
 
         <div className="space-y-4 rounded-xl border px-4 py-4 dark:border-claude-darkBorder border-claude-border">
