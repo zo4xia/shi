@@ -1061,7 +1061,7 @@ const ContinuitySourceBadge: React.FC<{ source?: string | null }> = React.memo((
   }
 
   const label = source === 'shared-thread'
-    ? '广播板命中'
+    ? '广播板接力'
     : source === 'durable-memory'
       ? '长期记忆回补'
       : '无连续性命中';
@@ -1100,9 +1100,9 @@ const TokenUsageBadge: React.FC<{
   }
 
   const parts = [
-    Number.isFinite(promptTokens) ? `输入 ${promptTokens}` : null,
-    Number.isFinite(completionTokens) ? `输出 ${completionTokens}` : null,
-    Number.isFinite(totalTokens) ? `总计 ${totalTokens}` : null,
+    Number.isFinite(promptTokens) ? `↓ ${promptTokens}` : null,
+    Number.isFinite(completionTokens) ? `↑ ${completionTokens}` : null,
+    Number.isFinite(totalTokens) ? `Σ ${totalTokens}` : null,
   ].filter(Boolean);
 
   return (
