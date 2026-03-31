@@ -407,6 +407,12 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
   // Add state for providers configuration
   const [providers, setProviders] = useState<ProvidersConfig>(() => getDefaultProviders());
   const [agentRoles, setAgentRoles] = useState<AgentRoleConfigMap>(() => createDefaultAgentRoles());
+  const [apiUrlManualModeByRole, setApiUrlManualModeByRole] = useState<Record<AgentRoleKey, boolean>>({
+    organizer: false,
+    writer: false,
+    designer: false,
+    analyst: false,
+  });
   const [nativeCapabilities, setNativeCapabilities] = useState<NativeCapabilitiesConfig>(() => normalizeNativeCapabilitiesConfig(defaultConfig.nativeCapabilities));
   const [activeRole, setActiveRole] = useState<AgentRoleKey>(getDefaultActiveAgentRole());
 
@@ -994,8 +1000,19 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
   const handleApplySystemApiPreset = useCallback((roleKey: AgentRoleKey) => {
     const presetUrl = SYSTEM_API_PRESET_BASE_URLS[roleKey];
     handleAgentRoleChange(roleKey, 'apiUrl', presetUrl);
+    setApiUrlManualModeByRole((prev) => ({
+      ...prev,
+      [roleKey]: false,
+    }));
     showGlobalToast('已应用系统预设线路');
   }, [handleAgentRoleChange]);
+
+  const handleEnableManualApiUrlEdit = useCallback((roleKey: AgentRoleKey) => {
+    setApiUrlManualModeByRole((prev) => ({
+      ...prev,
+      [roleKey]: true,
+    }));
+  }, []);
 
   // {埋点} ⚡ API连通性测试入口 (ID: api-test-001) → settingsHelpers.buildURL → electronShim.api.fetch → apiProxy /api/api/fetch
   const handleTestAgentRoleConnection = useCallback(async () => {
@@ -1789,6 +1806,8 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
 
       case 'model': {
         const activeRoleConfig = agentRoles[activeRole];
+        const activeRolePresetUrl = SYSTEM_API_PRESET_BASE_URLS[activeRole];
+        const isUsingSystemPreset = activeRoleConfig.apiUrl.trim() === activeRolePresetUrl && !apiUrlManualModeByRole[activeRole];
 
         return (
           <div className="flex h-full gap-4">
@@ -1887,6 +1906,15 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
                     >
                       {'使用系统预设'}
                     </button>
+                    {activeRoleConfig.apiUrl && (
+                      <button
+                        type="button"
+                        onClick={() => handleEnableManualApiUrlEdit(activeRole)}
+                        className="shrink-0 rounded-lg border px-2 py-1 text-[11px] font-medium dark:border-claude-darkBorder border-claude-border dark:text-claude-darkTextSecondary text-claude-textSecondary dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover transition-colors"
+                      >
+                        {'手动填写'}
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => { void window.electron?.shell?.openExternal?.('https://www.feishu.cn/invitation/page/add_contact/?token=202v2dcb-120d-45ec-a736-131b34dc8026&unique_id=FbSH9BXDAeOfS6vxXyvEqA=='); }}
@@ -1899,15 +1927,16 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
                 <div className="relative">
                   <input
                     id={`${activeRole}-apiUrl`}
-                    type={activeRoleConfig.apiUrl ? 'password' : 'text'}
-                    value={activeRoleConfig.apiUrl ? '已使用系统预设线路' : ''}
-                    readOnly
-                    className="block w-full rounded-xl bg-claude-surfaceInset dark:bg-claude-darkSurfaceInset dark:border-claude-darkBorder border-claude-border border dark:text-claude-darkText text-claude-text px-3 py-2 pr-8 text-xs select-none"
-                    placeholder={'点击“使用系统预设”后自动应用'}
-                    onCopy={(event) => event.preventDefault()}
-                    onCut={(event) => event.preventDefault()}
-                    onPaste={(event) => event.preventDefault()}
-                    onContextMenu={(event) => event.preventDefault()}
+                    type={isUsingSystemPreset ? 'password' : 'text'}
+                    value={isUsingSystemPreset ? '已使用系统预设线路' : activeRoleConfig.apiUrl}
+                    readOnly={isUsingSystemPreset}
+                    onChange={(event) => handleAgentRoleChange(activeRole, 'apiUrl', event.target.value)}
+                    className="block w-full rounded-xl bg-claude-surfaceInset dark:bg-claude-darkSurfaceInset dark:border-claude-darkBorder border-claude-border border dark:text-claude-darkText text-claude-text px-3 py-2 pr-8 text-xs"
+                    placeholder={isUsingSystemPreset ? '点击“使用系统预设”后自动应用' : '请输入 API Base URL'}
+                    onCopy={isUsingSystemPreset ? (event) => event.preventDefault() : undefined}
+                    onCut={isUsingSystemPreset ? (event) => event.preventDefault() : undefined}
+                    onPaste={isUsingSystemPreset ? (event) => event.preventDefault() : undefined}
+                    onContextMenu={isUsingSystemPreset ? (event) => event.preventDefault() : undefined}
                   />
                   {activeRoleConfig.apiUrl && (
                     <div className="absolute right-2 inset-y-0 flex items-center">
