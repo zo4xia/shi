@@ -6,6 +6,7 @@
  * @module main/coworkStore/helpers
  */
 
+import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import * as Constants from './constants';
@@ -35,7 +36,15 @@ export function isQuestionLikeMemoryText(text: string): boolean {
  * @returns 默认工作目录路径
  */
 export function getDefaultWorkingDirectory(): string {
-  return getProjectRoot();
+  const defaultDir = path.join(getProjectRoot(), 'uploud');
+  try {
+    if (!fs.existsSync(defaultDir)) {
+      fs.mkdirSync(defaultDir, { recursive: true });
+    }
+  } catch {
+    return getProjectRoot();
+  }
+  return defaultDir;
 }
 
 /**
