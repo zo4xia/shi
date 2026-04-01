@@ -16,6 +16,7 @@ import { AGENT_ROLE_ORDER, AGENT_ROLE_SHORT_LABELS } from '../../../shared/agent
 import ErrorMessage from '../ErrorMessage';
 import Tooltip from '../ui/Tooltip';
 import McpServerFormModal from './McpServerFormModal';
+import ConfirmDialog from '../ui/ConfirmDialog';
 import { getResponsiveTabBarClass, getResponsiveTabButtonClass } from '../../../shared/mobileUi';
 import { RUNTIME_FLOW_TAGS } from '../../../shared/runtimeFlowTags';
 import { webSocketClient, WS_EVENTS } from '../../services/webSocketClient';
@@ -608,49 +609,28 @@ const McpManager: React.FC = () => {
       )}
       </div>
 
+      {/* ## {提取} ConfirmDialog
+          这里是 MCP 的确认删除弹窗。
+          后续适合和 Skills / Sidebar / ScheduledTasks 统一抽成公共 ConfirmDialog。 */}
       {/* Delete confirmation modal */}
       {pendingDelete && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
-          onClick={handleCancelDelete}
-        >
-          <div
-            className="w-full max-w-sm mx-4 rounded-2xl dark:bg-claude-darkSurface bg-claude-surface border dark:border-claude-darkBorder border-claude-border shadow-2xl p-5"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="text-lg font-semibold dark:text-claude-darkText text-claude-text">
-              {'删除 MCP 服务'}
-            </div>
-            <p className="mt-2 text-sm dark:text-claude-darkTextSecondary text-claude-textSecondary">
-              {'确定删除 MCP 服务"{name}"吗？'.replace('{name}', pendingDelete.name)}
-            </p>
-            {actionError && (
-              <div className="mt-3 text-xs text-red-500">
-                {actionError}
-              </div>
-            )}
-            <div className="mt-4 flex items-center justify-end gap-2">
-              <button
-                type="button"
-                onClick={handleCancelDelete}
-                disabled={isDeleting}
-                className="px-3 py-1.5 text-xs rounded-lg border dark:border-claude-darkBorder border-claude-border dark:text-claude-darkTextSecondary text-claude-textSecondary dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                {'取消'}
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmDelete}
-                disabled={isDeleting}
-                className="px-3 py-1.5 text-xs rounded-lg bg-red-500 text-white hover:bg-red-600 dark:bg-red-500 dark:hover:bg-red-400 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                {'确认删除'}
-              </button>
-            </div>
-          </div>
-        </div>
+        <ConfirmDialog
+          isOpen={true}
+          title={'删除 MCP 服务'}
+          message={'确定删除 MCP 服务"{name}"吗？'.replace('{name}', pendingDelete.name)}
+          onConfirm={handleConfirmDelete}
+          onCancel={handleCancelDelete}
+          confirmLabel={'确认删除'}
+          cancelLabel={'取消'}
+          confirmTone="danger"
+          pending={isDeleting}
+          details={actionError ? <div className="text-xs text-red-500">{actionError}</div> : undefined}
+        />
       )}
 
+      {/* ## {提取} RolePickerDialog
+          这里是 MCP 安装角色选择弹窗。
+          后续适合抽成公共 RolePickerDialog，避免每个管理页自己写一套。 */}
       {/* Role picker modal */}
       {installRolePicker && createPortal(
         <div

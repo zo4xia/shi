@@ -88,6 +88,7 @@ import {
 import CoworkMemorySettingsPanel from './settings/CoworkMemorySettingsPanel';
 import { useIsMobileViewport } from '../hooks/useIsMobileViewport';
 import { renderAgentRoleAvatar } from '../utils/agentRoleDisplay';
+import ModalWrapper from './ui/ModalWrapper';
 
 // 特价 API 套餐卡片 — 珍珠白风格
 const ClawApiIframeView: React.FC = () => {
@@ -2180,13 +2181,16 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
     }
   };
 
+  // ## {提取} SettingsMobileShell
+  // 当前 Settings 已开始拥有移动端专用壳。
+  // 后续应继续把外层 page-shell、桌面双栏壳、移动端单列壳彻底收成独立公共层。
   return (
     <div
       className={`fixed inset-0 z-50 modal-backdrop-pearl flex ${isMobileViewport ? 'items-stretch justify-stretch' : 'items-center justify-center'}`}
       onClick={onClose}
     >
       <div
-        className="relative flex w-full modal-pearl overflow-hidden modal-content"
+        className={`relative ${isMobileViewport ? 'flex-col' : 'flex'} w-full modal-pearl overflow-hidden modal-content`}
         style={{
           width: isMobileViewport ? '100vw' : 'min(92vw, var(--uclaw-shell-max-width), calc(88vh * 1.6))',
           minWidth: isMobileViewport ? '100vw' : 'min(var(--uclaw-shell-min-width), 92vw)',
@@ -2199,7 +2203,7 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
       >
         {/* Left sidebar */}
         <div
-          className={`${isMobileViewport ? 'w-full shrink-0 border-b dark:border-claude-darkBorder border-claude-border' : 'w-[clamp(248px,22%,296px)] shrink-0'} flex flex-col sidebar-pearl overflow-y-auto`}
+          className={`${isMobileViewport ? 'w-full flex-none border-b dark:border-claude-darkBorder border-claude-border' : 'w-[clamp(248px,22%,296px)] shrink-0'} flex flex-col sidebar-pearl overflow-y-auto`}
           style={{
             borderTopLeftRadius: isMobileViewport ? '0' : 'var(--uclaw-shell-radius)',
             borderBottomLeftRadius: isMobileViewport ? '0' : 'var(--uclaw-shell-radius)',
@@ -2213,57 +2217,104 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
               </p>
             </div>
           </div>
-          <div className={`${isMobileViewport ? 'px-3 pb-3' : 'px-4 pb-4'}`}>
+          <div className={`${isMobileViewport ? 'contents' : 'px-4 pb-4'}`}>
             <div className="mb-2 px-2 text-[11px] font-medium uppercase tracking-[0.14em] dark:text-claude-darkTextSecondary text-claude-textSecondary">
               {'功能区'}
             </div>
-          <nav className={`${isMobileViewport ? 'flex gap-2 overflow-x-auto whitespace-nowrap' : 'flex flex-col gap-2'} rounded-[24px] border border-white/60 bg-white/45 p-2 shadow-[0_10px_24px_rgba(203,174,150,0.08)] dark:border-white/10 dark:bg-white/[0.03]`}>
-            {sidebarTabs.map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => handleTabChange(tab.key)}
-                className={`group ${isMobileViewport ? 'min-w-[154px] shrink-0' : ''} flex items-center gap-3 rounded-[18px] px-3.5 py-3 transition-colors duration-200 ease-out text-left relative overflow-hidden ${
-                  activeTab === tab.key
-                    ? 'bg-gradient-to-r from-claude-accent/16 to-claude-accent/8 text-claude-accent shadow-[0_10px_24px_rgba(193,156,133,0.14)]'
-                    : 'dark:text-claude-darkTextSecondary text-claude-textSecondary dark:hover:text-claude-darkText hover:text-claude-text dark:hover:bg-claude-darkSurfaceHover/50 hover:bg-claude-surfaceHover/50'
-                }`}
-              >
-                {/* 左侧选择条 - 纯 CSS 渐变 */}
-                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] rounded-r-full transition-colors duration-200 ease-out"
-                  style={{
-                    height: activeTab === tab.key ? '60%' : '0%',
-                    opacity: activeTab === tab.key ? 1 : 0,
-                    background: activeTab === tab.key 
-                      ? 'linear-gradient(180deg, #E0B8A8 0%, #D4A894 100%)'
-                      : 'linear-gradient(180deg, rgba(59,130,246,0.6) 0%, rgba(59,130,246,0.4) 100%)',
-                    transform: `translateY(-50%) scale(${activeTab === tab.key ? 1 : 0})`,
-                  }}
-                />
-                <span className={`relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border ${
-                  activeTab === tab.key
-                    ? 'border-claude-accent/20 bg-white/80 text-claude-accent dark:border-claude-accent/20 dark:bg-white/10'
-                    : 'border-transparent bg-white/40 dark:bg-white/[0.04]'
-                }`}>
-                  {tab.icon}
-                </span>
-                <span className="relative z-10 min-w-0 flex-1">
-                  <span className="block truncate text-sm font-medium">{tab.label}</span>
-                  <span className="mt-0.5 block truncate text-[11px] font-normal dark:text-claude-darkTextSecondary text-claude-textSecondary">
-                    {tab.subtitle}
-                  </span>
-                </span>
-                {activeTab === tab.key && (
-                  <span className="relative z-10 h-2 w-2 shrink-0 rounded-full bg-claude-accent/80 shadow-[0_0_0_4px_rgba(224,184,168,0.16)]" />
-                )}
-              </button>
-            ))}
-          </nav>
+            {isMobileViewport ? (
+              /* ## {提取} SettingsNavCards
+                  当前移动端设置导航已经切到“当前栏目卡 + 简单切换卡片”。
+                  后续可抽成 SettingsMobileNavCards，供其它大设置页或管理页复用。 */
+              <div className="mx-3 mb-3 rounded-[24px] border border-white/60 bg-white/45 p-2 shadow-[0_10px_24px_rgba(203,174,150,0.08)] dark:border-white/10 dark:bg-white/[0.03]">
+                <div className="mb-3 rounded-[20px] border border-claude-accent/20 bg-gradient-to-br from-claude-accent/12 to-claude-accent/4 px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-claude-accent/20 bg-white/80 text-claude-accent dark:border-claude-accent/20 dark:bg-white/10">
+                      {sidebarTabs.find((tab) => tab.key === activeTab)?.icon}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium dark:text-claude-darkText text-claude-text">
+                        {sidebarTabs.find((tab) => tab.key === activeTab)?.label}
+                      </span>
+                      <span className="mt-0.5 block truncate text-[11px] font-normal dark:text-claude-darkTextSecondary text-claude-textSecondary">
+                        {sidebarTabs.find((tab) => tab.key === activeTab)?.subtitle}
+                      </span>
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 px-1 pb-1">
+                  {sidebarTabs.map((tab) => (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      onClick={() => handleTabChange(tab.key)}
+                      className={`flex min-h-[92px] flex-col items-start justify-start gap-2 rounded-[18px] border px-3 py-3 text-left transition-colors ${
+                        activeTab === tab.key
+                          ? 'border-claude-accent/30 bg-gradient-to-br from-claude-accent/14 to-claude-accent/6 text-claude-accent'
+                          : 'border-white/45 bg-white/55 dark:border-white/10 dark:bg-white/[0.04] dark:text-claude-darkTextSecondary text-claude-textSecondary'
+                      }`}
+                    >
+                      <span className={`flex h-9 w-9 items-center justify-center rounded-2xl ${
+                        activeTab === tab.key
+                          ? 'bg-white/80 dark:bg-white/10'
+                          : 'bg-white/60 dark:bg-white/[0.06]'
+                      }`}>
+                        {tab.icon}
+                      </span>
+                      <span className="block text-sm font-medium leading-5">{tab.label}</span>
+                      <span className="block text-[11px] leading-4 opacity-80">{tab.subtitle}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <nav className="flex flex-col gap-2 rounded-[24px] border border-white/60 bg-white/45 p-2 shadow-[0_10px_24px_rgba(203,174,150,0.08)] dark:border-white/10 dark:bg-white/[0.03]">
+                {sidebarTabs.map((tab) => (
+                  <button
+                    key={tab.key}
+                    onClick={() => handleTabChange(tab.key)}
+                    className={`group flex items-center gap-3 rounded-[18px] px-3.5 py-3 transition-colors duration-200 ease-out text-left relative overflow-hidden ${
+                      activeTab === tab.key
+                        ? 'bg-gradient-to-r from-claude-accent/16 to-claude-accent/8 text-claude-accent shadow-[0_10px_24px_rgba(193,156,133,0.14)]'
+                        : 'dark:text-claude-darkTextSecondary text-claude-textSecondary dark:hover:text-claude-darkText hover:text-claude-text dark:hover:bg-claude-darkSurfaceHover/50 hover:bg-claude-surfaceHover/50'
+                    }`}
+                  >
+                    <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] rounded-r-full transition-colors duration-200 ease-out"
+                      style={{
+                        height: activeTab === tab.key ? '60%' : '0%',
+                        opacity: activeTab === tab.key ? 1 : 0,
+                        background: activeTab === tab.key 
+                          ? 'linear-gradient(180deg, #E0B8A8 0%, #D4A894 100%)'
+                          : 'linear-gradient(180deg, rgba(59,130,246,0.6) 0%, rgba(59,130,246,0.4) 100%)',
+                        transform: `translateY(-50%) scale(${activeTab === tab.key ? 1 : 0})`,
+                      }}
+                    />
+                    <span className={`relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border ${
+                      activeTab === tab.key
+                        ? 'border-claude-accent/20 bg-white/80 text-claude-accent dark:border-claude-accent/20 dark:bg-white/10'
+                        : 'border-transparent bg-white/40 dark:bg-white/[0.04]'
+                    }`}>
+                      {tab.icon}
+                    </span>
+                    <span className="relative z-10 min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium">{tab.label}</span>
+                      <span className="mt-0.5 block truncate text-[11px] font-normal dark:text-claude-darkTextSecondary text-claude-textSecondary">
+                        {tab.subtitle}
+                      </span>
+                    </span>
+                    {activeTab === tab.key && (
+                      <span className="relative z-10 h-2 w-2 shrink-0 rounded-full bg-claude-accent/80 shadow-[0_0_0_4px_rgba(224,184,168,0.16)]" />
+                    )}
+                  </button>
+                ))}
+              </nav>
+            )}
           </div>
         </div>
 
         {/* Right content */}
         <div
-          className="relative flex-1 flex flex-col min-w-0 overflow-hidden bg-gradient-pearl"
+          className={`relative flex-1 flex flex-col min-w-0 ${isMobileViewport ? 'min-h-0 w-full' : ''} overflow-hidden bg-gradient-pearl`}
           style={{
             borderTopRightRadius: isMobileViewport ? '0' : 'var(--uclaw-shell-radius)',
             borderBottomRightRadius: isMobileViewport ? '0' : 'var(--uclaw-shell-radius)',
@@ -2298,7 +2349,10 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
+          <form
+            onSubmit={handleSubmit}
+            className={isMobileViewport ? 'contents' : 'flex flex-col flex-1 overflow-hidden'}
+          >
             {/* Tab content */}
             <div
               ref={contentRef}
@@ -2365,29 +2419,22 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
 
         </div>
 
+        {/* ## {提取} SettingsSubModal
+            Settings 内部的局部小弹层正在迁出。
+            这里后续应统一收口到 SettingsSubModal / ModalWrapper，不再在页面壳里继续叠 absolute overlay。 */}
         {isTestResultModalOpen && testResult && (
-          <div
-            className="absolute inset-0 z-30 flex items-center justify-center bg-black/35 px-4 rounded-2xl"
-            onClick={() => setIsTestResultModalOpen(false)}
+          <ModalWrapper
+            isOpen={true}
+            onClose={() => setIsTestResultModalOpen(false)}
+            title={'连接测试结果'}
+            maxWidth="md"
+            maxHeight="60vh"
           >
-            <div
-              role="dialog"
-              aria-modal="true"
-              aria-label={'连接测试结果'}
-              onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-md rounded-2xl dark:bg-claude-darkSurface bg-claude-bg dark:border-claude-darkBorder border-claude-border border shadow-modal p-4"
-            >
+            <div>
               <div className="flex items-center justify-between mb-3">
-                <h4 className="text-sm font-semibold dark:text-claude-darkText text-claude-text">
+                <div className="text-sm font-semibold dark:text-claude-darkText text-claude-text">
                   {'连接测试结果'}
-                </h4>
-                <button
-                  type="button"
-                  onClick={() => setIsTestResultModalOpen(false)}
-                  className="p-1 dark:text-claude-darkTextSecondary text-claude-textSecondary dark:hover:text-claude-darkText hover:text-claude-text rounded-md dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover"
-                >
-                  <XMarkIcon className="h-4 w-4" />
-                </button>
+                </div>
               </div>
 
               <div className="flex items-center gap-2 text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary">
@@ -2417,33 +2464,22 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
                 </button>
               </div>
             </div>
-          </div>
+          </ModalWrapper>
         )}
 
         {(isAddingModel || isEditingModel) && (
-          <div
-            className="absolute inset-0 z-20 flex items-center justify-center bg-black/35 px-4 rounded-2xl"
-            onClick={handleCancelModelEdit}
+          <ModalWrapper
+            isOpen={true}
+            onClose={handleCancelModelEdit}
+            title={isEditingModel ? '编辑模型' : '添加新模型'}
+            maxWidth="md"
+            maxHeight="70vh"
           >
-              <div
-                role="dialog"
-                aria-modal="true"
-                aria-label={isEditingModel ? '编辑模型' : '添加新模型'}
-                onClick={(e) => e.stopPropagation()}
-                onKeyDown={handleModelDialogKeyDown}
-                className="w-full max-w-md rounded-2xl dark:bg-claude-darkSurface bg-claude-bg dark:border-claude-darkBorder border-claude-border border shadow-modal p-4"
-              >
+              <div onKeyDown={handleModelDialogKeyDown}>
                 <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-sm font-semibold dark:text-claude-darkText text-claude-text">
+                  <div className="text-sm font-semibold dark:text-claude-darkText text-claude-text">
                     {isEditingModel ? '编辑模型' : '添加新模型'}
-                  </h4>
-                  <button
-                    type="button"
-                    onClick={handleCancelModelEdit}
-                    className="p-1 dark:text-claude-darkTextSecondary text-claude-textSecondary dark:hover:text-claude-darkText hover:text-claude-text rounded-md dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover"
-                  >
-                    <XMarkIcon className="h-4 w-4" />
-                  </button>
+                  </div>
                 </div>
 
                 {modelFormError && (
@@ -2573,8 +2609,8 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
                   </button>
                 </div>
               </div>
-            </div>
-          )}
+          </ModalWrapper>
+        )}
       </div>
     </div>
   );

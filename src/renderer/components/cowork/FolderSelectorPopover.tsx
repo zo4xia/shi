@@ -85,6 +85,9 @@ const DirectoryBrowser: React.FC<DirectoryBrowserProps> = ({ onSelect, onClose }
     }
   };
 
+  /* ## {提取} FolderPickerSheet / DesktopPopover
+     当前目录选择器同时承担了移动端 modal 与桌面 popover 两种职责。
+     后续适合拆成：移动端 FolderPickerSheet、桌面 FolderSelectorPopover。 */
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
       <div ref={modalRef} className="w-full max-w-md mx-4 rounded-2xl dark:bg-claude-darkSurface bg-claude-surface border dark:border-claude-darkBorder border-claude-border shadow-2xl flex flex-col" style={{ maxHeight: '70vh' }} onClick={e => e.stopPropagation()}>
@@ -276,6 +279,9 @@ const FolderSelectorPopover: React.FC<FolderSelectorPopoverProps> = ({
     return <DirectoryBrowser onSelect={onSelectFolder} onClose={() => { setShowBrowser(false); onClose(); }} />;
   }
 
+  /* ## {提取} DesktopPopover
+     当前最近目录菜单仍是桌面 popover 形态。
+     后续可和 SkillsPopover / ModelSelector 一起收口为 PopoverOrSheet。 */
   return (
     <>
       <div ref={popoverRef} className="absolute bottom-full left-0 mb-2 w-56 rounded-lg border dark:border-claude-darkBorder border-claude-border dark:bg-claude-darkSurface bg-claude-surface shadow-lg z-50">

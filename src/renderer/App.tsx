@@ -867,6 +867,9 @@ const App: React.FC = () => {
               className="h-full min-h-0 dark:bg-claude-darkBg bg-claude-bg overflow-hidden relative pt-[64px] sm:pt-[68px]"
               style={{ borderRadius: 'var(--uclaw-shell-radius)' }}
             >
+              {/* ## {提取} TopActionsOffsetShell
+                  当前全局顶部按钮层统一压在主内容壳上方。
+                  后续适合抽成公共顶部浮层 + 统一偏移变量，不要让各页面自己猜避让高度。 */}
               <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex items-start justify-end px-4 py-3">
                 <div className="pointer-events-auto uclaw-top-actions">
                   <SettingsEntryButton onClick={() => handleShowSettings()} />

@@ -123,6 +123,9 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
         )}
       </button>
 
+      {/* ## {提取} OptionSheet / DesktopPopover
+          当前模型选择器在桌面是 popover。
+          后续移动端适合降级成 OptionSheet，和其它选择器统一壳层。 */}
       {isOpen && !readOnly && (
         <div className={`absolute ${dropdownPositionClass} w-64 dark:bg-claude-darkSurface bg-claude-surface rounded-xl popover-enter shadow-popover z-50 dark:border-claude-darkBorder border-claude-border border overflow-hidden`}>
           <div className="max-h-80 overflow-y-auto">

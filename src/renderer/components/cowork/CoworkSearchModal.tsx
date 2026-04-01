@@ -3,6 +3,7 @@ import { XMarkIcon } from '@heroicons/react/24/outline';
 import SearchIcon from '../icons/SearchIcon';
 import type { CoworkSessionSummary } from '../../types/cowork';
 import CoworkSessionList from './CoworkSessionList';
+import ModalWrapper from '../ui/ModalWrapper';
 
 const emptySet = new Set<string>();
 
@@ -66,17 +67,15 @@ const CoworkSearchModal: React.FC<CoworkSearchModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-start justify-center modal-backdrop p-6"
-      onClick={onClose}
+    <ModalWrapper
+      isOpen={isOpen}
+      onClose={onClose}
+      title={'搜索对话'}
+      maxWidth="2xl"
+      maxHeight="70vh"
+      mobileFullScreen={true}
     >
-      <div
-        className="modal-content w-full max-w-2xl mt-10 rounded-2xl border dark:border-claude-darkBorder border-claude-border dark:bg-claude-darkSurface bg-claude-surface shadow-modal overflow-hidden"
-        role="dialog"
-        aria-modal="true"
-        aria-label={'搜索对话'}
-        onClick={(event) => event.stopPropagation()}
-      >
+      <div className="space-y-4">
         <div className="flex items-center gap-3 px-4 py-3 border-b dark:border-claude-darkBorder border-claude-border">
           <div className="relative flex-1">
             <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 dark:text-claude-darkTextSecondary text-claude-textSecondary" />
@@ -97,7 +96,7 @@ const CoworkSearchModal: React.FC<CoworkSearchModalProps> = ({
             <XMarkIcon className="h-5 w-5" />
           </button>
         </div>
-        <div className="px-3 py-3 max-h-[60vh] overflow-y-auto">
+        <div className="max-h-[60vh] overflow-y-auto">
           {filteredSessions.length === 0 ? (
             <div className="py-10 text-center text-sm dark:text-claude-darkTextSecondary text-claude-textSecondary">
               {'未找到匹配任务'}
@@ -119,7 +118,7 @@ const CoworkSearchModal: React.FC<CoworkSearchModalProps> = ({
           )}
         </div>
       </div>
-    </div>
+    </ModalWrapper>
   );
 };
 

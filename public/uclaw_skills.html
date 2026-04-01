@@ -1,0 +1,1560 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>uclaw skills 说明</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&display=swap');
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: 'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #FFFBF5 0%, #FFF5F0 50%, #F8FAFC 100%);
+            min-height: 100vh;
+            color: #5D4E37;
+            padding: 30px 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        /* 主标题 */
+        .main-header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding: 30px;
+            background: linear-gradient(135deg, #FFF 0%, #FFFBF5 100%);
+            border-radius: 24px;
+            box-shadow: 0 4px 20px rgba(180, 150, 120, 0.1);
+            border: 2px solid #F5E6D3;
+        }
+        
+        .main-title {
+            font-size: 2.2em;
+            color: #E8836B;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+        }
+        
+        .main-subtitle {
+            color: #A89078;
+            font-size: 1.1em;
+        }
+        
+        /* 技能卡片切换区 - 5卡片布局 */
+        .skills-tabs {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 12px;
+            margin-bottom: 25px;
+        }
+        
+        .skill-tab {
+            padding: 18px 12px;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+            border: 2px solid transparent;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .skill-tab:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+        }
+        
+        .skill-tab.active {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        }
+        
+        /* 卡片1 - 米白色 */
+        .skill-tab-1 {
+            background: linear-gradient(135deg, #FFFBF0 0%, #FFF8E8 100%);
+            border-color: #F0E4C8;
+        }
+        .skill-tab-1.active {
+            border-color: #E8D4B0;
+            background: linear-gradient(135deg, #FFFBF0 0%, #FFF5E0 100%);
+        }
+        .skill-tab-1 .tab-icon { background: #FFF0D4; }
+        .skill-tab-1 .tab-title { color: #B8860B; }
+        
+        /* 卡片2 - 婴儿粉 */
+        .skill-tab-2 {
+            background: linear-gradient(135deg, #FFF5F5 0%, #FFE8EC 100%);
+            border-color: #F0D4D8;
+        }
+        .skill-tab-2.active {
+            border-color: #E8B8C0;
+            background: linear-gradient(135deg, #FFF5F5 0%, #FFE0E6 100%);
+        }
+        .skill-tab-2 .tab-icon { background: #FFD4DC; }
+        .skill-tab-2 .tab-title { color: #D4726A; }
+        
+        /* 卡片3 - Baby蓝 */
+        .skill-tab-3 {
+            background: linear-gradient(135deg, #F5F9FF 0%, #E8F0FF 100%);
+            border-color: #C8D8F0;
+        }
+        .skill-tab-3.active {
+            border-color: #A8C0E8;
+            background: linear-gradient(135deg, #F5F9FF 0%, #E0ECFF 100%);
+        }
+        .skill-tab-3 .tab-icon { background: #D4E4FF; }
+        .skill-tab-3 .tab-title { color: #5B8DD9; }
+        
+        /* 卡片4 - 薄荷绿 */
+        .skill-tab-4 {
+            background: linear-gradient(135deg, #F5FFF8 0%, #E8FFF0 100%);
+            border-color: #C8E8D8;
+        }
+        .skill-tab-4.active {
+            border-color: #A8D8C0;
+            background: linear-gradient(135deg, #F5FFF8 0%, #E0FFE8 100%);
+        }
+        .skill-tab-4 .tab-icon { background: #D4FFE8; }
+        .skill-tab-4 .tab-title { color: #5BA87B; }
+        
+        /* 卡片5 - 淡金色 (XIAS 主打) */
+        .skill-tab-5 {
+            background: linear-gradient(135deg, #FFFDF5 0%, #FFF8E0 100%);
+            border-color: #E8D8A8;
+        }
+        .skill-tab-5.active {
+            border-color: #D4C080;
+            background: linear-gradient(135deg, #FFFDF5 0%, #FFF5D0 100%);
+        }
+        .skill-tab-5 .tab-icon { background: #FFF0C0; }
+        .skill-tab-5 .tab-title { color: #B8860B; }
+        
+        .skill-tab-5::after {
+            content: '⭐主打';
+            position: absolute;
+            top: 5px;
+            left: 8px;
+            font-size: 0.6em;
+            background: linear-gradient(135deg, #FFD700, #FFA500);
+            color: #fff;
+            padding: 2px 6px;
+            border-radius: 8px;
+            font-weight: 700;
+        }
+        
+        .tab-icon {
+            width: 45px;
+            height: 45px;
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.4em;
+            margin: 0 auto 8px;
+        }
+        
+        .tab-title {
+            font-weight: 700;
+            font-size: 0.85em;
+            margin-bottom: 4px;
+        }
+        
+        .tab-desc {
+            font-size: 0.7em;
+            color: #9B8B7A;
+            line-height: 1.3;
+        }
+        
+        .tab-number {
+            position: absolute;
+            top: 8px;
+            right: 10px;
+            font-size: 0.65em;
+            font-weight: 700;
+            color: rgba(0,0,0,0.15);
+        }
+        
+        /* 内容面板 */
+        .content-panel {
+            display: none;
+            background: linear-gradient(135deg, #FFFFFF 0%, #FFFBF5 100%);
+            border-radius: 24px;
+            padding: 30px;
+            box-shadow: 0 4px 20px rgba(180, 150, 120, 0.08);
+            border: 2px solid #F5E6D3;
+            animation: slideDown 0.4s ease;
+        }
+        
+        .content-panel.active {
+            display: block;
+        }
+        
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .panel-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 25px;
+            padding-bottom: 20px;
+            border-bottom: 2px dashed #F0D9C8;
+        }
+        
+        .panel-icon {
+            width: 60px;
+            height: 60px;
+            border-radius: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.8em;
+        }
+        
+        .panel-icon-1 { background: linear-gradient(135deg, #FFF0D4 0%, #FFE8C0 100%); }
+        .panel-icon-2 { background: linear-gradient(135deg, #FFD4DC 0%, #FFB8C8 100%); }
+        .panel-icon-3 { background: linear-gradient(135deg, #D4E4FF 0%, #B8D0FF 100%); }
+        .panel-icon-4 { background: linear-gradient(135deg, #D4FFE8 0%, #B8FFD0 100%); }
+        .panel-icon-5 { background: linear-gradient(135deg, #FFE8A0 0%, #FFD060 100%); }
+        
+        .panel-title {
+            font-size: 1.5em;
+            color: #6B5B4F;
+        }
+        
+        .panel-desc {
+            color: #9B8B7A;
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+        
+        /* 技能网格 */
+        .skills-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .skill-card {
+            background: #FFFFFF;
+            border-radius: 16px;
+            padding: 18px;
+            border: 1px solid #F0E6D8;
+            transition: all 0.2s;
+        }
+        
+        .skill-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(180, 150, 120, 0.1);
+        }
+        
+        .skill-card-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+        
+        .skill-card-icon {
+            font-size: 1.3em;
+        }
+        
+        .skill-card-name {
+            font-weight: 700;
+            color: #6B5B4F;
+            font-size: 0.95em;
+        }
+        
+        .skill-card-name small {
+            font-weight: 400;
+            color: #A89078;
+            font-size: 0.85em;
+        }
+        
+        .skill-card-desc {
+            font-size: 0.85em;
+            color: #7B6B5A;
+            line-height: 1.5;
+            margin-bottom: 12px;
+        }
+        
+        .skill-trigger {
+            background: linear-gradient(135deg, #FFF8F0 0%, #FFFBF5 100%);
+            border-radius: 10px;
+            padding: 10px 12px;
+            border-left: 3px solid #E8836B;
+        }
+        
+        .skill-trigger-title {
+            font-size: 0.7em;
+            color: #E8836B;
+            font-weight: 700;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+        
+        .skill-trigger-content {
+            font-size: 0.8em;
+            color: #8B7B6A;
+            line-height: 1.5;
+        }
+        
+        .skill-example {
+            background: #FFFFFF;
+            border-radius: 6px;
+            padding: 6px 10px;
+            margin-top: 8px;
+            font-family: monospace;
+            font-size: 0.75em;
+            color: #6B8B6B;
+            border: 1px solid #E8E0D8;
+        }
+        
+        /* 颜色标签 */
+        .color-tag {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 0.7em;
+            font-weight: 600;
+            margin-left: auto;
+        }
+        
+        .tag-input { background: #FFE8E8; color: #D4726A; }
+        .tag-process { background: #E8F4FF; color: #5B8DD9; }
+        .tag-output { background: #E8FFE8; color: #5BA85B; }
+        .tag-design { background: #FFF4E8; color: #D9955B; }
+        .tag-ai { background: #F4E8FF; color: #9B5BD9; }
+        .tag-trigger { background: #FFE8F4; color: #D95B9B; }
+        .tag-novel { background: #E8FFF4; color: #5BA887; }
+        .tag-content { background: #FFF8E8; color: #C4885B; }
+        .tag-utility { background: #E8F8FF; color: #5B88B8; }
+        .tag-core { background: #FFE8C0; color: #B8860B; }
+        .tag-eval { background: #E8FFE0; color: #5BA848; }
+        .tag-diagnosis { background: #FFE0E8; color: #C85B7B; }
+        
+        /* 流程图区域 */
+        .mermaid-section {
+            margin-top: 25px;
+            padding: 20px;
+            background: linear-gradient(135deg, #FFFBF5 0%, #FFFFFF 100%);
+            border-radius: 16px;
+            border: 2px dashed #F0D9C8;
+        }
+        
+        .mermaid-title {
+            font-size: 1.1em;
+            color: #C4956A;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .mermaid {
+            display: flex;
+            justify-content: center;
+            overflow-x: auto;
+        }
+        
+        /* 分节标题 */
+        .section-title {
+            font-size: 1.2em;
+            color: #E8836B;
+            margin: 30px 0 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px dashed #F0D9C8;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        /* 主打技能高亮 */
+        .highlight-card {
+            border: 2px solid #E8D8A8;
+            background: linear-gradient(135deg, #FFFFFF 0%, #FFFDF5 100%);
+        }
+        
+        /* 评分表格 */
+        .score-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+            font-size: 0.85em;
+        }
+        
+        .score-table th, .score-table td {
+            padding: 10px;
+            border: 1px solid #F0D9C8;
+            text-align: left;
+        }
+        
+        .score-table th {
+            background: linear-gradient(135deg, #FFF8E8 0%, #FFE8C0 100%);
+            color: #6B5B4F;
+        }
+        
+        .score-table tr:hover {
+            background: #FFFDF5;
+        }
+        
+        /* 响应式 */
+        @media (max-width: 1100px) {
+            .skills-tabs {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+        
+        @media (max-width: 800px) {
+            .skills-tabs {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        
+        @media (max-width: 500px) {
+            .skills-tabs {
+                grid-template-columns: 1fr;
+            }
+            .main-title {
+                font-size: 1.6em;
+            }
+            .content-panel {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 主标题 -->
+        <div class="main-header">
+            <h1 class="main-title">
+                <span>🚀</span>
+                uclaw skills 说明
+            </h1>
+            <p class="main-subtitle">✨ AI技能工具箱 - 了解每个技能在什么场景下会被触发</p>
+        </div>
+        
+        <!-- 技能卡片切换区 -->
+        <div class="skills-tabs">
+            <div class="skill-tab skill-tab-1" onclick="showPanel(1)">
+                <span class="tab-number">01</span>
+                <div class="tab-icon">🎬</div>
+                <div class="tab-title">bbdog 短剧制作</div>
+                <div class="tab-desc">AI短剧全流程制作工具</div>
+            </div>
+            
+            <div class="skill-tab skill-tab-2" onclick="showPanel(2)">
+                <span class="tab-number">02</span>
+                <div class="tab-icon">💰</div>
+                <div class="tab-title">融资技能</div>
+                <div class="tab-desc">投资人研究/路演PPT/尽调材料</div>
+            </div>
+            
+            <div class="skill-tab skill-tab-3" onclick="showPanel(3)">
+                <span class="tab-number">03</span>
+                <div class="tab-icon">📈</div>
+                <div class="tab-title">销售&产品</div>
+                <div class="tab-desc">开发信/销售话术/PRD/竞品分析</div>
+            </div>
+            
+            <div class="skill-tab skill-tab-4" onclick="showPanel(4)">
+                <span class="tab-number">04</span>
+                <div class="tab-icon">⚙️</div>
+                <div class="tab-title">工程&营销</div>
+                <div class="tab-desc">代码审查/CI-CD/落地页/内容策略</div>
+            </div>
+            
+            <div class="skill-tab skill-tab-5 active" onclick="showPanel(5)">
+                <span class="tab-number">05</span>
+                <div class="tab-icon">🎭</div>
+                <div class="tab-title">XIAS短剧工具箱</div>
+                <div class="tab-desc">专业漫剧短剧网文高级版</div>
+            </div>
+        </div>
+        
+        <!-- ==================== 内容面板5: XIAS-AI短剧制作工具箱V1 (主打) ==================== -->
+        <div class="content-panel active" id="panel-5">
+            <div class="panel-header">
+                <div class="panel-icon panel-icon-5">🎭</div>
+                <div>
+                    <h2 class="panel-title">XIAS-AI短剧制作工具箱V1 ⭐主打</h2>
+                    <p class="panel-desc">短剧/漫剧商业化创作与交付全流程，包含类型2从零创作、类型3有稿拆分镜、甲方驳回诊断、客户端兼容问题处理与离线分发。傻瓜式提示词、完整商业化评审。</p>
+                </div>
+            </div>
+            
+            <!-- 整体架构流程图 -->
+            <div class="mermaid-section">
+                <div class="mermaid-title">📊 XIAS技能包完整架构（四层目录结构）</div>
+                <div class="mermaid">
+%%{init: {
+    'theme': 'base',
+    'themeVariables': {
+        'primaryColor': '#FFE8A0',
+        'primaryTextColor': '#5D4E37',
+        'primaryBorderColor': '#D4C080',
+        'lineColor': '#D4C080',
+        'background': '#FFFDF5',
+        'mainBkg': '#FFFFFF',
+        'fontFamily': 'Nunito, sans-serif'
+    }
+}}%%
+flowchart TB
+    subgraph Layer1["📁 第一层：主入口"]
+        M1["SKILL.md<br/>总规则/路由/评分/否决"]
+        M2["readme.js<br/>公开运行入口"]
+        M3["PACKAGE-MANIFEST.md<br/>包清单"]
+    end
+
+    subgraph Layer2["📁 第二层：功能目录"]
+        direction LR
+        R1["references/<br/>参考文档"]
+        T1["templates/<br/>输出模板"]
+        S1["scripts/<br/>脚本工具"]
+        C1["compatibility/<br/>跨平台配置"]
+    end
+
+    subgraph Layer3["📁 第三层：核心能力"]
+        direction TB
+        R1_1["intake-route-form.md<br/>接单路由表"]
+        R1_2["type2-scorecard.md<br/>类型2评分"]
+        R1_3["type3-scorecard.md<br/>类型3评分"]
+        R1_4["one-veto-checklist.md<br/>一票否决清单"]
+        R1_5["client-rejection-cause-map.md<br/>驳回原因图谱"]
+        R1_6["trigger-keywords.md<br/>触发词路由"]
+        
+        T1_1["evaluation-result.md<br/>评估结论模板"]
+        T1_2["delivery-handoff.md<br/>交付转发模板"]
+        T1_3["client-issue-diagnosis.md<br/>问题诊断模板"]
+        
+        S1_1["core_engine.js<br/>核心流程引擎"]
+        S1_2["ingest_documents.py<br/>文档解析"]
+        S1_3["utf8_guard.py<br/>编码守护"]
+    end
+
+    subgraph Layer4["📁 第四层：运行时输入"]
+        I1["runtime-input-type2.json"]
+        I2["runtime-input-type3.json"]
+        I3["runtime-veto-input.json"]
+    end
+
+    Layer1 --> Layer2
+    Layer2 --> Layer3
+    Layer3 --> Layer4
+
+    style M1 fill:#FFE8A0,stroke:#D4C080,color:#5D4E37
+    style S1_1 fill:#D6F5D6,stroke:#A8D9A8,color:#4B6B4B
+    style R1_4 fill:#FFD6D6,stroke:#E8A8A8,color:#6B4B4B
+                </div>
+            </div>
+            
+            <!-- 三种工作模式 -->
+            <h3 class="section-title">🔄 三种工作模式（智能路由）</h3>
+            
+            <div class="mermaid-section">
+                <div class="mermaid-title">模式路由决策流程</div>
+                <div class="mermaid">
+%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#FFF0D4', 'primaryTextColor': '#5D4E37', 'primaryBorderColor': '#E8D4B0', 'lineColor': '#D4B896', 'background': '#FFFBF0'}}}%%
+flowchart LR
+    A["用户输入"] --> B{"关键词识别"}
+    B -->|评估/打分/能不能做| C["模式A<br/>准入评估"]
+    B -->|驳回/打回/不满意| D["模式B<br/>驳回诊断"]
+    B -->|打不开/乱码/报错| E["模式C<br/>客户端诊断"]
+    
+    C --> F{"类型路由"}
+    F -->|从零/想法/构思| G["类型2<br/>无稿作者"]
+    F -->|有稿/剧本/拆分镜| H["类型3<br/>有稿作者"]
+    
+    G --> I["类型2评分"]
+    H --> J["类型3评分"]
+    
+    I --> K["一票否决检查"]
+    J --> K
+    K --> L{"判定阈值"}
+    L -->|85-100| M["✅ 通过"]
+    L -->|70-84| N["🔧 待修"]
+    L -->|<70| O["❌ 拒绝"]
+
+    style A fill:#FFD6D6,stroke:#E8A8A8
+    style M fill:#D6F5D6,stroke:#A8D9A8
+    style O fill:#FFD6D6,stroke:#E8A8A8
+                </div>
+            </div>
+            
+            <div class="skills-grid">
+                <!-- 模式A -->
+                <div class="skill-card highlight-card">
+                    <div class="skill-card-header">
+                        <span class="skill-card-icon">📊</span>
+                        <div class="skill-card-name">模式A：准入评估 <small>默认模式</small> <span class="color-tag tag-eval">评估</span></div>
+                    </div>
+                    <div class="skill-card-desc">路由判型 → 评分 → 否决检查 → 输出评估结论。通过(85+)直接进生成，待修(70-84)出修复工单，拒绝(<70)退回重构</div>
+                    <div class="skill-trigger">
+                        <div class="skill-trigger-title">🎯 触发场景</div>
+                        <div class="skill-trigger-content">
+                            • "评估一下"、"帮我看看"、"能不能用"<br>
+                            • "这个怎么样"、"能不能开始做"<br>
+                            • "准备好生成了吗"、"进入制作"<br>
+                            • "评分"、"打分"、"商业化"
+                        </div>
+                        <div class="skill-example">💬 "评估一下这个剧本能不能用"</div>
+                    </div>
+                </div>
+                
+                <!-- 模式B -->
+                <div class="skill-card highlight-card">
+                    <div class="skill-card-header">
+                        <span class="skill-card-icon">🔍</span>
+                        <div class="skill-card-name">模式B：甲方驳回诊断 <small>rejection</small> <span class="color-tag tag-diagnosis">诊断</span></div>
+                    </div>
+                    <div class="skill-card-desc">收集驳回证据 → 对照原因图谱 → 给出"根因-证据-商业影响-修复动作" → 输出标准诊断报告 + 过审概率提升动作</div>
+                    <div class="skill-trigger">
+                        <div class="skill-trigger-title">🎯 触发场景</div>
+                        <div class="skill-trigger-content">
+                            • "被打回了"、"甲方不满意"、"客户说不行"<br>
+                            • "驳回了"、"退回来了"、"不通过"<br>
+                            • "为什么被打回"、"哪里有问题"<br>
+                            • "不过审"、"返工"
+                        </div>
+                        <div class="skill-example">💬 "甲方驳回了，帮我分析原因"</div>
+                    </div>
+                </div>
+                
+                <!-- 模式C -->
+                <div class="skill-card">
+                    <div class="skill-card-header">
+                        <span class="skill-card-icon">🔧</span>
+                        <div class="skill-card-name">模式C：客户端问题诊断 <small>client-issue</small> <span class="color-tag tag-utility">工具</span></div>
+                    </div>
+                    <div class="skill-card-desc">收集问题证据 → 对照能力规范 → 输出诊断结果与"立刻可执行"替代方案（转ZIP/转MD/分块处理）</div>
+                    <div class="skill-trigger">
+                        <div class="skill-trigger-title">🎯 触发场景</div>
+                        <div class="skill-trigger-content">
+                            • "打不开"、"乱码"、"报错"<br>
+                            • "文件坏了"、"格式不对"<br>
+                            • "不兼容"、"装不上"<br>
+                            • "导出ZIP"、"导出MD"、"PDF解析"
+                        </div>
+                        <div class="skill-example">💬 "文件打不开怎么办" | "帮我修一下乱码"</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 类型2/类型3评分体系 -->
+            <h3 class="section-title">📊 双类型评分体系（100分制）</h3>
+            
+            <div class="mermaid-section">
+                <div class="mermaid-title">评分阈值与判定</div>
+                <div class="mermaid">
+%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#E8FFE8', 'primaryTextColor': '#4B6B4B', 'primaryBorderColor': '#A8D9A8', 'lineColor': '#A8D9A8', 'background': '#F5FFF8'}}}%%
+flowchart LR
+    A["评分总分"] --> B{"判定阈值"}
+    B -->|85-100| C["✅ 通过<br/>直接进入制作"]
+    B -->|70-84| D["🔧 待修<br/>出修复工单后复评"]
+    B -->|<70| E["❌ 拒绝<br/>先重构再评估"]
+    
+    F["一票否决项"] --> G{"命中任意项？"}
+    G -->|是| H["🚫 直接驳回<br/>禁止进入生成"]
+    G -->|否| I["✅ 继续评分流程"]
+
+    style C fill:#D6F5D6,stroke:#A8D9A8
+    style D fill:#FFF0D4,stroke:#E8D4B0
+    style E fill:#FFD6D6,stroke:#E8A8A8
+    style H fill:#FFD6D6,stroke:#E8A8A8
+                </div>
+            </div>
+            
+            <div class="skills-grid">
+                <!-- 类型2 -->
+                <div class="skill-card highlight-card">
+                    <div class="skill-card-header">
+                        <span class="skill-card-icon">💡</span>
+                        <div class="skill-card-name">类型2：无稿作者 <small>从零创作</small> <span class="color-tag tag-content">创作</span></div>
+                    </div>
+                    <div class="skill-card-desc">用户只有想法/题材/关键词，没有可拍可拆的成稿。目标是先产出"可拍脚本骨架"，再产出标准生成包。</div>
+                    <div class="skill-trigger">
+                        <div class="skill-trigger-title">🎯 触发场景</div>
+                        <div class="skill-trigger-content">
+                            • "从零开始"、"只有想法"、"我想创作"<br>
+                            • "没有剧本"、"帮我写"、"新写一个"<br>
+                            • "构思一下"、"脑洞"、"灵感"<br>
+                            • 用户无完整剧情文本
+                        </div>
+                        <div class="skill-example">💬 "帮我写一个都市甜宠短剧" | "我有个脑洞..."</div>
+                    </div>
+                </div>
+                
+                <!-- 类型3 -->
+                <div class="skill-card highlight-card">
+                    <div class="skill-card-header">
+                        <span class="skill-card-icon">📖</span>
+                        <div class="skill-card-name">类型3：有稿作者 <small>稿子转分镜包</small> <span class="color-tag tag-novel">改编</span></div>
+                    </div>
+                    <div class="skill-card-desc">用户已有文稿/剧本/章节。目标是按标准包拆成分镜时序+素材清单+平台执行稿，可直接复制粘贴执行。</div>
+                    <div class="skill-trigger">
+                        <div class="skill-trigger-title">🎯 触发场景</div>
+                        <div class="skill-trigger-content">
+                            • "我有剧本"、"已经写好了"、"稿子在这里"<br>
+                            • "帮我拆分镜"、"按这个文本做"<br>
+                            • "根据这个文档"<br>
+                            • 用户上传了文稿/剧本/小说文件
+                        </div>
+                        <div class="skill-example">💬 "帮我把这个小说拆成分镜" | "我有剧本了"</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 类型2评分维度 -->
+            <h3 class="section-title">📋 类型2评分维度（6维度×权重）</h3>
+            
+            <table class="score-table">
+                <tr>
+                    <th>维度</th>
+                    <th>权重</th>
+                    <th>核心问题</th>
+                    <th>高分标准</th>
+                </tr>
+                <tr>
+                    <td>市场与钩子强度</td>
+                    <td>20%</td>
+                    <td>这题材能不能被点开、看完、追更？</td>
+                    <td>3秒钩子 + 30秒翻转 + 结尾钩</td>
+                </tr>
+                <tr>
+                    <td>剧情骨架可拍性</td>
+                    <td>20%</td>
+                    <td>是否能稳定拆成场景/镜头/动作？</td>
+                    <td>开端-发展-高潮-结尾完整</td>
+                </tr>
+                <tr>
+                    <td>AI可生成友好度</td>
+                    <td>20%</td>
+                    <td>是否适合当前主流模型生成？</td>
+                    <td>角色/场景/动作均可文字稳定描述</td>
+                </tr>
+                <tr>
+                    <td>连续性可控性</td>
+                    <td>15%</td>
+                    <td>角色、道具、场景是否可锁定？</td>
+                    <td>角色≤4主角，有稳定锚点特征</td>
+                </tr>
+                <tr>
+                    <td>成本与时长可执行性</td>
+                    <td>15%</td>
+                    <td>单集与分段时长是否现实可跑？</td>
+                    <td>单段5-10秒，总次数可预估</td>
+                </tr>
+                <tr>
+                    <td>复制粘贴交付成熟度</td>
+                    <td>10%</td>
+                    <td>小白拿到能否直接执行？</td>
+                    <td>可转标准交付结构，有明确风格</td>
+                </tr>
+            </table>
+            
+            <!-- 类型3评分维度 -->
+            <h3 class="section-title">📋 类型3评分维度（6维度×权重）</h3>
+            
+            <table class="score-table">
+                <tr>
+                    <th>维度</th>
+                    <th>权重</th>
+                    <th>核心问题</th>
+                    <th>高分标准</th>
+                </tr>
+                <tr>
+                    <td>原稿可拆解性</td>
+                    <td>15%</td>
+                    <td>原稿能否无歧义拆成镜头事件？</td>
+                    <td>可直接拆为场景→镜头→动作</td>
+                </tr>
+                <tr>
+                    <td>分镜时序精度</td>
+                    <td>25%</td>
+                    <td>时间码、镜号、转场是否严格闭环？</td>
+                    <td>时间码无重叠/无倒序/无断档</td>
+                </tr>
+                <tr>
+                    <td>素材映射完整度</td>
+                    <td>20%</td>
+                    <td>角色/场景/道具是否一一对应？</td>
+                    <td>素材清单文件名与prompt引用一致</td>
+                </tr>
+                <tr>
+                    <td>平台执行可用度</td>
+                    <td>20%</td>
+                    <td>Seed/Seedance/Gemini是否可直接复制？</td>
+                    <td>参数/negative/素材映射齐全</td>
+                </tr>
+                <tr>
+                    <td>连续性与返工机制</td>
+                    <td>10%</td>
+                    <td>漂移检查和返工指令是否明确？</td>
+                    <td>返工口径：错时码/漂移元素/重跑范围</td>
+                </tr>
+                <tr>
+                    <td>转发交付独立性</td>
+                    <td>10%</td>
+                    <td>不看聊天记录也能执行？</td>
+                    <td>每个partXX可脱离聊天独立执行</td>
+                </tr>
+            </table>
+            
+            <!-- 一票否决清单 -->
+            <h3 class="section-title">🚫 一票否决清单（命中任意项即驳回）</h3>
+            
+            <div class="skills-grid">
+                <div class="skill-card" style="border-left: 4px solid #D4726A;">
+                    <div class="skill-card-header">
+                        <span class="skill-card-icon">⏱️</span>
+                        <div class="skill-card-name">时序闭环</div>
+                    </div>
+                    <div class="skill-card-desc">
+                        • 分段时长总和 = 集内时长<br>
+                        • 时间码无重叠、无倒序、无断档<br>
+                        • 镜号顺序连续且可追踪
+                    </div>
+                </div>
+                
+                <div class="skill-card" style="border-left: 4px solid #D4726A;">
+                    <div class="skill-card-header">
+                        <span class="skill-card-icon">👤</span>
+                        <div class="skill-card-name">连续性闭环</div>
+                    </div>
+                    <div class="skill-card-desc">
+                        • 主角色外观描述全程一致<br>
+                        • 关键服装/道具在连续镜头中一致<br>
+                        • 场景光色与空间逻辑一致
+                    </div>
+                </div>
+                
+                <div class="skill-card" style="border-left: 4px solid #D4726A;">
+                    <div class="skill-card-header">
+                        <span class="skill-card-icon">⚙️</span>
+                        <div class="skill-card-name">执行闭环</div>
+                    </div>
+                    <div class="skill-card-desc">
+                        • 平台参数完整（分辨率、帧率、比例、时长）<br>
+                        • negative prompt 存在且可用<br>
+                        • 素材清单文件名与prompt引用一一对应
+                    </div>
+                </div>
+                
+                <div class="skill-card" style="border-left: 4px solid #D4726A;">
+                    <div class="skill-card-header">
+                        <span class="skill-card-icon">📦</span>
+                        <div class="skill-card-name">交付闭环</div>
+                    </div>
+                    <div class="skill-card-desc">
+                        • 每个 partXX 可脱离聊天独立执行<br>
+                        • 有参考版与无参考兜底版都存在<br>
+                        • 返工口径明确（错时码/漂移元素/重跑范围）
+                    </div>
+                </div>
+                
+                <div class="skill-card" style="border-left: 4px solid #D4726A;">
+                    <div class="skill-card-header">
+                        <span class="skill-card-icon">⚖️</span>
+                        <div class="skill-card-name">合规闭环</div>
+                    </div>
+                    <div class="skill-card-desc">
+                        • 平台违规风险已排除<br>
+                        • 版权与肖像风险已确认<br>
+                        • 商业IP边界已明确
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 核心脚本工具 -->
+            <h3 class="section-title">🔧 核心脚本工具（scripts目录）</h3>
+            
+            <div class="skills-grid">
+                <div class="skill-card highlight-card">
+                    <div class="skill-card-header">
+                        <span class="skill-card-icon">⚙️</span>
+                        <div class="skill-card-name">core_engine.js <small>核心流程引擎</small> <span class="color-tag tag-core">核心</span></div>
+                    </div>
+                    <div class="skill-card-desc">Node.js脚本，实现路由判型、评分计算、一票否决检查、防泄露输出闸门、结果渲染。支持命令行调用，输出结构化JSON。</div>
+                    <div class="skill-trigger">
+                        <div class="skill-trigger-title">🎯 命令示例</div>
+                        <div class="skill-trigger-content">
+                            • route --text "用户原话" 路由判型<br>
+                            • evaluate --type type2 类型2评分<br>
+                            • veto --input veto.json 否决检查<br>
+                            • sanitize --strict 防泄露输出
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="skill-card">
+                    <div class="skill-card-header">
+                        <span class="skill-card-icon">📄</span>
+                        <div class="skill-card-name">ingest_documents.py <small>文档解析</small> <span class="color-tag tag-utility">工具</span></div>
+                    </div>
+                    <div class="skill-card-desc">Python脚本，支持链接/文档/表格解析：HTML网页、PDF、DOCX、XLSX、CSV、Markdown、TXT、ZIP。自动检测编码，输出标准Markdown报告。</div>
+                    <div class="skill-trigger">
+                        <div class="skill-trigger-title">🎯 触发场景</div>
+                        <div class="skill-trigger-content">
+                            • 用户上传PDF/DOCX/XLSX文件<br>
+                            • 用户需要解析网页链接<br>
+                            • 需要提取ZIP内的文本资产
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="skill-card">
+                    <div class="skill-card-header">
+                        <span class="skill-card-icon">🔧</span>
+                        <div class="skill-card-name">utf8_guard.py <small>编码守护</small> <span class="color-tag tag-utility">工具</span></div>
+                    </div>
+                    <div class="skill-card-desc">全包UTF-8检测与修复脚本。扫描所有文本文件，自动识别GBK/UTF-16等编码，统一转换为UTF-8，解决中文乱码问题。</div>
+                    <div class="skill-trigger">
+                        <div class="skill-trigger-title">🎯 触发场景</div>
+                        <div class="skill-trigger-content">
+                            • 文件出现乱码<br>
+                            • 跨平台交换文件时编码问题<br>
+                            • 发布前统一编码检查
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="skill-card">
+                    <div class="skill-card-header">
+                        <span class="skill-card-icon">📊</span>
+                        <div class="skill-card-name">chunk_summarize.py <small>大文件分块</small> <span class="color-tag tag-utility">工具</span></div>
+                    </div>
+                    <div class="skill-card-desc">大文件分块摘要脚本。按结构或字数切块，逐块提取关键行（风险/问题/异常等关键词），输出结构化摘要，避免一次性读爆上下文。</div>
+                    <div class="skill-trigger">
+                        <div class="skill-trigger-title">🎯 触发场景</div>
+                        <div skill-trigger-content">
+                            • 单文件超长导致一次读取不可控<br>
+                            • 多文件合并后上下文过大
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="skill-card">
+                    <div class="skill-card-header">
+                        <span class="skill-card-icon">📦</span>
+                        <div class="skill-card-name">export_delivery.py <small>交付导出</small> <span class="color-tag tag-output">输出</span></div>
+                    </div>
+                    <div class="skill-card-desc">导出ZIP与MD交付脚本。把解析结果与关键中间文件打包输出，包含README说明文件用途，支持离线交付。</div>
+                    <div class="skill-trigger">
+                        <div class="skill-trigger-title">🎯 触发场景</div>
+                        <div class="skill-trigger-content">
+                            • 用户要求导出ZIP<br>
+                            • 用户要求导出Markdown<br>
+                            • 需要离线交付包
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="skill-card">
+                    <div class="skill-card-header">
+                        <span class="skill-card-icon">🔄</span>
+                        <div class="skill-card-name">convert_multi_platform.py <small>跨平台转换</small> <span class="color-tag tag-process">转换</span></div>
+                    </div>
+                    <div class="skill-card-desc">多平台初始化转换脚本。支持Claude/Qwen/OpenAI/Gemini/OpenClaw五大平台，自动生成平台适配入口文件。</div>
+                    <div class="skill-trigger">
+                        <div class="skill-trigger-title">🎯 支持平台</div>
+                        <div class="skill-trigger-content">
+                            • Claude (SKILL.md)<br>
+                            • Qwen (QWEN_INIT.md)<br>
+                            • OpenAI (agents/openai.yaml)<br>
+                            • Gemini (GEMINI.md)<br>
+                            • OpenClaw (openclaw.init.json)
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 触发词路由规则 -->
+            <h3 class="section-title">🔑 触发词与路由规则（防遗忘）</h3>
+            
+            <div class="skills-grid">
+                <div class="skill-card">
+                    <div class="skill-card-header">
+                        <span class="skill-card-icon">📊</span>
+                        <div class="skill-card-name">模式A触发词 <small>准入评估</small></div>
+                    </div>
+                    <div class="skill-card-desc">"评估一下"、"帮我看看"、"能不能用"、"这个怎么样"、"能不能开始做"、"准备好生成了吗"、"进入制作"、"评分"、"打分"、"商业化"、"可行性"</div>
+                </div>
+                
+                <div class="skill-card">
+                    <div class="skill-card-header">
+                        <span class="skill-card-icon">🔍</span>
+                        <div class="skill-card-name">模式B触发词 <small>驳回诊断</small></div>
+                    </div>
+                    <div class="skill-card-desc">"被打回"、"甲方不满意"、"客户说不行"、"驳回了"、"退回来了"、"不通过"、"为什么被打回"、"哪里有问题"、"不过审"、"返工"</div>
+                </div>
+                
+                <div class="skill-card">
+                    <div class="skill-card-header">
+                        <span class="skill-card-icon">🔧</span>
+                        <div class="skill-card-name">模式C触发词 <small>客户端诊断</small></div>
+                    </div>
+                    <div class="skill-card-desc">"打不开"、"乱码"、"报错"、"文件坏了"、"格式不对"、"不兼容"、"装不上"、"导出ZIP"、"导出MD"、"PDF"、"DOCX"、"大文件"、"UTF-8"、"编码"</div>
+                </div>
+                
+                <div class="skill-card">
+                    <div class="skill-card-header">
+                        <span class="skill-card-icon">💡</span>
+                        <div class="skill-card-name">类型2触发词 <small>无稿作者</small></div>
+                    </div>
+                    <div class="skill-card-desc">"从零开始"、"只有想法"、"我想创作"、"没有剧本"、"帮我写"、"新写一个"、"构思一下"、"脑洞"、"灵感"、"没有稿子"</div>
+                </div>
+                
+                <div class="skill-card">
+                    <div class="skill-card-header">
+                        <span class="skill-card-icon">📖</span>
+                        <div class="skill-card-name">类型3触发词 <small>有稿作者</small></div>
+                    </div>
+                    <div class="skill-card-desc">"我有剧本"、"已经写好了"、"稿子在这里"、"帮我拆分镜"、"按这个文本做"、"根据这个文档"、"我有稿子"、"已有文稿"</div>
+                </div>
+            </div>
+            
+            <!-- 甲方驳回原因图谱 -->
+            <h3 class="section-title">📈 甲方驳回商业原因图谱</h3>
+            
+            <table class="score-table">
+                <tr>
+                    <th>一级原因</th>
+                    <th>二级根因</th>
+                    <th>典型信号</th>
+                    <th>商业影响</th>
+                    <th>修复动作</th>
+                </tr>
+                <tr>
+                    <td>内容不对标</td>
+                    <td>题材不匹配受众</td>
+                    <td>甲方说"方向不对"</td>
+                    <td>点击率低、投放浪费</td>
+                    <td>回到类型路由重判题材</td>
+                </tr>
+                <tr>
+                    <td>剧情不可拍</td>
+                    <td>文案强但镜头弱</td>
+                    <td>甲方说"落不了地"</td>
+                    <td>拍摄/生成成本暴涨</td>
+                    <td>补可拍动作与场景闭环</td>
+                </tr>
+                <tr>
+                    <td>视觉不稳定</td>
+                    <td>角色/场景漂移</td>
+                    <td>甲方说"像不同项目"</td>
+                    <td>品牌资产受损</td>
+                    <td>角色锚点+素材映射重建</td>
+                </tr>
+                <tr>
+                    <td>节奏失控</td>
+                    <td>时序与镜长失衡</td>
+                    <td>甲方说"拖/乱/不抓人"</td>
+                    <td>完播率下降</td>
+                    <td>重做时序表与镜长分配</td>
+                </tr>
+                <tr>
+                    <td>交付不可执行</td>
+                    <td>文件缺失/格式混乱</td>
+                    <td>甲方说"无法直接跑"</td>
+                    <td>外包执行失败</td>
+                    <td>按标准包结构补齐</td>
+                </tr>
+                <tr>
+                    <td>合规风险</td>
+                    <td>版权/肖像/平台违规</td>
+                    <td>甲方要求下线或驳回</td>
+                    <td>法务风险与项目中止</td>
+                    <td>合规整改后再审</td>
+                </tr>
+            </table>
+            
+            <!-- 标准交付结构 -->
+            <h3 class="section-title">📦 标准交付结构（评估通过后产出）</h3>
+            
+            <div class="mermaid-section">
+                <div class="mermaid">
+%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#E8FFE8', 'primaryTextColor': '#4B6B4B', 'primaryBorderColor': '#A8D9A8', 'background': '#F5FFF8'}}}%%
+flowchart TB
+    subgraph E0X["📁 E0X/ 根目录"]
+        F1["01_AI短剧场景执行稿.md"]
+        F2["02_专业制作版.md"]
+        F3["03_分镜执行版.md"]
+        F4["04_AI生成执行版/"]
+    end
+    
+    subgraph PartXX["📁 partXX/ 每段六件套"]
+        P1["01_时序分镜表.md"]
+        P2["02_素材清单.md"]
+        P3["03_Seed_Seedance_复制版.md"]
+        P4["04_Gemini_复制版.md"]
+        P5["05_连续性与自检.md"]
+        P6["06_转发执行话术.md"]
+    end
+    
+    F4 --> PartXX
+
+    style E0X fill:#E8FFE8,stroke:#A8D9A8
+    style PartXX fill:#FFF0D4,stroke:#E8D4B0
+                </div>
+            </div>
+            
+            <!-- 上线验收标准 -->
+            <h3 class="section-title">✅ 上线验收清单（商业交付）</h3>
+            
+            <div class="skills-grid">
+                <div class="skill-card" style="border-left: 4px solid #5BA85B;">
+                    <div class="skill-card-header">
+                        <span class="skill-card-icon">✅</span>
+                        <div class="skill-card-name">可执行性验收</div>
+                    </div>
+                    <div class="skill-card-desc">
+                        • 小白按文档首轮执行成功（抽测）<br>
+                        • 无需额外解释即可运行<br>
+                        • 每个 partXX 单独转发可执行
+                    </div>
+                </div>
+                
+                <div class="skill-card" style="border-left: 4px solid #5BA85B;">
+                    <div class="skill-card-header">
+                        <span class="skill-card-icon">📊</span>
+                        <div class="skill-card-name">稳定性验收</div>
+                    </div>
+                    <div class="skill-card-desc">
+                        • 分段生成通过率 ≥ 85%<br>
+                        • 平均返工轮次 ≤ 2<br>
+                        • 致命连续性错误（每集）≤ 1
+                    </div>
+                </div>
+                
+                <div class="skill-card" style="border-left: 4px solid #5BA85B;">
+                    <div class="skill-card-header">
+                        <span class="skill-card-icon">📦</span>
+                        <div class="skill-card-name">完整性验收</div>
+                    </div>
+                    <div class="skill-card-desc">
+                        • E0X 结构完整<br>
+                        • 所有 partXX 六件套完整<br>
+                        • 参数、negative、素材映射齐全
+                    </div>
+                </div>
+                
+                <div class="skill-card" style="border-left: 4px solid #5BA85B;">
+                    <div class="skill-card-header">
+                        <span class="skill-card-icon">⚖️</span>
+                        <div class="skill-card-name">合规性验收</div>
+                    </div>
+                    <div class="skill-card-desc">
+                        • 版权风险确认<br>
+                        • 肖像风险确认<br>
+                        • 平台违规风险确认
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 文件目录结构 -->
+            <h3 class="section-title">📁 完整目录结构（四层）</h3>
+            
+            <div class="skill-card" style="background: #FFFDF5; font-family: monospace; font-size: 0.85em; line-height: 1.8;">
+                <pre>
+skill/
+├── SKILL.md                          # 主入口：总规则/路由/评分/否决
+├── readme.js                         # 公开运行入口
+├── PACKAGE-MANIFEST.md               # 包清单
+│
+├── references/                       # 参考文档（16个文件）
+│   ├── intake-route-form.md          # 接单信息采集+类型路由表
+│   ├── type2-scorecard-template.md   # 类型2评分模板
+│   ├── type3-scorecard-template.md   # 类型3评分模板
+│   ├── one-veto-checklist.md         # 一票否决清单
+│   ├── repair-ticket-template.md     # 修复工单模板
+│   ├── go-live-acceptance-checklist.md # 上线验收清单
+│   ├── pro-terminology-self-check.md # 专业术语自查
+│   ├── client-rejection-cause-map.md # 甲方驳回原因图谱
+│   ├── runtime-compatibility-and-install.md # 环境兼容与安装
+│   ├── universal-ingestion-capability-spec.md # 文档解析规范
+│   ├── encoding-and-largefile-runbook.md # 编码修复与大文件处理
+│   ├── cross-platform-compatibility.md # 跨平台兼容规则
+│   ├── trigger-keywords-and-routing.md # 触发词与路由
+│   ├── progressive-disclosure-map.md # 渐进式披露地图
+│   └── runtime-js-playbook.md        # 核心流程脚本化手册
+│
+├── templates/                        # 输出模板（8个文件）
+│   ├── evaluation-result-output.md   # 评估结论输出模板
+│   ├── client-rejection-diagnosis-output.md # 驳回诊断输出模板
+│   ├── delivery-handoff-output.md    # 交付转发模板
+│   ├── client-issue-diagnosis-output.md # 客户端问题诊断模板
+│   ├── document-parse-output.md      # 文档解析输出模板
+│   ├── largefile-summary-output.md   # 大文件摘要输出模板
+│   ├── runtime-input-type2.json      # 类型2运行时输入
+│   ├── runtime-input-type3.json      # 类型3运行时输入
+│   └── runtime-veto-input.json       # 否决检查输入
+│
+├── scripts/                          # 脚本工具（8个文件）
+│   ├── core_engine.js                # 核心流程引擎（路由/评分/否决/闸门）
+│   ├── ingest_documents.py           # 文档解析脚本
+│   ├── fix_encoding_utf8.py          # UTF-8编码修复
+│   ├── chunk_summarize.py            # 大文件分块摘要
+│   ├── export_delivery.py            # 导出ZIP/MD交付
+│   ├── convert_multi_platform.py     # 多平台初始化转换
+│   ├── utf8_guard.py                 # UTF-8守护脚本
+│   ├── build_universal_release.py    # 一键通用发布
+│   ├── decode_private_vault.js       # 私密内容解码
+│   ├── public_pack_rules.json        # 公开打包规则
+│   └── requirements-optional.txt     # 可选依赖清单
+│
+└── compatibility/                    # 跨平台配置
+    └── universal-skill-manifest.json # 平台无关元数据
+                </pre>
+            </div>
+        </div>
+        
+        <!-- ==================== 内容面板1: bbdog 短剧制作 ==================== -->
+        <div class="content-panel" id="panel-1">
+            <div class="panel-header">
+                <div class="panel-icon panel-icon-1">🎬</div>
+                <div>
+                    <h2 class="panel-title">bbdog - AI短剧制作技能</h2>
+                    <p class="panel-desc">从剧本到成片的全流程自动化，支持洗稿/原创/改编三种模式</p>
+                </div>
+            </div>
+            
+            <div class="skills-grid">
+                <div class="skill-card">
+                    <div class="skill-card-header">
+                        <span class="skill-card-icon">📄</span>
+                        <div class="skill-card-name">洗稿模式 <small>parse</small></div>
+                    </div>
+                    <div class="skill-card-desc">解析已有完整剧本，提取结构化信息后重新生成视觉资产</div>
+                    <div class="skill-trigger">
+                        <div class="skill-trigger-title">🎯 触发场景</div>
+                        <div class="skill-trigger-content">• 用户提供完整剧本文件<br>• 说"把这个剧本做成视频"</div>
+                        <div class="skill-example">💬 "这个剧本帮我做成短剧"</div>
+                    </div>
+                </div>
+                
+                <div class="skill-card">
+                    <div class="skill-card-header">
+                        <span class="skill-card-icon">💡</span>
+                        <div class="skill-card-name">原创模式 <small>create</small></div>
+                    </div>
+                    <div class="skill-card-desc">从一句话描述自动生成完整剧本和所有视觉资产</div>
+                    <div class="skill-trigger">
+                        <div class="skill-trigger-title">🎯 触发场景</div>
+                        <div class="skill-trigger-content">• 用户只提供一句话创意<br>• 说"帮我写一个XX的短剧"</div>
+                        <div class="skill-example">💬 "写一个都市爱情短剧"</div>
+                    </div>
+                </div>
+                
+                <div class="skill-card">
+                    <div class="skill-card-header">
+                        <span class="skill-card-icon">📚</span>
+                        <div class="skill-card-name">改编模式 <small>adapt</small> <span class="color-tag tag-novel">小说</span></div>
+                    </div>
+                    <div class="skill-card-desc">将小说或网文改编为适合短剧节奏的剧本格式</div>
+                    <div class="skill-trigger">
+                        <div class="skill-trigger-title">🎯 触发场景</div>
+                        <div class="skill-trigger-content">• 用户提供小说/故事文本<br>• 说"把这个小说改成短剧"</div>
+                        <div class="skill-example">💬 "把这篇小说改成剧本"</div>
+                    </div>
+                </div>
+                
+                <div class="skill-card">
+                    <div class="skill-card-header">
+                        <span class="skill-card-icon">🎥</span>
+                        <div class="skill-card-name">视频生成 <small>gen videos</small> <span class="color-tag tag-ai">AI</span></div>
+                    </div>
+                    <div class="skill-card-desc">将关键帧图片转换为动态视频片段（图生视频）</div>
+                    <div class="skill-trigger">
+                        <div class="skill-trigger-title">🎯 触发场景</div>
+                        <div class="skill-trigger-content">• 关键帧生成后自动生成<br>• 说"生成视频"或"动起来"</div>
+                        <div class="skill-example">💬 "把这些画面变成视频"</div>
+                    </div>
+                </div>
+                
+                <div class="skill-card">
+                    <div class="skill-card-header">
+                        <span class="skill-card-icon">🎤</span>
+                        <div class="skill-card-name">TTS配音 <small>text-to-speech</small> <span class="color-tag tag-ai">AI</span></div>
+                    </div>
+                    <div class="skill-card-desc">为每个镜头的台词生成语音配音，支持多种声音类型</div>
+                    <div class="skill-trigger">
+                        <div class="skill-trigger-title">🎯 触发场景</div>
+                        <div class="skill-trigger-content">• 分镜就绪后自动生成<br>• 说"生成配音"或"换个声音"</div>
+                        <div class="skill-example">💬 "帮我配音" | "换个男声"</div>
+                    </div>
+                </div>
+                
+                <div class="skill-card">
+                    <div class="skill-card-header">
+                        <span class="skill-card-icon">🎬</span>
+                        <div class="skill-card-name">成片渲染 <small>render</small> <span class="color-tag tag-output">输出</span></div>
+                    </div>
+                    <div class="skill-card-desc">AI智能剪辑，将视频、音频、字幕合成为最终成片</div>
+                    <div class="skill-trigger">
+                        <div class="skill-trigger-title">🎯 触发场景</div>
+                        <div class="skill-trigger-content">• 所有资产就绪后自动渲染<br>• 说"渲染成片"</div>
+                        <div class="skill-example">💬 "帮我渲染成片"</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- ==================== 内容面板2: 融资技能 ==================== -->
+        <div class="content-panel" id="panel-2">
+            <div class="panel-header">
+                <div class="panel-icon panel-icon-2">💰</div>
+                <div>
+                    <h2 class="panel-title">融资技能 (Fundraising)</h2>
+                    <p class="panel-desc">帮助创业者完成融资全流程，从找投资人到准备尽调材料</p>
+                </div>
+            </div>
+            
+            <div class="skills-grid">
+                <div class="skill-card">
+                    <div class="skill-card-header">
+                        <span class="skill-card-icon">🎯</span>
+                        <div class="skill-card-name">investor-research <small>投资人研究</small></div>
+                    </div>
+                    <div class="skill-card-desc">识别、筛选、排序潜在投资人，按阶段、赛道、支票大小匹配</div>
+                    <div class="skill-trigger">
+                        <div class="skill-trigger-title">🎯 触发场景</div>
+                        <div class="skill-trigger-content">• "帮我找投资人"<br>• "适合我们的VC有哪些"</div>
+                        <div class="skill-example">💬 "帮我在AI领域找10个种子轮投资人"</div>
+                    </div>
+                </div>
+                
+                <div class="skill-card">
+                    <div class="skill-card-header">
+                        <span class="skill-card-icon">📋</span>
+                        <div class="skill-card-name">pitch-deck <small>路演PPT</small></div>
+                    </div>
+                    <div class="skill-card-desc">创建路演PPT内容，逐页叙事结构</div>
+                    <div class="skill-trigger">
+                        <div class="skill-trigger-title">🎯 触发场景</div>
+                        <div class="skill-trigger-content">• "帮我写个pitch deck"<br>• "路演PPT怎么写"</div>
+                        <div class="skill-example">💬 "帮我写一个A轮的pitch deck"</div>
+                    </div>
+                </div>
+                
+                <div class="skill-card">
+                    <div class="skill-card-header">
+                        <span class="skill-card-icon">📁</span>
+                        <div class="skill-card-name">data-room <small>尽调材料室</small></div>
+                    </div>
+                    <div class="skill-card-desc">准备尽职调查材料，清单、文档组织、缺失项草稿</div>
+                    <div class="skill-trigger">
+                        <div class="skill-trigger-title">🎯 触发场景</div>
+                        <div class="skill-trigger-content">• "准备尽调材料"<br>• "data room需要什么"</div>
+                        <div class="skill-example">💬 "投资人要尽调了，帮我准备"</div>
+                    </div>
+                </div>
+                
+                <div class="skill-card">
+                    <div class="skill-card-header">
+                        <span class="skill-card-icon">📧</span>
+                        <div class="skill-card-name">fundraising-email <small>融资邮件</small></div>
+                    </div>
+                    <div class="skill-card-desc">撰写投资人邮件：冷邮件、跟进、感谢信、更新邮件</div>
+                    <div class="skill-trigger">
+                        <div class="skill-trigger-title">🎯 触发场景</div>
+                        <div class="skill-trigger-content">• "给投资人写邮件"<br>• "跟进邮件怎么写"</div>
+                        <div class="skill-example">💬 "帮我写一封给a16z的冷邮件"</div>
+                    </div>
+                </div>
+                
+                <div class="skill-card">
+                    <div class="skill-card-header">
+                        <span class="skill-card-icon">🚀</span>
+                        <div class="skill-card-name">accelerator-application <small>加速器申请</small></div>
+                    </div>
+                    <div class="skill-card-desc">申请YC、Techstars等40+加速器，含目录、申请草稿、面试准备</div>
+                    <div class="skill-trigger">
+                        <div class="skill-trigger-title">🎯 触发场景</div>
+                        <div class="skill-trigger-content">• "申请YC"<br>• "想进加速器"</div>
+                        <div class="skill-example">💬 "帮我申请YC，准备申请材料"</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- ==================== 内容面板3: 销售&产品 ==================== -->
+        <div class="content-panel" id="panel-3">
+            <div class="panel-header">
+                <div class="panel-icon panel-icon-3">📈</div>
+                <div>
+                    <h2 class="panel-title">销售&产品技能</h2>
+                    <p class="panel-desc">销售获客、产品规划、市场研究、用户洞察全流程</p>
+                </div>
+            </div>
+            
+            <div class="skills-grid">
+                <div class="skill-card">
+                    <div class="skill-card-header">
+                        <span class="skill-card-icon">📧</span>
+                        <div class="skill-card-name">cold-outreach <small>开发信</small></div>
+                    </div>
+                    <div class="skill-card-desc">撰写开发信、LinkedIn消息、跟进邮件序列</div>
+                    <div class="skill-trigger">
+                        <div class="skill-trigger-title">🎯 触发场景</div>
+                        <div class="skill-trigger-content">• "写开发信"<br>• "LinkedIn开发消息"</div>
+                        <div class="skill-example">💬 "帮我写一封给CTO的开发信"</div>
+                    </div>
+                </div>
+                
+                <div class="skill-card">
+                    <div class="skill-card-header">
+                        <span class="skill-card-icon">📝</span>
+                        <div class="skill-card-name">prd-writing <small>PRD需求文档</small></div>
+                    </div>
+                    <div class="skill-card-desc">撰写产品需求文档、功能规格、用户故事集</div>
+                    <div class="skill-trigger">
+                        <div class="skill-trigger-title">🎯 触发场景</div>
+                        <div class="skill-trigger-content">• "写PRD"<br>• "帮我规划XX功能"</div>
+                        <div class="skill-example">💬 "帮我写一个支付功能的PRD"</div>
+                    </div>
+                </div>
+                
+                <div class="skill-card">
+                    <div class="skill-card-header">
+                        <span class="skill-card-icon">⚔️</span>
+                        <div class="skill-card-name">competitive-analysis <small>竞品分析</small></div>
+                    </div>
+                    <div class="skill-card-desc">研究竞争对手——功能对比、定位分析、定价基准</div>
+                    <div class="skill-trigger">
+                        <div class="skill-trigger-title">🎯 触发场景</div>
+                        <div class="skill-trigger-content">• "竞品分析"<br>• "对比一下XX和YY"</div>
+                        <div class="skill-example">💬 "帮我分析Notion的竞品"</div>
+                    </div>
+                </div>
+                
+                <div class="skill-card">
+                    <div class="skill-card-header">
+                        <span class="skill-card-icon">🔍</span>
+                        <div class="skill-card-name">market-research <small>市场研究</small></div>
+                    </div>
+                    <div class="skill-card-desc">市场规模(TAM/SAM/SOM)、识别趋势、验证市场假设</div>
+                    <div class="skill-trigger">
+                        <div class="skill-trigger-title">🎯 触发场景</div>
+                        <div class="skill-trigger-content">• "市场多大"<br>• "TAM SAM SOM怎么算"</div>
+                        <div class="skill-example">💬 "帮我算一下AI写作工具的市场规模"</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- ==================== 内容面板4: 工程&营销 ==================== -->
+        <div class="content-panel" id="panel-4">
+            <div class="panel-header">
+                <div class="panel-icon panel-icon-4">⚙️</div>
+                <div>
+                    <h2 class="panel-title">工程&营销技能</h2>
+                    <p class="panel-desc">技术开发、代码审查、CI/CD、落地页、内容营销</p>
+                </div>
+            </div>
+            
+            <div class="skills-grid">
+                <div class="skill-card">
+                    <div class="skill-card-header">
+                        <span class="skill-card-icon">🏗️</span>
+                        <div class="skill-card-name">architecture-design <small>架构设计</small></div>
+                    </div>
+                    <div class="skill-card-desc">设计系统架构——服务边界、数据模型、API设计</div>
+                    <div class="skill-trigger">
+                        <div class="skill-trigger-title">🎯 触发场景</div>
+                        <div class="skill-trigger-content">• "系统架构怎么设计"<br>• "帮我设计API"</div>
+                        <div class="skill-example">💬 "帮我设计一个电商系统的架构"</div>
+                    </div>
+                </div>
+                
+                <div class="skill-card">
+                    <div class="skill-card-header">
+                        <span class="skill-card-icon">📝</span>
+                        <div class="skill-card-name">code-review <small>代码审查</small></div>
+                    </div>
+                    <div class="skill-card-desc">全面代码审查，关注正确性、安全性、性能、可维护性</div>
+                    <div class="skill-trigger">
+                        <div class="skill-trigger-title">🎯 触发场景</div>
+                        <div class="skill-trigger-content">• "帮我review代码"<br>• "看看这段代码"</div>
+                        <div class="skill-example">💬 "帮我review这个PR"</div>
+                    </div>
+                </div>
+                
+                <div class="skill-card">
+                    <div class="skill-card-header">
+                        <span class="skill-card-icon">🔄</span>
+                        <div class="skill-card-name">cicd-setup <small>CI/CD配置</small></div>
+                    </div>
+                    <div class="skill-card-desc">配置CI/CD流水线——GitHub Actions、测试、部署</div>
+                    <div class="skill-trigger">
+                        <div class="skill-trigger-title">🎯 触发场景</div>
+                        <div class="skill-trigger-content">• "配置CI/CD"<br>• "GitHub Actions怎么写"</div>
+                        <div class="skill-example">💬 "帮我配置一个前端项目的CI/CD"</div>
+                    </div>
+                </div>
+                
+                <div class="skill-card">
+                    <div class="skill-card-header">
+                        <span class="skill-card-icon">🌐</span>
+                        <div class="skill-card-name">landing-page <small>落地页</small></div>
+                    </div>
+                    <div class="skill-card-desc">创建高转化落地页内容——Hero、功能、社会证明、CTA</div>
+                    <div class="skill-trigger">
+                        <div class="skill-trigger-title">🎯 触发场景</div>
+                        <div class="skill-trigger-content">• "帮我写落地页"<br>• "landing page怎么写"</div>
+                        <div class="skill-example">💬 "帮我写一个SaaS产品的落地页"</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        function showPanel(panelId) {
+            // 隐藏所有面板
+            document.querySelectorAll('.content-panel').forEach(panel => {
+                panel.classList.remove('active');
+            });
+            
+            // 移除所有tab的active状态
+            document.querySelectorAll('.skill-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // 显示选中的面板
+            document.getElementById('panel-' + panelId).classList.add('active');
+            
+            // 激活对应的tab
+            document.querySelector('.skill-tab-' + panelId).classList.add('active');
+        }
+        
+        // 初始化 mermaid
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'base',
+            themeVariables: {
+                primaryColor: '#FFE8D6',
+                primaryTextColor: '#5D4E37',
+                primaryBorderColor: '#E8C4A8',
+                lineColor: '#D4B896',
+                fontFamily: 'Nunito, sans-serif'
+            }
+        });
+    </script>
+</body>
+</html>

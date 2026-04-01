@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import type { CoworkPermissionRequest, CoworkPermissionResult } from '../../types/cowork';
 import { ExclamationTriangleIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import ModalWrapper from '../ui/ModalWrapper';
 
 interface CoworkPermissionModalProps {
   permission: CoworkPermissionRequest;
@@ -193,32 +194,39 @@ const CoworkPermissionModal: React.FC<CoworkPermissionModalProps> = ({
   }, []);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-      <div className="modal-content w-full max-w-lg mx-4 modal-pearl overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center gap-3 px-6 py-5 border-b dark:border-claude-darkBorder border-claude-border modal-header-pearl">
-          <div className="p-2.5 rounded-full bg-yellow-100 dark:bg-yellow-900/30">
-            <ExclamationTriangleIcon className="h-6 w-6 text-yellow-600 dark:text-yellow-500" />
-          </div>
-          <div className="flex-1">
-            <h2 className="text-base font-semibold dark:text-claude-darkText text-claude-text">
-              {'需要权限确认'}
-            </h2>
-            <p className="text-sm dark:text-claude-darkTextSecondary text-claude-textSecondary">
-              {'LobsterAI 请求执行以下操作'}
-            </p>
-          </div>
+    <ModalWrapper
+      isOpen={true}
+      onClose={handleDeny}
+      title={'需要权限确认'}
+      maxWidth="lg"
+      maxHeight="55vh"
+      headerExtra={(
+        <div className="p-2.5 rounded-full bg-yellow-100 dark:bg-yellow-900/30">
+          <ExclamationTriangleIcon className="h-6 w-6 text-yellow-600 dark:text-yellow-500" />
+        </div>
+      )}
+      footer={(
+        <>
           <button
             onClick={handleDeny}
-            className="p-2 rounded-xl dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover dark:text-claude-darkTextSecondary text-claude-textSecondary transition-colors"
-            aria-label="Close"
+            className="px-4 py-2 text-sm font-medium rounded-xl dark:text-claude-darkTextSecondary text-claude-textSecondary dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover transition-colors"
           >
-            <XMarkIcon className="h-5 w-5" />
+            {denyButtonLabel}
           </button>
+          <button
+            onClick={handleApprove}
+            disabled={!isComplete}
+            className="px-4 py-2 text-sm font-medium rounded-xl bg-gradient-to-r from-amber-400 to-orange-600 hover:from-amber-500 hover:to-orange-700 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-amber-500/30 hover:shadow-xl hover:shadow-amber-500/40"
+          >
+            {approveButtonLabel}
+          </button>
+        </>
+      )}
+    >
+      <div className="space-y-4">
+        <div className="text-sm dark:text-claude-darkTextSecondary text-claude-textSecondary">
+          {'LobsterAI 请求执行以下操作'}
         </div>
-
-        {/* Content */}
-        <div className="px-6 py-5 space-y-4 max-h-[55vh] overflow-y-auto">
           {isQuestionTool ? (
             <>
               {questions.map((question) => {
@@ -301,26 +309,8 @@ const CoworkPermissionModal: React.FC<CoworkPermissionModalProps> = ({
               )}
             </>
           )}
-        </div>
-
-        {/* Footer */}
-        <div className="flex items-center justify-end gap-3 px-6 py-5 border-t dark:border-claude-darkBorder border-claude-border modal-footer-pearl">
-          <button
-            onClick={handleDeny}
-            className="px-4 py-2 text-sm font-medium rounded-xl dark:text-claude-darkTextSecondary text-claude-textSecondary dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover transition-colors"
-          >
-            {denyButtonLabel}
-          </button>
-          <button
-            onClick={handleApprove}
-            disabled={!isComplete}
-            className="px-4 py-2 text-sm font-medium rounded-xl bg-gradient-to-r from-amber-400 to-orange-600 hover:from-amber-500 hover:to-orange-700 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-amber-500/30 hover:shadow-xl hover:shadow-amber-500/40"
-          >
-            {approveButtonLabel}
-          </button>
-        </div>
       </div>
-    </div>
+    </ModalWrapper>
   );
 };
 

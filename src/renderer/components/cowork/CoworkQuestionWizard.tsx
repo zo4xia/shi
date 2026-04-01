@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import type { CoworkPermissionRequest, CoworkPermissionResult } from '../../types/cowork';
 import { ChevronLeftIcon, ChevronRightIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import ModalWrapper from '../ui/ModalWrapper';
 
 interface CoworkQuestionWizardProps {
   permission: CoworkPermissionRequest;
@@ -274,25 +275,22 @@ const CoworkQuestionWizard: React.FC<CoworkQuestionWizardProps> = ({
   const selectedValues = getSelectedValues(currentQuestion);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-      <div className="modal-content w-full max-w-2xl mx-4 modal-pearl overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center gap-3 px-6 py-5 border-b dark:border-claude-darkBorder border-claude-border modal-header-pearl">
-          <div className="flex-1">
-            <h2 className="text-base font-semibold dark:text-claude-darkText text-claude-text">
-              {'需要您的确认'}
-            </h2>
-          </div>
-          <button
-            onClick={handleDeny}
-            className="p-2 rounded-xl dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover dark:text-claude-darkTextSecondary text-claude-textSecondary transition-colors"
-            aria-label="Close"
-          >
-            <XMarkIcon className="h-5 w-5" />
-          </button>
-        </div>
-
-        {/* Progress bar */}
+    <ModalWrapper
+      isOpen={true}
+      onClose={handleDeny}
+      title={'需要您的确认'}
+      maxWidth="2xl"
+      maxHeight="75vh"
+      footer={(
+        <button
+          onClick={handleSubmit}
+          className="px-5 py-2.5 text-sm font-medium rounded-xl bg-claude-accent hover:bg-claude-accentHover text-white transition-colors btn-pearl-primary"
+        >
+          {'提交'}
+        </button>
+      )}
+    >
+      <div className="space-y-6">
         <div className="h-1.5 bg-gradient-pearl-progress">
           <div
             className="h-full bg-claude-accent transition-colors duration-300 rounded-full"
@@ -300,8 +298,7 @@ const CoworkQuestionWizard: React.FC<CoworkQuestionWizardProps> = ({
           />
         </div>
 
-        {/* Content */}
-        <div className="px-8 py-8 min-h-[350px] flex flex-col">
+        <div className="min-h-[280px] flex flex-col">
           <div className="flex-1">
             {/* Question header and navigation */}
             <div className="flex items-start justify-between gap-4 mb-6">
@@ -445,18 +442,8 @@ const CoworkQuestionWizard: React.FC<CoworkQuestionWizardProps> = ({
             </div>
           </div>
         </div>
-
-        {/* Footer */}
-        <div className="flex items-center justify-end px-8 py-5 border-t dark:border-claude-darkBorder border-claude-border bg-gradient-pearl-footer">
-          <button
-            onClick={handleSubmit}
-            className="px-5 py-2.5 text-sm font-medium rounded-xl bg-claude-accent hover:bg-claude-accentHover text-white transition-colors btn-pearl-primary"
-          >
-            {'提交'}
-          </button>
-        </div>
       </div>
-    </div>
+    </ModalWrapper>
   );
 };
 

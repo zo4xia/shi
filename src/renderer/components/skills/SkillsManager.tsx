@@ -21,6 +21,7 @@ import { RootState } from '../../store';
 import { Skill, getSkillDisplayName, getSkillFilterLabels } from '../../types/skill';
 import { WebFileOperations } from '../../utils/fileOperations';
 import ErrorMessage from '../ErrorMessage';
+import ConfirmDialog from '../ui/ConfirmDialog';
 import { AGENT_ROLE_ORDER, AGENT_ROLE_SHORT_LABELS } from '../../../shared/agentRoleConfig';
 import { RUNTIME_FLOW_TAGS } from '../../../shared/runtimeFlowTags';
 
@@ -379,6 +380,9 @@ const SkillsManager: React.FC = () => {
     [skills]
   );
 
+  /* ## {提取} DuplicateCleanupDialog / DuplicateSkillGrouping
+     同名副本识别与清理是可复用目录治理逻辑。
+     后续适合抽成公共“重复项分组 + 清理确认”能力。 */
   const duplicateSkillGroups = useMemo(() => {
     const groups = new Map<string, Skill[]>();
     for (const skill of skills) {
@@ -406,6 +410,9 @@ const SkillsManager: React.FC = () => {
     [duplicateSkillGroups]
   );
 
+  /* ## {提取} GroupedCatalogSection
+     当前技能列表已开始按前缀分组折叠。
+     这套“目录分组 + 折叠 + 卡片列表”后续适合给 Skills / MCP 共同复用。 */
   const groupedSkills = useMemo(() => {
     const groups = new Map<string, Skill[]>();
     const getGroupKey = (skill: Skill): string => {
@@ -1221,131 +1228,71 @@ const SkillsManager: React.FC = () => {
       , document.body)}
 
       {skillPendingDelete && createPortal(
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
-          onClick={handleCancelDeleteSkill}
-        >
-          <div
-            className="w-full max-w-sm mx-4 rounded-2xl dark:bg-claude-darkSurface bg-claude-surface border dark:border-claude-darkBorder border-claude-border shadow-2xl p-5"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="text-lg font-semibold dark:text-claude-darkText text-claude-text">
-              {'删除技能'}
-            </div>
-            <p className="mt-2 text-sm dark:text-claude-darkTextSecondary text-claude-textSecondary">
-              {'确定删除技能“{name}”吗？'.replace('{name}', getSkillDisplayName(skillPendingDelete))}
-            </p>
-            {skillActionError && (
-              <div className="mt-3 text-xs text-red-500">
-                {skillActionError}
-              </div>
-            )}
-            <div className="mt-4 flex items-center justify-end gap-2">
-              <button
-                type="button"
-                onClick={handleCancelDeleteSkill}
-                disabled={isDeletingSkill}
-                className="px-3 py-1.5 text-xs rounded-lg border dark:border-claude-darkBorder border-claude-border dark:text-claude-darkTextSecondary text-claude-textSecondary dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                {'取消'}
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmDeleteSkill}
-                disabled={isDeletingSkill}
-                className="px-3 py-1.5 text-xs rounded-lg bg-red-500 text-white hover:bg-red-600 dark:bg-red-500 dark:hover:bg-red-400 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                {'确认删除'}
-              </button>
-            </div>
-          </div>
-        </div>
+        <ConfirmDialog
+          isOpen={true}
+          title={'删除技能'}
+          message={'确定删除技能“{name}”吗？'.replace('{name}', getSkillDisplayName(skillPendingDelete))}
+          onConfirm={handleConfirmDeleteSkill}
+          onCancel={handleCancelDeleteSkill}
+          confirmLabel={'确认删除'}
+          cancelLabel={'取消'}
+          confirmTone="danger"
+          pending={isDeletingSkill}
+          details={skillActionError ? <div className="text-xs text-red-500">{skillActionError}</div> : undefined}
+        />
       , document.body)}
 
       {showCleanConfirm && createPortal(
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
-          onClick={() => setShowCleanConfirm(false)}
-        >
-          <div
-            className="w-full max-w-sm mx-4 rounded-2xl dark:bg-claude-darkSurface bg-claude-surface border dark:border-claude-darkBorder border-claude-border shadow-2xl p-5"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="text-base font-semibold dark:text-claude-darkText text-claude-text">
-              {'清理无效技能'}
-            </div>
-            <p className="mt-2 text-sm dark:text-claude-darkTextSecondary text-claude-textSecondary">
-              {`以下 ${invalidSkills.length} 个技能的 SKILL.md 无法读取，将被删除：`}
-            </p>
-            <ul className="mt-2 space-y-1 max-h-40 overflow-y-auto">
+        <ConfirmDialog
+          isOpen={true}
+          title={'清理无效技能'}
+          message={`以下 ${invalidSkills.length} 个技能的 SKILL.md 无法读取，将被删除：`}
+          onConfirm={handleCleanInvalidSkills}
+          onCancel={() => setShowCleanConfirm(false)}
+          confirmLabel={'确认清理'}
+          cancelLabel={'取消'}
+          confirmTone="danger"
+          details={(
+            <ul className="space-y-1 max-h-40 overflow-y-auto">
               {invalidSkills.map(s => (
                 <li key={s.id} className="text-xs px-2 py-1 rounded-lg dark:bg-claude-darkSurfaceHover bg-claude-surfaceHover dark:text-claude-darkTextSecondary text-claude-textSecondary truncate">
                   {s.name || s.id}
                 </li>
               ))}
             </ul>
-            <div className="mt-4 flex items-center justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setShowCleanConfirm(false)}
-                className="px-3 py-1.5 text-xs rounded-lg border dark:border-claude-darkBorder border-claude-border dark:text-claude-darkTextSecondary text-claude-textSecondary dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover transition-colors"
-              >
-                {'取消'}
-              </button>
-              <button
-                type="button"
-                onClick={handleCleanInvalidSkills}
-                className="px-3 py-1.5 text-xs rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors"
-              >
-                {'确认清理'}
-              </button>
-            </div>
-          </div>
-        </div>
+          )}
+        />
       , document.body)}
 
+      {/* ## {提取} ConfirmDialog
+          这里仍是手写 fixed confirm 壳。
+          后续适合统一抽成 ConfirmDialog，让 Skills / MCP / Sidebar / ScheduledTasks 共用。 */}
       {showDuplicateCleanConfirm && createPortal(
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
-          onClick={() => setShowDuplicateCleanConfirm(false)}
-        >
-          <div
-            className="w-full max-w-md mx-4 rounded-2xl dark:bg-claude-darkSurface bg-claude-surface border dark:border-claude-darkBorder border-claude-border shadow-2xl p-5"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="text-base font-semibold dark:text-claude-darkText text-claude-text">
-              {'清理重复副本'}
-            </div>
-            <p className="mt-2 text-sm dark:text-claude-darkTextSecondary text-claude-textSecondary">
-              {`将按同名分组保留每组最新的 1 个，删除其余 ${duplicateSkillCount} 个旧副本。`}
-            </p>
-            <ul className="mt-2 space-y-1 max-h-48 overflow-y-auto">
+        <ConfirmDialog
+          isOpen={true}
+          title={'清理重复副本'}
+          message={`将按同名分组保留每组最新的 1 个，删除其余 ${duplicateSkillCount} 个旧副本。`}
+          onConfirm={handleCleanDuplicateSkills}
+          onCancel={() => setShowDuplicateCleanConfirm(false)}
+          confirmLabel={'确认清理'}
+          cancelLabel={'取消'}
+          confirmTone="accent"
+          pending={isCleaningDuplicates}
+          details={(
+            <ul className="space-y-1 max-h-48 overflow-y-auto">
               {duplicateSkillGroups.map((group) => (
                 <li key={group.displayName} className="rounded-lg px-2 py-1 text-xs dark:bg-claude-darkSurfaceHover bg-claude-surfaceHover dark:text-claude-darkTextSecondary text-claude-textSecondary">
                   {`${getSkillDisplayName(group.entries[0])}：保留 ${group.entries[0].id}，删除 ${group.entries.slice(1).map((item) => item.id).join('、')}`}
                 </li>
               ))}
             </ul>
-            <div className="mt-4 flex items-center justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setShowDuplicateCleanConfirm(false)}
-                className="px-3 py-1.5 text-xs rounded-lg border dark:border-claude-darkBorder border-claude-border dark:text-claude-darkTextSecondary text-claude-textSecondary dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover transition-colors"
-              >
-                {'取消'}
-              </button>
-              <button
-                type="button"
-                onClick={handleCleanDuplicateSkills}
-                className="px-3 py-1.5 text-xs rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-colors"
-              >
-                {'确认清理'}
-              </button>
-            </div>
-          </div>
-        </div>
+          )}
+        />
       , document.body)}
 
+      {/* ## {提取} ImportDialog
+          GitHub 导入仍是手写 fixed dialog。
+          后续适合统一抽成 ImportDialog / CatalogImportDialog。 */}
       {isGithubImportOpen && createPortal(
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"

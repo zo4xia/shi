@@ -13,6 +13,7 @@ import TrashIcon from './icons/TrashIcon';
 import { ExclamationTriangleIcon, ShoppingBagIcon, PhotoIcon, LinkIcon, ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
 import { StarIcon } from '@heroicons/react/24/solid';
 import { getTouchButtonClass } from '../../shared/mobileUi';
+import ConfirmDialog from './ui/ConfirmDialog';
 
 interface SidebarProps {
   onShowSettings: () => void;
@@ -364,43 +365,16 @@ const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Batch Delete Confirmation Modal */}
       {showBatchDeleteConfirm && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-          onClick={() => setShowBatchDeleteConfirm(false)}
-        >
-          <div
-            className="w-full max-w-sm mx-4 dark:bg-claude-darkSurface bg-claude-surface rounded-2xl shadow-xl overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center gap-3 px-5 py-4">
-              <div className="p-2 rounded-full bg-red-100 dark:bg-red-900/30">
-                <ExclamationTriangleIcon className="h-5 w-5 text-red-600 dark:text-red-500" />
-              </div>
-              <h2 className="text-base font-semibold dark:text-claude-darkText text-claude-text">
-                {'确认批量删除'}
-              </h2>
-            </div>
-            <div className="px-5 pb-4">
-              <p className="text-sm dark:text-claude-darkTextSecondary text-claude-textSecondary">
-                {'确定要删除选中的 {count} 个任务吗？此操作不可撤销。'.replace('{count}', String(selectedIds.size))}
-              </p>
-            </div>
-            <div className="flex items-center justify-end gap-3 px-5 py-4 border-t dark:border-claude-darkBorder border-claude-border">
-              <button
-                onClick={() => setShowBatchDeleteConfirm(false)}
-                className="px-4 py-2 text-sm font-medium rounded-lg dark:text-claude-darkTextSecondary text-claude-textSecondary dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover transition-colors"
-              >
-                {'取消'}
-              </button>
-              <button
-                onClick={handleBatchDelete}
-                className="px-4 py-2 text-sm font-medium rounded-lg bg-red-500 hover:bg-red-600 text-white transition-colors"
-              >
-                {'删除'} ({selectedIds.size})
-              </button>
-            </div>
-          </div>
-        </div>
+        <ConfirmDialog
+          isOpen={true}
+          title={'确认批量删除'}
+          message={'确定要删除选中的 {count} 个任务吗？此操作不可撤销。'.replace('{count}', String(selectedIds.size))}
+          onConfirm={handleBatchDelete}
+          onCancel={() => setShowBatchDeleteConfirm(false)}
+          confirmLabel={`删除 (${selectedIds.size})`}
+          cancelLabel={'取消'}
+          confirmTone="danger"
+        />
       )}
     </aside>
   );

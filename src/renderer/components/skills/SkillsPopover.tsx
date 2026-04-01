@@ -210,6 +210,9 @@ const SkillsPopover: React.FC<SkillsPopoverProps> = ({
 
   if (!isOpen) return null;
 
+  /* ## {提取} SkillsPickerSheet / DesktopPopover
+     当前技能快速选择器仍是桌面 popover。
+     后续移动端适合降级成 SkillsPickerSheet，和 ModelSelector / FolderSelector 保持一致。 */
   return (
     <div
       ref={popoverRef}

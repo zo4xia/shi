@@ -4,6 +4,7 @@
 
 import React from 'react';
 import { XMarkIcon } from '@heroicons/react/24/outline';
+import { useIsMobileViewport } from '../../hooks/useIsMobileViewport';
 
 /**
  * 模态框宽度选项
@@ -34,6 +35,8 @@ export interface ModalWrapperProps {
   closeOnBackdropClick?: boolean;
   /** 是否禁用背景滚动(默认true) */
   disableBodyScroll?: boolean;
+  /** 移动端是否使用全屏页壳(默认true) */
+  mobileFullScreen?: boolean;
 }
 
 /**
@@ -68,6 +71,9 @@ const WIDTH_CLASSES: Record<ModalWidth, string> = {
  *   <div>Modal content here</div>
  * </ModalWrapper>
  */
+/* ## {提取} MobilePageShellModal / DesktopCenteredModal
+   这里已经是当前 modal 统一壳的主入口。
+   后续适合继续拆成：移动端 page-shell 模式、桌面居中 modal 模式、统一 header/footer 动作区。 */
 export const ModalWrapper: React.FC<ModalWrapperProps> = ({
   isOpen,
   onClose,
@@ -79,7 +85,9 @@ export const ModalWrapper: React.FC<ModalWrapperProps> = ({
   maxHeight = '55vh',
   closeOnBackdropClick = true,
   disableBodyScroll = true,
+  mobileFullScreen = true,
 }) => {
+  const isMobileViewport = useIsMobileViewport();
   // 处理背景点击
   const handleBackdropClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget && closeOnBackdropClick) {
@@ -115,19 +123,29 @@ export const ModalWrapper: React.FC<ModalWrapperProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center modal-backdrop-pearl"
+      className={`fixed inset-0 z-50 modal-backdrop-pearl flex ${
+        isMobileViewport && mobileFullScreen
+          ? 'items-stretch justify-stretch'
+          : 'items-center justify-center'
+      }`}
       onClick={handleBackdropClick}
       role="dialog"
       aria-modal="true"
       aria-labelledby={`modal-title-${title.replace(/\s+/g, '-')}`}
     >
       <div
-        className={`modal-content w-full ${WIDTH_CLASSES[maxWidth]} mx-4 modal-pearl overflow-hidden flex flex-col max-h-[95vh]`}
+        className={`modal-content w-full ${isMobileViewport && mobileFullScreen ? '' : WIDTH_CLASSES[maxWidth]} ${isMobileViewport && mobileFullScreen ? '' : 'mx-4'} modal-pearl overflow-hidden flex flex-col max-h-[95vh]`}
+        style={{
+          width: isMobileViewport && mobileFullScreen ? '100vw' : undefined,
+          minHeight: isMobileViewport && mobileFullScreen ? '100dvh' : undefined,
+          maxHeight: isMobileViewport && mobileFullScreen ? '100dvh' : undefined,
+          borderRadius: isMobileViewport && mobileFullScreen ? '0' : undefined,
+        }}
         onClick={(e) => e.stopPropagation()}
         role="document"
       >
         {/* Header */}
-        <div className="flex items-center gap-3 px-6 py-5 border-b dark:border-claude-darkBorder border-claude-border modal-header-pearl flex-shrink-0">
+        <div className={`flex items-center gap-3 ${isMobileViewport && mobileFullScreen ? 'px-4 py-4' : 'px-6 py-5'} border-b dark:border-claude-darkBorder border-claude-border modal-header-pearl flex-shrink-0`}>
           <div className="flex-1 min-w-0">
             <h2
               id={`modal-title-${title.replace(/\s+/g, '-')}`}
@@ -149,15 +167,15 @@ export const ModalWrapper: React.FC<ModalWrapperProps> = ({
 
         {/* Content */}
         <div
-          className="px-6 py-5 space-y-4 overflow-y-auto flex-1"
-          style={{ maxHeight }}
+          className={`${isMobileViewport && mobileFullScreen ? 'px-4 py-4' : 'px-6 py-5'} space-y-4 overflow-y-auto flex-1`}
+          style={{ maxHeight: isMobileViewport && mobileFullScreen ? undefined : maxHeight }}
         >
           {children}
         </div>
 
         {/* Footer */}
         {footer && (
-          <div className="flex items-center justify-end gap-3 px-6 py-5 border-t dark:border-claude-darkBorder border-claude-border modal-footer-pearl flex-shrink-0">
+          <div className={`flex ${isMobileViewport && mobileFullScreen ? 'flex-col-reverse items-stretch gap-3 px-4 py-4' : 'items-center justify-end gap-3 px-6 py-5'} border-t dark:border-claude-darkBorder border-claude-border modal-footer-pearl flex-shrink-0`}>
             {footer}
           </div>
         )}
