@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { McpServerConfig, McpServerFormData, McpRegistryEntry } from '../../types/mcp';
+import ModalWrapper from '../ui/ModalWrapper';
 
 interface McpServerFormModalProps {
   isOpen: boolean;
@@ -216,21 +217,32 @@ const McpServerFormModal: React.FC<McpServerFormModalProps> = ({
     : '保存';
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
-      onClick={onClose}
+    <ModalWrapper
+      isOpen={true}
+      onClose={onClose}
+      title={modalTitle}
+      maxWidth="lg"
+      maxHeight="80vh"
+      footer={(
+        <>
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-3 py-1.5 text-xs rounded-lg border dark:border-claude-darkBorder border-claude-border dark:text-claude-darkTextSecondary text-claude-textSecondary dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover transition-colors"
+          >
+            {'取消'}
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            className="px-3 py-1.5 text-xs rounded-lg bg-claude-accent text-white hover:bg-claude-accent/90 transition-colors"
+          >
+            {saveText}
+          </button>
+        </>
+      )}
     >
-      <div
-        className="w-full max-w-lg mx-4 rounded-2xl dark:bg-claude-darkSurface bg-claude-surface border dark:border-claude-darkBorder border-claude-border shadow-2xl p-6 max-h-[80vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between mb-5">
-          <div className="text-lg font-semibold dark:text-claude-darkText text-claude-text">
-            {modalTitle}
-          </div>
-        </div>
-
-        <div className="space-y-4">
+      <div className="space-y-4">
           {/* Name */}
           <div className="space-y-1.5">
             <label className={labelClass}>{'服务名称'}</label>
@@ -414,26 +426,8 @@ const McpServerFormModal: React.FC<McpServerFormModalProps> = ({
           {error && (
             <div className="text-xs text-red-500">{error}</div>
           )}
-
-          <div className="flex items-center justify-end gap-2 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-3 py-1.5 text-xs rounded-lg border dark:border-claude-darkBorder border-claude-border dark:text-claude-darkTextSecondary text-claude-textSecondary dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover transition-colors"
-            >
-              {'取消'}
-            </button>
-            <button
-              type="button"
-              onClick={handleSave}
-              className="px-3 py-1.5 text-xs rounded-lg bg-claude-accent text-white hover:bg-claude-accent/90 transition-colors"
-            >
-              {saveText}
-            </button>
-          </div>
-        </div>
       </div>
-    </div>
+    </ModalWrapper>
   );
 };
 
