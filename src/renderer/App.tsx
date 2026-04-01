@@ -864,7 +864,7 @@ const App: React.FC = () => {
           />
           <div className={`flex-1 min-w-0 py-1.5 pr-1.5 ${isSidebarCollapsed ? 'pl-1.5' : ''}`}>
             <div
-              className="h-full min-h-0 dark:bg-claude-darkBg bg-claude-bg overflow-hidden relative"
+              className="h-full min-h-0 dark:bg-claude-darkBg bg-claude-bg overflow-hidden relative pt-[64px] sm:pt-[68px]"
               style={{ borderRadius: 'var(--uclaw-shell-radius)' }}
             >
               <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex items-start justify-end px-4 py-3">

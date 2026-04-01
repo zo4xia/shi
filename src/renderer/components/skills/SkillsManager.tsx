@@ -25,6 +25,15 @@ import { AGENT_ROLE_ORDER, AGENT_ROLE_SHORT_LABELS } from '../../../shared/agent
 import { RUNTIME_FLOW_TAGS } from '../../../shared/runtimeFlowTags';
 
 const HIDDEN_SKILL_IDS = new Set(['daily-memory-extraction']);
+const SKILL_GROUP_LABELS: Record<string, string> = {
+  feishu: '飞书',
+  obsidian: 'Obsidian',
+  writing: '写作',
+  skills: '技能包',
+  xlsx: '表格',
+  mcp: 'MCP',
+  web: '网页',
+};
 
 const SkillsManager: React.FC = () => {
   const dispatch = useDispatch();
@@ -45,6 +54,8 @@ const SkillsManager: React.FC = () => {
   const [roleCapabilitySnapshots, setRoleCapabilitySnapshots] = useState<Partial<Record<string, RoleCapabilitySnapshotFile>>>({});
   const [isCleaningInvalid, setIsCleaningInvalid] = useState(false);
   const [showCleanConfirm, setShowCleanConfirm] = useState(false);
+  const [isCleaningDuplicates, setIsCleaningDuplicates] = useState(false);
+  const [showDuplicateCleanConfirm, setShowDuplicateCleanConfirm] = useState(false);
   const [importTargetRoleKeys, setImportTargetRoleKeys] = useState<string[]>([]);
   const [showRuntimeHint, setShowRuntimeHint] = useState(false);
   const [showCompatHint, setShowCompatHint] = useState(false);
@@ -52,6 +63,7 @@ const SkillsManager: React.FC = () => {
   const [selectedSkillLabels, setSelectedSkillLabels] = useState<string[]>([]);
   const [skillCategoryDraft, setSkillCategoryDraft] = useState('');
   const [isSavingSkillCategory, setIsSavingSkillCategory] = useState(false);
+  const [collapsedSkillGroups, setCollapsedSkillGroups] = useState<Record<string, boolean>>({});
 
   const addSkillMenuRef = useRef<HTMLDivElement>(null);
   const addSkillButtonRef = useRef<HTMLButtonElement>(null);
@@ -367,6 +379,68 @@ const SkillsManager: React.FC = () => {
     [skills]
   );
 
+  const duplicateSkillGroups = useMemo(() => {
+    const groups = new Map<string, Skill[]>();
+    for (const skill of skills) {
+      if (HIDDEN_SKILL_IDS.has(skill.id) || skill.isBuiltIn) {
+        continue;
+      }
+      const displayName = getSkillDisplayName(skill).trim().toLowerCase();
+      if (!displayName) {
+        continue;
+      }
+      const existing = groups.get(displayName) ?? [];
+      existing.push(skill);
+      groups.set(displayName, existing);
+    }
+    return Array.from(groups.entries())
+      .map(([displayName, entries]) => ({
+        displayName,
+        entries: [...entries].sort((a, b) => b.updatedAt - a.updatedAt || a.id.localeCompare(b.id)),
+      }))
+      .filter((group) => group.entries.length > 1);
+  }, [skills]);
+
+  const duplicateSkillCount = useMemo(
+    () => duplicateSkillGroups.reduce((sum, group) => sum + Math.max(0, group.entries.length - 1), 0),
+    [duplicateSkillGroups]
+  );
+
+  const groupedSkills = useMemo(() => {
+    const groups = new Map<string, Skill[]>();
+    const getGroupKey = (skill: Skill): string => {
+      const displayName = getSkillDisplayName(skill).trim();
+      const slashMatch = /^([^/]+)\//.exec(displayName);
+      if (slashMatch) {
+        return slashMatch[1].trim().toLowerCase();
+      }
+      const dashMatch = /^([a-z0-9]+)[-_][a-z0-9]/i.exec(displayName);
+      if (dashMatch) {
+        return dashMatch[1].trim().toLowerCase();
+      }
+      return 'ungrouped';
+    };
+
+    for (const skill of filteredSkills) {
+      const key = getGroupKey(skill);
+      const existing = groups.get(key) ?? [];
+      existing.push(skill);
+      groups.set(key, existing);
+    }
+
+    return Array.from(groups.entries())
+      .map(([key, entries]) => ({
+        key,
+        title: key === 'ungrouped' ? '其他技能' : (SKILL_GROUP_LABELS[key] || key),
+        entries,
+      }))
+      .sort((a, b) => {
+        if (a.key === 'ungrouped') return 1;
+        if (b.key === 'ungrouped') return -1;
+        return a.title.localeCompare(b.title, 'zh-CN');
+      });
+  }, [filteredSkills]);
+
   const handleCleanInvalidSkills = async () => {
     setIsCleaningInvalid(true);
     setShowCleanConfirm(false);
@@ -378,6 +452,26 @@ const SkillsManager: React.FC = () => {
     dispatch(setSkills(lastSkills));
     setIsCleaningInvalid(false);
     showGlobalToast(`已清理 ${invalidSkills.length} 个无效技能`);
+  };
+
+  const handleCleanDuplicateSkills = async () => {
+    setIsCleaningDuplicates(true);
+    setShowDuplicateCleanConfirm(false);
+    let lastSkills = skills;
+    let deletedCount = 0;
+    for (const group of duplicateSkillGroups) {
+      const removable = group.entries.slice(1);
+      for (const skill of removable) {
+        const result = await skillService.deleteSkill(skill.id);
+        if (result.skills) {
+          lastSkills = result.skills;
+        }
+        deletedCount += 1;
+      }
+    }
+    dispatch(setSkills(lastSkills));
+    setIsCleaningDuplicates(false);
+    showGlobalToast(`已清理 ${deletedCount} 个重复副本`);
   };
 
   const handleAddSkillFromSource = async (source: string) => {
@@ -403,7 +497,16 @@ const SkillsManager: React.FC = () => {
         return;
       }
     }
-    showGlobalToast(importSuccessMessage);
+    const importedCount = result.importedSkills?.length ?? 0;
+    const importedNames = (result.importedSkills ?? [])
+      .slice(0, 3)
+      .map((skill) => getSkillDisplayName(skill))
+      .join('、');
+    showGlobalToast(
+      importedCount > 0
+        ? `已导入 ${importedCount} 个技能${importedNames ? `：${importedNames}` : ''}`
+        : importSuccessMessage
+    );
     setSkillDownloadSource('');
     setSkillDisplayAlias('');
     setIsAddSkillMenuOpen(false);
@@ -444,7 +547,16 @@ const SkillsManager: React.FC = () => {
       setIsAddSkillMenuOpen(false);
       setSkillDisplayAlias('');
       setImportTargetRoleKeys([]);
-      showGlobalToast(importSuccessMessage);
+      const importedCount = result.importedSkills?.length ?? 0;
+      const importedNames = (result.importedSkills ?? [])
+        .slice(0, 3)
+        .map((skill) => getSkillDisplayName(skill))
+        .join('、');
+      showGlobalToast(
+        importedCount > 0
+          ? `已导入 ${importedCount} 个技能${importedNames ? `：${importedNames}` : ''}`
+          : importSuccessMessage
+      );
     }
   };
 
@@ -484,7 +596,16 @@ const SkillsManager: React.FC = () => {
       setIsAddSkillMenuOpen(false);
       setSkillDisplayAlias('');
       setImportTargetRoleKeys([]);
-      showGlobalToast(importSuccessMessage);
+      const importedCount = importResult.importedSkills?.length ?? 0;
+      const importedNames = (importResult.importedSkills ?? [])
+        .slice(0, 3)
+        .map((skill) => getSkillDisplayName(skill))
+        .join('、');
+      showGlobalToast(
+        importedCount > 0
+          ? `已导入 ${importedCount} 个技能${importedNames ? `：${importedNames}` : ''}`
+          : importSuccessMessage
+      );
     }
   };
 
@@ -611,6 +732,9 @@ const SkillsManager: React.FC = () => {
         <p className="text-sm dark:text-claude-darkTextSecondary text-claude-textSecondary">
           {'把常用技能装给当前角色。首屏只看名字和用途，细节点进去再看。'}
         </p>
+        <p className="mt-1 text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary">
+          {'上传目录导入时，请确保里面只有 1 个技能；如果目录里混了多个 SKILL.md，系统现在会直接拦住。'}
+        </p>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -681,6 +805,17 @@ const SkillsManager: React.FC = () => {
           >
             <TrashIcon className="h-4 w-4" />
             <span>{isCleaningInvalid ? '清理中...' : `清理无效 (${invalidSkills.length})`}</span>
+          </button>
+        )}
+        {duplicateSkillCount > 0 && (
+          <button
+            type="button"
+            onClick={() => setShowDuplicateCleanConfirm(true)}
+            disabled={isCleaningDuplicates}
+            className="px-3 py-2 text-sm rounded-xl border transition-colors border-amber-300 dark:border-amber-800 text-amber-600 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/20 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+          >
+            <TrashIcon className="h-4 w-4" />
+            <span>{isCleaningDuplicates ? '清理中...' : `清理重复 (${duplicateSkillCount})`}</span>
           </button>
         )}
         <div className="relative">
@@ -776,13 +911,41 @@ const SkillsManager: React.FC = () => {
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="space-y-4">
         {filteredSkills.length === 0 ? (
-          <div className="col-span-2 text-center py-8 text-sm dark:text-claude-darkTextSecondary text-claude-textSecondary">
+          <div className="text-center py-8 text-sm dark:text-claude-darkTextSecondary text-claude-textSecondary">
             {'暂无可用技能'}
           </div>
         ) : (
-          filteredSkills.map((skill) => {
+          groupedSkills.map((group) => (
+            <div
+              key={`skill-group-${group.key}`}
+              className="rounded-2xl border dark:border-claude-darkBorder border-claude-border dark:bg-claude-darkSurface/30 bg-claude-surface/30 p-3"
+            >
+              <button
+                type="button"
+                onClick={() => setCollapsedSkillGroups((prev) => ({
+                  ...prev,
+                  [group.key]: !prev[group.key],
+                }))}
+                className="mb-3 flex w-full items-center justify-between rounded-xl px-2 py-2 text-left transition-colors dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="rounded-full bg-claude-accent/10 px-2 py-0.5 text-[11px] font-medium text-claude-accent">
+                    {group.entries.length}
+                  </span>
+                  <span className="text-sm font-medium dark:text-claude-darkText text-claude-text">
+                    {group.title}
+                  </span>
+                </div>
+                <span className="text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary">
+                  {collapsedSkillGroups[group.key] ? '展开' : '收起'}
+                </span>
+              </button>
+
+              {!collapsedSkillGroups[group.key] && (
+                <div className="grid grid-cols-2 gap-4">
+                  {group.entries.map((skill) => {
             const bindings = getSkillRoleBindings(skill);
             const visibleLabels = getSkillFilterLabels(skill).slice(0, 2);
             const roleLabel = bindings.length === 0
@@ -840,6 +1003,9 @@ const SkillsManager: React.FC = () => {
                 </p>
 
                 <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px]">
+                  <span className="px-2 py-0.5 rounded-full bg-slate-500/10 text-slate-600 dark:text-slate-300 font-medium">
+                    {`ID ${skill.id.slice(-12)}`}
+                  </span>
                   {visibleLabels.map((label, index) => (
                     <span
                       key={`${skill.id}:${label}`}
@@ -869,7 +1035,11 @@ const SkillsManager: React.FC = () => {
                 </div>
               </div>
             );
-          })
+                  })}
+                </div>
+              )}
+            </div>
+          ))
         )}
       </div>
 
@@ -1134,6 +1304,48 @@ const SkillsManager: React.FC = () => {
         </div>
       , document.body)}
 
+      {showDuplicateCleanConfirm && createPortal(
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          onClick={() => setShowDuplicateCleanConfirm(false)}
+        >
+          <div
+            className="w-full max-w-md mx-4 rounded-2xl dark:bg-claude-darkSurface bg-claude-surface border dark:border-claude-darkBorder border-claude-border shadow-2xl p-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-base font-semibold dark:text-claude-darkText text-claude-text">
+              {'清理重复副本'}
+            </div>
+            <p className="mt-2 text-sm dark:text-claude-darkTextSecondary text-claude-textSecondary">
+              {`将按同名分组保留每组最新的 1 个，删除其余 ${duplicateSkillCount} 个旧副本。`}
+            </p>
+            <ul className="mt-2 space-y-1 max-h-48 overflow-y-auto">
+              {duplicateSkillGroups.map((group) => (
+                <li key={group.displayName} className="rounded-lg px-2 py-1 text-xs dark:bg-claude-darkSurfaceHover bg-claude-surfaceHover dark:text-claude-darkTextSecondary text-claude-textSecondary">
+                  {`${getSkillDisplayName(group.entries[0])}：保留 ${group.entries[0].id}，删除 ${group.entries.slice(1).map((item) => item.id).join('、')}`}
+                </li>
+              ))}
+            </ul>
+            <div className="mt-4 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowDuplicateCleanConfirm(false)}
+                className="px-3 py-1.5 text-xs rounded-lg border dark:border-claude-darkBorder border-claude-border dark:text-claude-darkTextSecondary text-claude-textSecondary dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover transition-colors"
+              >
+                {'取消'}
+              </button>
+              <button
+                type="button"
+                onClick={handleCleanDuplicateSkills}
+                className="px-3 py-1.5 text-xs rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-colors"
+              >
+                {'确认清理'}
+              </button>
+            </div>
+          </div>
+        </div>
+      , document.body)}
+
       {isGithubImportOpen && createPortal(
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
@@ -1149,7 +1361,7 @@ const SkillsManager: React.FC = () => {
                   {'从 GitHub 导入'}
                 </div>
                 <p className="mt-1 text-sm dark:text-claude-darkTextSecondary text-claude-textSecondary">
-                  {'支持仓库链接与子目录链接；若仓库内有多个技能，将自动全部导入。'}
+                  {'支持仓库链接与子目录链接；若仓库内有多个技能，请精确指向单个技能目录或 SKILL.md。'}
                 </p>
               </div>
               <button

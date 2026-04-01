@@ -1387,7 +1387,10 @@ export class SkillManager {
     return this.listSkills();
   }
 
-  async downloadSkill(source: string): Promise<{ success: boolean; skills?: SkillRecord[]; importedSkills?: SkillRecord[]; error?: string }> {
+  async downloadSkill(
+    source: string,
+    options?: { strictSingleSkill?: boolean }
+  ): Promise<{ success: boolean; skills?: SkillRecord[]; importedSkills?: SkillRecord[]; error?: string }> {
     let cleanupPath: string | null = null;
     try {
       const trimmed = source.trim();
@@ -1488,6 +1491,18 @@ export class SkillManager {
         cleanupPathSafely(cleanupPath);
         cleanupPath = null;
         return { success: false, error: 'No SKILL.md found in source' };
+      }
+      if (options?.strictSingleSkill && skillDirs.length > 1) {
+        cleanupPathSafely(cleanupPath);
+        cleanupPath = null;
+        const previewNames = skillDirs
+          .slice(0, 5)
+          .map((skillDir) => path.basename(skillDir))
+          .join('、');
+        return {
+          success: false,
+          error: `当前上传内容里识别到 ${skillDirs.length} 个技能（${previewNames}${skillDirs.length > 5 ? ' 等' : ''}）。为避免误装，上传导入现在只允许一次导入 1 个技能，请改为选择单个技能目录、单个 SKILL.md，或单技能 zip。`,
+        };
       }
 
       const importedSkillIds: string[] = [];

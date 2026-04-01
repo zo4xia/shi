@@ -86,6 +86,7 @@ import {
   resolveBaseUrl,
 } from './settings/settingsConstants';
 import CoworkMemorySettingsPanel from './settings/CoworkMemorySettingsPanel';
+import { useIsMobileViewport } from '../hooks/useIsMobileViewport';
 import { renderAgentRoleAvatar } from '../utils/agentRoleDisplay';
 
 // 特价 API 套餐卡片 — 珍珠白风格
@@ -380,6 +381,7 @@ const resolveExplicitDefaultRole = (
 
 const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpdateFound: _onUpdateFound }) => {
   const dispatch = useDispatch();
+  const isMobileViewport = useIsMobileViewport();
   // 状态
   const [activeTab, setActiveTab] = useState<TabType>(normalizeSettingsTab(initialTab));
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system');
@@ -2180,18 +2182,18 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
 
   return (
     <div
-      className="fixed inset-0 z-50 modal-backdrop-pearl flex items-center justify-center"
+      className={`fixed inset-0 z-50 modal-backdrop-pearl flex ${isMobileViewport ? 'items-stretch justify-stretch' : 'items-center justify-center'}`}
       onClick={onClose}
     >
       <div
         className="relative flex w-full modal-pearl overflow-hidden modal-content"
         style={{
-          width: 'min(92vw, var(--uclaw-shell-max-width), calc(88vh * 1.6))',
-          minWidth: 'min(var(--uclaw-shell-min-width), 92vw)',
-          minHeight: 'min(var(--uclaw-shell-min-height), 88vh)',
-          maxHeight: '88vh',
-          borderRadius: 'var(--uclaw-shell-radius)',
-          aspectRatio: 'var(--uclaw-shell-aspect-ratio)',
+          width: isMobileViewport ? '100vw' : 'min(92vw, var(--uclaw-shell-max-width), calc(88vh * 1.6))',
+          minWidth: isMobileViewport ? '100vw' : 'min(var(--uclaw-shell-min-width), 92vw)',
+          minHeight: isMobileViewport ? '100dvh' : 'min(var(--uclaw-shell-min-height), 88vh)',
+          maxHeight: isMobileViewport ? '100dvh' : '88vh',
+          borderRadius: isMobileViewport ? '0' : 'var(--uclaw-shell-radius)',
+          aspectRatio: isMobileViewport ? 'auto' : 'var(--uclaw-shell-aspect-ratio)',
         }}
         onClick={handleSettingsClick}
       >

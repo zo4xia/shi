@@ -340,23 +340,23 @@ const CoworkView: React.FC<CoworkViewProps> = ({ onRequestAppSettings, onShowSki
 
       {/* Main Content - 欢迎页自适应高度，不产生滚动 */}
       <div className="flex-1 overflow-y-auto min-h-0">
-        <div className="mx-auto flex w-full max-w-[1120px] flex-col px-6 py-[42px] sm:py-[50px]">
-          <div className="relative mb-12 text-center sm:mb-14">
+        <div className="mx-auto flex w-full max-w-[1120px] flex-col px-4 py-8 sm:px-6 sm:py-[50px]">
+          <div className="relative mb-10 text-center sm:mb-14">
             <div className="absolute inset-x-0 top-3 -z-10 mx-auto h-36 w-36 rounded-full bg-gradient-radial from-claude-accent/6 to-transparent blur-3xl" />
             <div className="mx-auto inline-flex flex-col items-center">
               <div className="relative inline-block">
                 <div className="absolute -inset-1 rounded-[36px] bg-gradient-to-r from-violet-300/38 via-claude-accent/46 to-violet-300/34 blur-md" />
                 <div className="absolute inset-0 rounded-[34px] bg-gradient-to-br from-claude-accent/30 via-violet-200/20 to-clay-soft/16 blur-sm" />
                 <div className="relative rounded-[32px] bg-gradient-to-br from-claude-accent/28 via-violet-100/42 to-clay-soft/20 p-1">
-                  <div className="rounded-[28px] bg-gradient-to-br from-white via-pearl-50 to-pearl-100 p-4 shadow-md dark:from-gray-800 dark:via-gray-900 dark:to-gray-950">
-                    <img src="logo.png" alt="logo" className="h-16 w-16" />
+                  <div className="rounded-[28px] bg-gradient-to-br from-white via-pearl-50 to-pearl-100 p-3 shadow-md dark:from-gray-800 dark:via-gray-900 dark:to-gray-950 sm:p-4">
+                    <img src="logo.png" alt="logo" className="h-12 w-12 sm:h-16 sm:w-16" />
                   </div>
                 </div>
               </div>
-              <h1 className="mt-4 text-[34px] font-semibold tracking-[0.04em] text-claude-text dark:text-claude-darkText sm:text-[38px]">
+              <h1 className="mt-4 text-[28px] font-semibold tracking-[0.04em] text-claude-text dark:text-claude-darkText sm:text-[38px]">
                 Uclaw
               </h1>
-              <div className="mt-2 max-w-[760px] overflow-hidden text-ellipsis whitespace-nowrap text-[13px] font-medium leading-6 text-claude-textSecondary dark:text-claude-darkTextSecondary">
+              <div className="mt-2 max-w-[760px] px-2 text-[12px] font-medium leading-6 text-claude-textSecondary dark:text-claude-darkTextSecondary sm:px-0 sm:text-[13px] sm:whitespace-nowrap sm:overflow-hidden sm:text-ellipsis">
                 <span>🧠 自带跨多端记忆，一个对话框就够了</span>
                 <span className="mx-3 text-claude-accent/55">·</span>
                 <span>💬 飞书与多消息频道支持</span>

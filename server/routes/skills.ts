@@ -262,7 +262,7 @@ export function setupSkillsRoutes(app: Router) {
       tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lobsterai-skill-upload-'));
       const payload = req.body as UploadedSkillPayload;
       const sourcePath = materializeUploadedSkillSource(tempRoot, payload);
-      const result = await skillManager.downloadSkill(sourcePath);
+      const result = await skillManager.downloadSkill(sourcePath, { strictSingleSkill: true });
       const normalizedDisplayName = normalizeDisplayName(payload.displayName);
       if (result.success && normalizedDisplayName && result.importedSkills?.length) {
         for (const skill of result.importedSkills) {
