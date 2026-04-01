@@ -2199,10 +2199,13 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
       >
         {/* Left sidebar */}
         <div
-          className="w-[clamp(248px,22%,296px)] shrink-0 flex flex-col sidebar-pearl overflow-y-auto"
-          style={{ borderTopLeftRadius: 'var(--uclaw-shell-radius)', borderBottomLeftRadius: 'var(--uclaw-shell-radius)' }}
+          className={`${isMobileViewport ? 'w-full shrink-0 border-b dark:border-claude-darkBorder border-claude-border' : 'w-[clamp(248px,22%,296px)] shrink-0'} flex flex-col sidebar-pearl overflow-y-auto`}
+          style={{
+            borderTopLeftRadius: isMobileViewport ? '0' : 'var(--uclaw-shell-radius)',
+            borderBottomLeftRadius: isMobileViewport ? '0' : 'var(--uclaw-shell-radius)',
+          }}
         >
-          <div className="px-6 pt-6 pb-4">
+          <div className={`${isMobileViewport ? 'px-4 pt-4 pb-3' : 'px-6 pt-6 pb-4'}`}>
             <div className="rounded-[22px] border border-white/60 bg-white/55 px-4 py-4 shadow-[0_10px_24px_rgba(203,174,150,0.10)] dark:border-white/10 dark:bg-white/[0.04]">
               <h2 className="text-base font-semibold dark:text-claude-darkText text-claude-text">{'设置'}</h2>
               <p className="mt-1 text-[11px] leading-5 dark:text-claude-darkTextSecondary text-claude-textSecondary">
@@ -2210,16 +2213,16 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
               </p>
             </div>
           </div>
-          <div className="px-4 pb-4">
+          <div className={`${isMobileViewport ? 'px-3 pb-3' : 'px-4 pb-4'}`}>
             <div className="mb-2 px-2 text-[11px] font-medium uppercase tracking-[0.14em] dark:text-claude-darkTextSecondary text-claude-textSecondary">
               {'功能区'}
             </div>
-          <nav className="flex flex-col gap-2 rounded-[24px] border border-white/60 bg-white/45 p-2 shadow-[0_10px_24px_rgba(203,174,150,0.08)] dark:border-white/10 dark:bg-white/[0.03]">
+          <nav className={`${isMobileViewport ? 'flex gap-2 overflow-x-auto whitespace-nowrap' : 'flex flex-col gap-2'} rounded-[24px] border border-white/60 bg-white/45 p-2 shadow-[0_10px_24px_rgba(203,174,150,0.08)] dark:border-white/10 dark:bg-white/[0.03]`}>
             {sidebarTabs.map((tab) => (
               <button
                 key={tab.key}
                 onClick={() => handleTabChange(tab.key)}
-                className={`group flex items-center gap-3 rounded-[18px] px-3.5 py-3 transition-colors duration-200 ease-out text-left relative overflow-hidden ${
+                className={`group ${isMobileViewport ? 'min-w-[154px] shrink-0' : ''} flex items-center gap-3 rounded-[18px] px-3.5 py-3 transition-colors duration-200 ease-out text-left relative overflow-hidden ${
                   activeTab === tab.key
                     ? 'bg-gradient-to-r from-claude-accent/16 to-claude-accent/8 text-claude-accent shadow-[0_10px_24px_rgba(193,156,133,0.14)]'
                     : 'dark:text-claude-darkTextSecondary text-claude-textSecondary dark:hover:text-claude-darkText hover:text-claude-text dark:hover:bg-claude-darkSurfaceHover/50 hover:bg-claude-surfaceHover/50'
@@ -2261,10 +2264,13 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
         {/* Right content */}
         <div
           className="relative flex-1 flex flex-col min-w-0 overflow-hidden bg-gradient-pearl"
-          style={{ borderTopRightRadius: 'var(--uclaw-shell-radius)', borderBottomRightRadius: 'var(--uclaw-shell-radius)' }}
+          style={{
+            borderTopRightRadius: isMobileViewport ? '0' : 'var(--uclaw-shell-radius)',
+            borderBottomRightRadius: isMobileViewport ? '0' : 'var(--uclaw-shell-radius)',
+          }}
         >
           {/* Content header */}
-          <div className="flex justify-between items-center px-8 pt-6 pb-4 shrink-0">
+          <div className={`flex justify-between items-center ${isMobileViewport ? 'px-4 pt-4 pb-3' : 'px-8 pt-6 pb-4'} shrink-0`}>
             <h3 className="text-base font-semibold dark:text-claude-darkText text-claude-text">{activeTabLabel}</h3>
             <button
               onClick={onClose}
@@ -2275,7 +2281,7 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
           </div>
 
           {noticeMessage && (
-            <div className="px-8">
+            <div className={isMobileViewport ? 'px-4' : 'px-8'}>
               <ErrorMessage
                 message={noticeMessage}
                 onClose={() => setNoticeMessage(null)}
@@ -2284,7 +2290,7 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
           )}
 
           {error && (
-            <div className="px-8">
+            <div className={isMobileViewport ? 'px-4' : 'px-8'}>
               <ErrorMessage
                 message={error}
                 onClose={() => setError(null)}
@@ -2296,7 +2302,7 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
             {/* Tab content */}
             <div
               ref={contentRef}
-              className="px-8 py-6 flex-1 overflow-y-auto"
+              className={`${isMobileViewport ? 'px-4 py-4' : 'px-8 py-6'} flex-1 overflow-y-auto`}
               style={{ scrollbarGutter: 'stable' }}
             >
               {settingsLoaded ? (
@@ -2322,16 +2328,16 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
             </div>
 
             {/* Footer buttons */}
-            <div className="flex items-center justify-end gap-4 px-8 py-5 dark:border-claude-darkBorder border-claude-border border-t bg-gradient-pearl-footer shrink-0">
+            <div className={`flex ${isMobileViewport ? 'flex-col-reverse items-stretch gap-3' : 'items-center justify-end gap-4'} ${isMobileViewport ? 'px-4 py-4' : 'px-8 py-5'} dark:border-claude-darkBorder border-claude-border border-t bg-gradient-pearl-footer shrink-0`}>
               {activeTab === 'im' ? (
                 <>
-                  <div className="mr-auto text-xs leading-5 dark:text-claude-darkTextSecondary text-claude-textSecondary">
+                  <div className={`${isMobileViewport ? '' : 'mr-auto'} text-xs leading-5 dark:text-claude-darkTextSecondary text-claude-textSecondary`}>
                     {'消息频道会在字段失焦后即时保存。这里不再额外提交，避免和右侧启停状态打架。'}
                   </div>
                   <button
                     type="button"
                     onClick={onClose}
-                    className="px-5 py-2.5 dark:text-claude-darkText text-claude-text dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover rounded-xl transition-colors text-sm font-medium border dark:border-claude-darkBorder border-claude-border"
+                    className={`px-5 py-2.5 dark:text-claude-darkText text-claude-text dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover rounded-xl transition-colors text-sm font-medium border dark:border-claude-darkBorder border-claude-border ${isMobileViewport ? 'w-full' : ''}`}
                   >
                     {'关闭'}
                   </button>
@@ -2341,14 +2347,14 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
                   <button
                     type="button"
                     onClick={onClose}
-                    className="px-5 py-2.5 dark:text-claude-darkText text-claude-text dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover rounded-xl transition-colors text-sm font-medium border dark:border-claude-darkBorder border-claude-border"
+                    className={`px-5 py-2.5 dark:text-claude-darkText text-claude-text dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover rounded-xl transition-colors text-sm font-medium border dark:border-claude-darkBorder border-claude-border ${isMobileViewport ? 'w-full' : ''}`}
                   >
                     {'取消'}
                   </button>
                   <button
                     type="submit"
                     disabled={isSaving || !settingsLoaded || settingsLoadFailed}
-                    className="px-5 py-2.5 bg-gradient-to-r from-purple-400 to-purple-600 hover:from-purple-500 hover:to-purple-700 text-white rounded-xl transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-purple-500/30 hover:shadow-xl hover:shadow-purple-500/40"
+                    className={`px-5 py-2.5 bg-gradient-to-r from-purple-400 to-purple-600 hover:from-purple-500 hover:to-purple-700 text-white rounded-xl transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-purple-500/30 hover:shadow-xl hover:shadow-purple-500/40 ${isMobileViewport ? 'w-full' : ''}`}
                   >
                     {isSaving ? '保存中...' : '保存'}
                   </button>
