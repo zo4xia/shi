@@ -2222,11 +2222,11 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
               {'功能区'}
             </div>
             {isMobileViewport ? (
-              /* ## {提取} SettingsNavCards
-                  当前移动端设置导航已经切到“当前栏目卡 + 简单切换卡片”。
-                  后续可抽成 SettingsMobileNavCards，供其它大设置页或管理页复用。 */
+              /* ## {提取} SettingsMobileTabStrip
+                  当前移动端设置导航改成横向切换栏。
+                  后续可抽成轻量 tab-strip，供其它大设置页或管理页复用。 */
               <div className="mx-3 mb-3 rounded-[24px] border border-white/60 bg-white/45 p-2 shadow-[0_10px_24px_rgba(203,174,150,0.08)] dark:border-white/10 dark:bg-white/[0.03]">
-                <div className="mb-3 rounded-[20px] border border-claude-accent/20 bg-gradient-to-br from-claude-accent/12 to-claude-accent/4 px-4 py-3">
+                <div className="mb-2 rounded-[20px] border border-claude-accent/20 bg-gradient-to-r from-claude-accent/12 to-claude-accent/4 px-4 py-3">
                   <div className="flex items-center gap-3">
                     <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-claude-accent/20 bg-white/80 text-claude-accent dark:border-claude-accent/20 dark:bg-white/10">
                       {sidebarTabs.find((tab) => tab.key === activeTab)?.icon}
@@ -2242,27 +2242,29 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 px-1 pb-1">
+                <div className="flex gap-2 overflow-x-auto px-1 pb-1 whitespace-nowrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                   {sidebarTabs.map((tab) => (
                     <button
                       key={tab.key}
                       type="button"
                       onClick={() => handleTabChange(tab.key)}
-                      className={`flex min-h-[92px] flex-col items-start justify-start gap-2 rounded-[18px] border px-3 py-3 text-left transition-colors ${
+                      className={`flex min-w-[138px] shrink-0 items-center gap-2 rounded-[16px] border px-3 py-2.5 text-left transition-colors ${
                         activeTab === tab.key
-                          ? 'border-claude-accent/30 bg-gradient-to-br from-claude-accent/14 to-claude-accent/6 text-claude-accent'
+                          ? 'border-claude-accent/30 bg-gradient-to-r from-claude-accent/14 to-claude-accent/6 text-claude-accent'
                           : 'border-white/45 bg-white/55 dark:border-white/10 dark:bg-white/[0.04] dark:text-claude-darkTextSecondary text-claude-textSecondary'
                       }`}
                     >
-                      <span className={`flex h-9 w-9 items-center justify-center rounded-2xl ${
+                      <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-2xl ${
                         activeTab === tab.key
                           ? 'bg-white/80 dark:bg-white/10'
                           : 'bg-white/60 dark:bg-white/[0.06]'
                       }`}>
                         {tab.icon}
                       </span>
-                      <span className="block text-sm font-medium leading-5">{tab.label}</span>
-                      <span className="block text-[11px] leading-4 opacity-80">{tab.subtitle}</span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium leading-5">{tab.label}</span>
+                        <span className="block truncate text-[11px] leading-4 opacity-80">{tab.subtitle}</span>
+                      </span>
                     </button>
                   ))}
                 </div>

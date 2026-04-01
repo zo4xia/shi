@@ -22,6 +22,7 @@ import { Skill, getSkillDisplayName, getSkillFilterLabels } from '../../types/sk
 import { WebFileOperations } from '../../utils/fileOperations';
 import ErrorMessage from '../ErrorMessage';
 import ConfirmDialog from '../ui/ConfirmDialog';
+import ImportDialog from '../ui/ImportDialog';
 import { AGENT_ROLE_ORDER, AGENT_ROLE_SHORT_LABELS } from '../../../shared/agentRoleConfig';
 import { RUNTIME_FLOW_TAGS } from '../../../shared/runtimeFlowTags';
 
@@ -1294,33 +1295,17 @@ const SkillsManager: React.FC = () => {
           GitHub 导入仍是手写 fixed dialog。
           后续适合统一抽成 ImportDialog / CatalogImportDialog。 */}
       {isGithubImportOpen && createPortal(
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
-          onClick={() => setIsGithubImportOpen(false)}
-        >
-          <div
-            className="w-full max-w-md mx-4 rounded-2xl dark:bg-claude-darkSurface bg-claude-surface border dark:border-claude-darkBorder border-claude-border shadow-2xl p-6"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="flex items-start justify-between">
-              <div>
-                <div className="text-lg font-semibold dark:text-claude-darkText text-claude-text">
-                  {'从 GitHub 导入'}
-                </div>
-                <p className="mt-1 text-sm dark:text-claude-darkTextSecondary text-claude-textSecondary">
-                  {'支持仓库链接与子目录链接；若仓库内有多个技能，请精确指向单个技能目录或 SKILL.md。'}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsGithubImportOpen(false)}
-                className="p-1.5 rounded-lg dark:text-claude-darkTextSecondary text-claude-textSecondary dark:hover:text-claude-darkText hover:text-claude-text dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover transition-colors"
-              >
-                <XMarkIcon className="h-5 w-5" />
-              </button>
-            </div>
-
-              <div className="mt-5 space-y-3">
+        <ImportDialog
+          isOpen={true}
+          title={'从 GitHub 导入'}
+          description={'支持仓库链接与子目录链接；若仓库内有多个技能，请精确指向单个技能目录或 SKILL.md。'}
+          onConfirm={handleImportFromGithub}
+          onCancel={() => setIsGithubImportOpen(false)}
+          confirmLabel={'导入'}
+          confirmDisabled={isDownloadingSkill || !skillDownloadSource.trim()}
+          pending={isDownloadingSkill}
+          body={(
+            <div className="space-y-3">
               {renderImportTargetPicker()}
               <div className="text-xs font-semibold tracking-wide dark:text-claude-darkTextSecondary text-claude-textSecondary">
                 {'URL'}
@@ -1359,17 +1344,9 @@ const SkillsManager: React.FC = () => {
                   {skillActionError}
                 </div>
               )}
-              <button
-                type="button"
-                onClick={handleImportFromGithub}
-                disabled={isDownloadingSkill || !skillDownloadSource.trim()}
-                className="w-full py-2.5 rounded-xl bg-claude-accent text-white text-sm font-medium hover:bg-claude-accent/90 transition-colors disabled:opacity-50"
-              >
-                {isDownloadingSkill ? '导入中...' : '导入'}
-              </button>
             </div>
-          </div>
-        </div>
+          )}
+        />
       , document.body)}
 
     </div>

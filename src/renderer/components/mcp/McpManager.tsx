@@ -17,6 +17,7 @@ import ErrorMessage from '../ErrorMessage';
 import Tooltip from '../ui/Tooltip';
 import McpServerFormModal from './McpServerFormModal';
 import ConfirmDialog from '../ui/ConfirmDialog';
+import RolePickerDialog from '../ui/RolePickerDialog';
 import { getResponsiveTabBarClass, getResponsiveTabButtonClass } from '../../../shared/mobileUi';
 import { RUNTIME_FLOW_TAGS } from '../../../shared/runtimeFlowTags';
 import { webSocketClient, WS_EVENTS } from '../../services/webSocketClient';
@@ -633,55 +634,23 @@ const McpManager: React.FC = () => {
           后续适合抽成公共 RolePickerDialog，避免每个管理页自己写一套。 */}
       {/* Role picker modal */}
       {installRolePicker && createPortal(
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
-          onClick={() => setInstallRolePicker(null)}
-        >
-          <div
-            className="w-full max-w-sm mx-4 rounded-2xl dark:bg-claude-darkSurface bg-claude-surface border dark:border-claude-darkBorder border-claude-border shadow-2xl p-5"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-semibold dark:text-claude-darkText text-claude-text">
-                安装 MCP 服务到角色
-              </h3>
-              <button
-                type="button"
-                onClick={() => setInstallRolePicker(null)}
-                className="p-1 rounded-lg dark:text-claude-darkTextSecondary text-claude-textSecondary hover:dark:text-claude-darkText hover:text-claude-text transition-colors"
-              >
-                <XMarkIcon className="h-4 w-4" />
-              </button>
-            </div>
-            <p className="text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary mb-3">
-              选择要绑定 <span className="font-medium dark:text-claude-darkText text-claude-text">{installRolePicker.name}</span> 的角色：
-            </p>
-            <div className="space-y-2 mb-4">
-              {[{ key: 'all', label: '全部角色（公共）' }, ...AGENT_ROLE_ORDER.map(k => ({ key: k, label: AGENT_ROLE_SHORT_LABELS[k] }))].map(role => (
-                <label
-                  key={role.key}
-                  className="flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer transition-colors dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover"
-                >
-                  <input
-                    type="radio"
-                    name="mcp-role"
-                    checked={installRoleSelection === role.key}
-                    onChange={() => setInstallRoleSelection(role.key)}
-                    className="w-4 h-4 border-claude-border dark:border-claude-darkBorder text-claude-accent focus:ring-claude-accent"
-                  />
-                  <span className="text-sm dark:text-claude-darkText text-claude-text">{role.label}</span>
-                </label>
-              ))}
-            </div>
-            <button
-              type="button"
-              onClick={handleConfirmRoleAndOpenForm}
-              className="w-full py-2.5 rounded-xl bg-claude-accent text-white text-sm font-medium hover:bg-claude-accent/90 transition-colors flex items-center justify-center gap-1.5"
-            >
-              {'安装'}
-            </button>
-          </div>
-        </div>
+        <RolePickerDialog
+          isOpen={true}
+          title={'安装 MCP 服务到角色'}
+          description={
+            <>
+              {'选择要绑定 '}
+              <span className="font-medium dark:text-claude-darkText text-claude-text">{installRolePicker.name}</span>
+              {' 的角色：'}
+            </>
+          }
+          options={[{ key: 'all', label: '全部角色（公共）' }, ...AGENT_ROLE_ORDER.map(k => ({ key: k, label: AGENT_ROLE_SHORT_LABELS[k] }))]}
+          selectedKey={installRoleSelection}
+          onSelect={setInstallRoleSelection}
+          onConfirm={handleConfirmRoleAndOpenForm}
+          onCancel={() => setInstallRolePicker(null)}
+          confirmLabel={'安装'}
+        />
       , document.body)}
 
       {/* Edit / Registry-install form modal */}

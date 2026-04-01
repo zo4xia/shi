@@ -5,6 +5,8 @@ import { ChevronDownIcon, CheckIcon } from '@heroicons/react/24/outline';
 import { setSelectedModel, isSameModelIdentity, getModelIdentityKey } from '../store/slices/modelSlice';
 import { AGENT_ROLE_ORDER, AGENT_ROLE_LABELS, AGENT_ROLE_ICONS, type AgentRoleKey } from '../../shared/agentRoleConfig';
 import { coworkService } from '../services/cowork';
+import { useIsMobileViewport } from '../hooks/useIsMobileViewport';
+import OptionSheet from './ui/OptionSheet';
 
 interface ModelSelectorProps {
   dropdownDirection?: 'up' | 'down';
@@ -22,6 +24,7 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
   const dispatch = useDispatch();
   const [isOpen, setIsOpen] = React.useState(false);
   const containerRef = React.useRef<HTMLDivElement>(null);
+  const isMobileViewport = useIsMobileViewport();
   const selectedModel = useSelector((state: RootState) => state.model.selectedModel);
   const availableModels = useSelector((state: RootState) => state.model.availableModels);
 
@@ -106,6 +109,22 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
     ? 'bottom-full mb-1'
     : 'top-full mt-1';
 
+  const sheetItems = React.useMemo(() => (
+    AGENT_ROLE_ORDER.flatMap((roleKey) => {
+      const roleModels = modelsByRole[roleKey];
+      if (roleModels.length === 0) return [];
+      return roleModels.map((model) => ({
+        key: getModelIdentityKey(model),
+        label: AGENT_ROLE_LABELS[roleKey],
+        description: model.id,
+        icon: <span className="text-base">{AGENT_ROLE_ICONS[roleKey]}</span>,
+        trailing: isSameModelIdentity(model, effectiveModel)
+          ? <CheckIcon className="h-4 w-4 text-claude-accent" />
+          : null,
+      }));
+    })
+  ), [effectiveModel, modelsByRole]);
+
   return (
     <div ref={containerRef} className="relative cursor-pointer">
       <button
@@ -126,7 +145,22 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
       {/* ## {提取} OptionSheet / DesktopPopover
           当前模型选择器在桌面是 popover。
           后续移动端适合降级成 OptionSheet，和其它选择器统一壳层。 */}
-      {isOpen && !readOnly && (
+      {isOpen && !readOnly && isMobileViewport && (
+        <OptionSheet
+          isOpen={true}
+          title={'选择角色模型'}
+          items={sheetItems}
+          onSelect={(key) => {
+            const target = availableModels.find((model) => getModelIdentityKey(model) === key);
+            if (target) {
+              handleModelSelect(target);
+            }
+          }}
+          onClose={() => setIsOpen(false)}
+        />
+      )}
+
+      {isOpen && !readOnly && !isMobileViewport && (
         <div className={`absolute ${dropdownPositionClass} w-64 dark:bg-claude-darkSurface bg-claude-surface rounded-xl popover-enter shadow-popover z-50 dark:border-claude-darkBorder border-claude-border border overflow-hidden`}>
           <div className="max-h-80 overflow-y-auto">
             {AGENT_ROLE_ORDER.map((roleKey) => {

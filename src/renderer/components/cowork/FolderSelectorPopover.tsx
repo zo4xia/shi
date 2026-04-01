@@ -6,6 +6,8 @@ import ChevronRightIcon from '../icons/ChevronRightIcon';
 import FolderIcon from '../icons/FolderIcon';
 import { coworkService } from '../../services/cowork';
 import { getCompactFolderName } from '../../utils/path';
+import { useIsMobileViewport } from '../../hooks/useIsMobileViewport';
+import ModalWrapper from '../ui/ModalWrapper';
 
 // Custom tooltip for folder paths
 interface PathTooltipProps {
@@ -44,8 +46,6 @@ const DirectoryBrowser: React.FC<DirectoryBrowserProps> = ({ onSelect, onClose }
   const [drives, setDrives] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [pathInput, setPathInput] = useState('');
-  const modalRef = useRef<HTMLDivElement>(null);
-
   // PLACEHOLDER_CONTINUE
 
   const browse = useCallback(async (dirPath?: string) => {
@@ -88,16 +88,22 @@ const DirectoryBrowser: React.FC<DirectoryBrowserProps> = ({ onSelect, onClose }
   /* ## {提取} FolderPickerSheet / DesktopPopover
      当前目录选择器同时承担了移动端 modal 与桌面 popover 两种职责。
      后续适合拆成：移动端 FolderPickerSheet、桌面 FolderSelectorPopover。 */
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
-      <div ref={modalRef} className="w-full max-w-md mx-4 rounded-2xl dark:bg-claude-darkSurface bg-claude-surface border dark:border-claude-darkBorder border-claude-border shadow-2xl flex flex-col" style={{ maxHeight: '70vh' }} onClick={e => e.stopPropagation()}>
-        {/* 标题 */}
-        <div className="px-4 pt-4 pb-2">
-          <h3 className="text-sm font-semibold dark:text-claude-darkText text-claude-text">选择工作目录</h3>
-        </div>
-
-        {/* 路径输入 */}
-        <div className="px-4 pb-2">
+  return (
+    <ModalWrapper
+      isOpen={true}
+      onClose={onClose}
+      title={'选择工作目录'}
+      maxWidth="md"
+      maxHeight="75vh"
+      footer={(
+        <>
+          <button type="button" onClick={onClose} className="px-3 py-1.5 text-sm rounded-lg border dark:border-claude-darkBorder border-claude-border dark:text-claude-darkTextSecondary text-claude-textSecondary hover:bg-claude-surfaceHover dark:hover:bg-claude-darkSurfaceHover transition-colors">取消</button>
+          <button type="button" onClick={handleConfirm} disabled={!currentPath} className="px-3 py-1.5 text-sm rounded-lg bg-claude-accent hover:bg-claude-accentHover text-white transition-colors disabled:opacity-50">选择此目录</button>
+        </>
+      )}
+    >
+      <div className="space-y-3">
+        <div>
           <input
             type="text"
             value={pathInput}
@@ -108,8 +114,7 @@ const DirectoryBrowser: React.FC<DirectoryBrowserProps> = ({ onSelect, onClose }
           />
         </div>
 
-        {/* 盘符 + 上级 */}
-        <div className="px-4 pb-1 flex items-center gap-1 flex-wrap">
+        <div className="flex items-center gap-1 flex-wrap">
           {drives.map(d => (
             <button key={d} type="button" onClick={() => browse(d)}
               className="px-2 py-0.5 text-xs rounded border dark:border-claude-darkBorder border-claude-border dark:text-claude-darkTextSecondary text-claude-textSecondary hover:bg-claude-surfaceHover dark:hover:bg-claude-darkSurfaceHover transition-colors">
@@ -124,7 +129,6 @@ const DirectoryBrowser: React.FC<DirectoryBrowserProps> = ({ onSelect, onClose }
           )}
         </div>
 
-        {/* 文件夹列表 */}
         <div className="flex-1 overflow-y-auto px-2 py-1 min-h-[120px]">
           {loading ? (
             <div className="text-center py-8 text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary">加载中...</div>
@@ -141,17 +145,9 @@ const DirectoryBrowser: React.FC<DirectoryBrowserProps> = ({ onSelect, onClose }
           )}
         </div>
 
-        {/* 当前路径 + 按钮 */}
-        <div className="px-4 py-3 border-t dark:border-claude-darkBorder border-claude-border">
-          <div className="text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary truncate mb-2 font-mono">{currentPath || '...'}</div>
-          <div className="flex justify-end gap-2">
-            <button type="button" onClick={onClose} className="px-3 py-1.5 text-sm rounded-lg border dark:border-claude-darkBorder border-claude-border dark:text-claude-darkTextSecondary text-claude-textSecondary hover:bg-claude-surfaceHover dark:hover:bg-claude-darkSurfaceHover transition-colors">取消</button>
-            <button type="button" onClick={handleConfirm} disabled={!currentPath} className="px-3 py-1.5 text-sm rounded-lg bg-claude-accent hover:bg-claude-accentHover text-white transition-colors disabled:opacity-50">选择此目录</button>
-          </div>
-        </div>
+        <div className="text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary truncate font-mono">{currentPath || '...'}</div>
       </div>
-    </div>,
-    document.body
+    </ModalWrapper>
   );
 };
 
@@ -176,6 +172,7 @@ const FolderSelectorPopover: React.FC<FolderSelectorPopoverProps> = ({
   const submenuRef = useRef<HTMLDivElement>(null);
   const recentFoldersRef = useRef<HTMLDivElement>(null);
   const tooltipTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const isMobileViewport = useIsMobileViewport();
 
   useEffect(() => { return () => { if (tooltipTimerRef.current) clearTimeout(tooltipTimerRef.current); }; }, []);
 
@@ -282,6 +279,52 @@ const FolderSelectorPopover: React.FC<FolderSelectorPopoverProps> = ({
   /* ## {提取} DesktopPopover
      当前最近目录菜单仍是桌面 popover 形态。
      后续可和 SkillsPopover / ModelSelector 一起收口为 PopoverOrSheet。 */
+  if (isMobileViewport) {
+    return (
+      <ModalWrapper
+        isOpen={true}
+        onClose={onClose}
+        title={'选择文件夹'}
+        maxWidth="md"
+        maxHeight="75vh"
+      >
+        <div className="space-y-3">
+          <button
+            type="button"
+            onClick={handleAddFolder}
+            className="w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-xl border dark:border-claude-darkBorder border-claude-border dark:text-claude-darkText text-claude-text dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover transition-colors"
+          >
+            <FolderPlusIcon className="h-4 w-4 dark:text-claude-darkTextSecondary text-claude-textSecondary" />
+            <span>添加文件夹</span>
+          </button>
+          <div className="rounded-xl border dark:border-claude-darkBorder border-claude-border overflow-hidden">
+            <div className="px-3 py-2 text-xs font-semibold dark:text-claude-darkTextSecondary text-claude-textSecondary">
+              最近使用
+            </div>
+            {isLoading ? (
+              <div className="px-3 py-3 text-sm dark:text-claude-darkTextSecondary text-claude-textSecondary">加载中...</div>
+            ) : recentFolders.length === 0 ? (
+              <div className="px-3 py-3 text-sm dark:text-claude-darkTextSecondary text-claude-textSecondary">暂无最近文件夹</div>
+            ) : (
+              <div className="space-y-1 px-2 pb-2">
+                {recentFolders.map((folder, index) => (
+                  <button
+                    key={index}
+                    onClick={() => handleSelectRecentFolder(folder)}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-lg dark:text-claude-darkText text-claude-text dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover transition-colors text-left"
+                  >
+                    <FolderIcon className="h-4 w-4 flex-shrink-0 dark:text-claude-darkTextSecondary text-claude-textSecondary" />
+                    <span className="truncate">{truncatePath(folder)}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </ModalWrapper>
+    );
+  }
+
   return (
     <>
       <div ref={popoverRef} className="absolute bottom-full left-0 mb-2 w-56 rounded-lg border dark:border-claude-darkBorder border-claude-border dark:bg-claude-darkSurface bg-claude-surface shadow-lg z-50">
