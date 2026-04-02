@@ -464,6 +464,7 @@ class CoworkService {
         systemPrompt: options.systemPrompt,
         activeSkillIds: options.activeSkillIds,
         imageAttachments: options.imageAttachments,
+        zenMode: options.zenMode,
       });
       if (!result.success) {
         store.dispatch(setStreaming(false));
@@ -812,6 +813,15 @@ class CoworkService {
     const result = await api(input);
     if (!result?.success || !result.boards) return [];
     return result.boards;
+  }
+
+  async clearBroadcastBoard(input: {
+    agentRoleKey: string;
+  }): Promise<boolean> {
+    const api = window.electron?.cowork?.clearBroadcastBoard;
+    if (!api) return false;
+    const result = await api(input);
+    return Boolean(result?.success);
   }
 
   async generateSessionTitle(prompt: string | null): Promise<string | null> {

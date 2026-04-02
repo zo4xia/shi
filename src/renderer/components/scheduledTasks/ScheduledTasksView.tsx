@@ -12,10 +12,8 @@ import TaskDetail from './TaskDetail';
 import AllRunsHistory from './AllRunsHistory';
 import DeleteConfirmModal from './DeleteConfirmModal';
 import { ArrowLeftIcon } from '@heroicons/react/24/outline';
-import SidebarToggleIcon from '../icons/SidebarToggleIcon';
-import ComposeIcon from '../icons/ComposeIcon';
-import WindowTitleBar from '../window/WindowTitleBar';
 import { RESPONSIVE_CONTENT_INNER_CLASS } from '../../../shared/mobileUi';
+import PageHeaderShell from '../ui/PageHeaderShell';
 
 interface ScheduledTasksViewProps {
   isSidebarCollapsed?: boolean;
@@ -33,7 +31,6 @@ const ScheduledTasksView: React.FC<ScheduledTasksViewProps> = ({
   updateBadge,
 }) => {
   const dispatch = useDispatch();
-  const isMac = getPlatform() === 'darwin';
   const viewMode = useSelector((state: RootState) => state.scheduledTask.viewMode);
   const selectedTaskId = useSelector((state: RootState) => state.scheduledTask.selectedTaskId);
   const tasks = useSelector((state: RootState) => state.scheduledTask.tasks);
@@ -90,42 +87,23 @@ const ScheduledTasksView: React.FC<ScheduledTasksViewProps> = ({
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="draggable flex h-12 items-center justify-between px-4 border-b dark:border-claude-darkBorder border-claude-border shrink-0">
-        <div className="flex items-center space-x-3 h-8">
-          {isSidebarCollapsed && (
-            <div className={`non-draggable flex items-center gap-1 ${isMac ? 'pl-[68px]' : ''}`}>
-              <button
-                type="button"
-                onClick={onToggleSidebar}
-                className="h-8 w-8 inline-flex items-center justify-center rounded-lg dark:text-claude-darkTextSecondary text-claude-textSecondary hover:bg-claude-surfaceHover dark:hover:bg-claude-darkSurfaceHover transition-colors"
-              >
-                <SidebarToggleIcon className="h-4 w-4" isCollapsed={true} />
-              </button>
-              <button
-                type="button"
-                onClick={onNewChat}
-                className="h-8 w-8 inline-flex items-center justify-center rounded-lg dark:text-claude-darkTextSecondary text-claude-textSecondary hover:bg-claude-surfaceHover dark:hover:bg-claude-darkSurfaceHover transition-colors"
-              >
-                <ComposeIcon className="h-4 w-4" />
-              </button>
-              {updateBadge}
-            </div>
-          )}
-          {viewMode !== 'list' && (
-            <button
-              onClick={handleBackToList}
-              className="non-draggable p-2 rounded-lg dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover dark:text-claude-darkTextSecondary text-claude-textSecondary transition-colors"
-              aria-label={'返回'}
-            >
-              <ArrowLeftIcon className="h-5 w-5" />
-            </button>
-          )}
-          <h1 className="text-lg font-semibold dark:text-claude-darkText text-claude-text">
-            {'定时任务'}
-          </h1>
-        </div>
-        <WindowTitleBar inline />
-      </div>
+      <PageHeaderShell
+        title={'定时任务'}
+        isSidebarCollapsed={isSidebarCollapsed}
+        onToggleSidebar={onToggleSidebar}
+        onNewChat={onNewChat}
+        updateBadge={updateBadge}
+        leading={viewMode !== 'list' ? (
+          <button
+            onClick={handleBackToList}
+            className="non-draggable p-2 rounded-lg dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover dark:text-claude-darkTextSecondary text-claude-textSecondary transition-colors"
+            aria-label={'返回'}
+          >
+            <ArrowLeftIcon className="h-5 w-5" />
+          </button>
+        ) : undefined}
+        headerClassName="draggable flex h-12 items-center justify-between px-4 border-b dark:border-claude-darkBorder border-claude-border shrink-0"
+      />
 
       {/* Tabs + New Task button */}
       {showTabs && (

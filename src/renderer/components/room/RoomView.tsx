@@ -1,8 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import SidebarToggleIcon from '../icons/SidebarToggleIcon';
 import ComposeIcon from '../icons/ComposeIcon';
-import WindowTitleBar from '../window/WindowTitleBar';
-import { getPlatform } from '../../utils/platform';
 import { showGlobalToast } from '../../services/toast';
 import {
   appendRoomMessage,
@@ -17,6 +14,7 @@ import {
 } from '../../services/room';
 import type { AgentRoleKey } from '../../../shared/agentRoleConfig';
 import { renderAgentRoleAvatar } from '../../utils/agentRoleDisplay';
+import PageHeaderShell from '../ui/PageHeaderShell';
 
 interface RoomViewProps {
   isSidebarCollapsed?: boolean;
@@ -29,7 +27,6 @@ const RoomView: React.FC<RoomViewProps> = ({
   onToggleSidebar,
   updateBadge,
 }) => {
-  const isMac = getPlatform() === 'darwin';
   const roleChoices = useMemo(() => getRoomRoleChoices(), []);
   const [selectedRoleKeys, setSelectedRoleKeys] = useState<AgentRoleKey[]>(['organizer', 'writer']);
   const [rooms, setRooms] = useState<RoomSessionRecord[]>([]);
@@ -198,26 +195,13 @@ const RoomView: React.FC<RoomViewProps> = ({
 
   return (
     <div className="flex-1 flex flex-col dark:bg-claude-darkBg bg-transparent h-full">
-      <div className="draggable flex h-12 items-center justify-between px-6 border-b dark:border-claude-darkBorder/50 border-claude-border/30 shrink-0 backdrop-blur-xl bg-gradient-pearl-header">
-        <div className="non-draggable h-8 flex items-center gap-2">
-          {isSidebarCollapsed && (
-            <div className={`flex items-center gap-1 mr-2 ${isMac ? 'pl-[68px]' : ''}`}>
-              <button
-                type="button"
-                onClick={onToggleSidebar}
-                className="h-8 w-8 inline-flex items-center justify-center rounded-xl dark:text-claude-darkTextSecondary text-claude-textSecondary hover:bg-claude-surfaceHover/50 dark:hover:bg-claude-darkSurfaceHover/50 transition-colors duration-200"
-              >
-                <SidebarToggleIcon className="h-4 w-4" isCollapsed={true} />
-              </button>
-              {updateBadge}
-            </div>
-          )}
-          <div className="rounded-full border border-white/50 bg-white/70 px-3 py-1 text-sm font-medium text-claude-text shadow-sm dark:border-white/10 dark:bg-white/[0.06] dark:text-claude-darkText">
-            Room
-          </div>
-        </div>
-        <WindowTitleBar inline />
-      </div>
+      <PageHeaderShell
+        title="Room"
+        isSidebarCollapsed={isSidebarCollapsed}
+        onToggleSidebar={onToggleSidebar}
+        updateBadge={updateBadge}
+        headerClassName="draggable flex h-12 items-center justify-between px-6 border-b dark:border-claude-darkBorder/50 border-claude-border/30 shrink-0 backdrop-blur-xl bg-gradient-pearl-header"
+      />
 
       <div className="flex-1 overflow-y-auto min-h-0">
         <div className="mx-auto flex w-full max-w-5xl flex-col px-6 py-10">

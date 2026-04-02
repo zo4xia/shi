@@ -38,6 +38,7 @@ interface CoworkMemorySettingsPanelProps {
   onDailyMemoryModelIdChange: (value: string) => void;
   onDailyMemoryApiFormatChange: (value: 'anthropic' | 'openai') => void;
   onRefresh: () => void;
+  onClearBroadcastBoard: (agentRoleKey: string) => void | Promise<void>;
   onOpenModal: () => void;
   onRoleFilterChange: (value: string | 'all') => void;
   onQueryChange: (value: string) => void;
@@ -104,6 +105,7 @@ const CoworkMemorySettingsPanel: React.FC<CoworkMemorySettingsPanelProps> = ({
   onDailyMemoryModelIdChange,
   onDailyMemoryApiFormatChange,
   onRefresh,
+  onClearBroadcastBoard,
   onOpenModal,
   onRoleFilterChange,
   onQueryChange,
@@ -284,6 +286,15 @@ const CoworkMemorySettingsPanel: React.FC<CoworkMemorySettingsPanelProps> = ({
                     <span className="text-[11px] dark:text-claude-darkTextSecondary text-claude-textSecondary">
                       {`过期 ${formatMemoryUpdatedAt(board.expiresAt)}`}
                     </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void onClearBroadcastBoard(board.agentRoleKey);
+                      }}
+                      className="ml-auto inline-flex items-center rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-[11px] font-medium text-red-700 transition-colors hover:bg-red-100 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-300 dark:hover:bg-red-950/50"
+                    >
+                      {'清空当前板'}
+                    </button>
                   </div>
 
                   <div className="mt-3 rounded-lg border px-3 py-2 text-[11px] leading-5 dark:border-claude-darkBorder border-claude-border dark:bg-claude-darkSurfaceInset bg-claude-surfaceInset dark:text-claude-darkTextSecondary text-claude-textSecondary whitespace-pre-wrap break-words">

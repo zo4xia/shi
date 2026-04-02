@@ -22,6 +22,11 @@ import { EyeIcon, EyeSlashIcon, XCircleIcon as XCircleIconSolid } from '@heroico
 import PlusCircleIcon from './icons/PlusCircleIcon';
 import IMSettings from './im/IMSettings';
 import NativeCapabilitiesSettings from './settings/NativeCapabilitiesSettings';
+import {
+  AgentRoleApiConfigCard,
+  AgentRoleIdentityCard,
+  AgentRoleStatusCard,
+} from './settings/AgentRoleModelCards';
 import EmbeddedIframeView from './EmbeddedIframeView';
 import { useDispatch, useSelector } from 'react-redux';
 import { setAvailableModels } from '../store/slices/modelSlice';
@@ -86,6 +91,9 @@ import {
   resolveBaseUrl,
 } from './settings/settingsConstants';
 import CoworkMemorySettingsPanel from './settings/CoworkMemorySettingsPanel';
+import SettingsSectionCard from './settings/SettingsSectionCard';
+import SettingsTabShell from './settings/SettingsTabShell';
+import SettingsFieldGroup from './settings/SettingsFieldGroup';
 import { useIsMobileViewport } from '../hooks/useIsMobileViewport';
 import { renderAgentRoleAvatar } from '../utils/agentRoleDisplay';
 import ModalWrapper from './ui/ModalWrapper';
@@ -242,6 +250,8 @@ const ResourcesView: React.FC = () => {
 
   return <EmbeddedIframeView title="资源下载" url={resourceUrl} />;
 };
+
+const SETTINGS_DESKTOP_CONTENT_WRAP_CLASS = 'mx-auto w-full max-w-[1100px]';
 
 type TabType = 'general' | 'model' | 'nativeCapabilities' | 'im' | 'coworkMemory' | 'conversationCache' | 'clawApi' | 'resources' | 'dataBackup';
 
@@ -985,6 +995,27 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
     void loadCoworkMemoryData();
   };
 
+  const handleClearBroadcastBoard = async (agentRoleKey: string) => {
+    const normalizedRoleKey = agentRoleKey.trim();
+    if (!normalizedRoleKey) {
+      return;
+    }
+
+    setCoworkMemoryListLoading(true);
+    try {
+      const cleared = await coworkService.clearBroadcastBoard({ agentRoleKey: normalizedRoleKey });
+      if (!cleared) {
+        throw new Error('清空广播板失败');
+      }
+      await loadCoworkMemoryData();
+      showGlobalToast('广播板已清空');
+    } catch (clearError) {
+      setError(clearError instanceof Error ? clearError.message : '清空广播板失败');
+    } finally {
+      setCoworkMemoryListLoading(false);
+    }
+  };
+
   const handleAgentRoleChange = useCallback((roleKey: AgentRoleKey, field: keyof AgentRoleConfigMap[AgentRoleKey], value: string | boolean) => {
     setAgentRoles((prev) => ({
       ...prev,
@@ -1394,13 +1425,12 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
     switch(activeTab) {
       case 'general':
         return (
-          <div className="space-y-8">
-            {/* Language Section - hardcoded zh */}
-            <div className="flex items-center justify-between">
-              <h4 className="text-sm font-medium dark:text-claude-darkText text-claude-text">
-                {'语言'}
-              </h4>
-              <div className="w-[140px] shrink-0">
+          <SettingsTabShell isMobileViewport={isMobileViewport}>
+            <SettingsSectionCard
+              title="语言"
+              description="应用界面的显示语言。"
+            >
+              <div className={isMobileViewport ? 'w-full' : 'w-[180px]'}>
                 <ThemedSelect
                   id="language"
                   value={language}
@@ -1413,15 +1443,13 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
                   ]}
                 />
               </div>
-            </div>
+            </SettingsSectionCard>
 
-            {/* Workspace Path Section (web build) */}
             {workspacePath && (
-              <div>
-                <div className="flex items-center justify-between gap-3">
-                  <h4 className="text-sm font-medium dark:text-claude-darkText text-claude-text">
-                    {'当前工作目录'}
-                  </h4>
+              <SettingsSectionCard
+                title="当前工作目录"
+                description="当前运行时使用的工作区位置。"
+                actions={(
                   <button
                     type="button"
                     onClick={() => setShowWorkspacePath((value) => !value)}
@@ -1429,21 +1457,25 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
                   >
                     {showWorkspacePath ? '收起路径' : '查看路径'}
                   </button>
-                </div>
-                {showWorkspacePath && (
-                  <div className="mt-3 text-sm dark:text-claude-darkSecondaryText text-claude-textSecondary break-all font-mono">
+                )}
+              >
+                {showWorkspacePath ? (
+                  <div className="text-sm break-all font-mono dark:text-claude-darkSecondaryText text-claude-textSecondary">
                     {workspacePath}
                   </div>
+                ) : (
+                  <div className="text-sm dark:text-claude-darkSecondaryText text-claude-textSecondary">
+                    {'路径已收起，需要时可展开查看。'}
+                  </div>
                 )}
-              </div>
+              </SettingsSectionCard>
             )}
 
             {envSyncTargetPath && (
-              <div>
-                <div className="flex items-center justify-between gap-3">
-                  <h4 className="text-sm font-medium dark:text-claude-darkText text-claude-text">
-                    {'环境同步文件'}
-                  </h4>
+              <SettingsSectionCard
+                title="环境同步文件"
+                description="保存 API / IM 配置时，会同步写到这个环境文件。"
+                actions={(
                   <button
                     type="button"
                     onClick={() => setShowEnvSyncTargetPath((value) => !value)}
@@ -1451,27 +1483,27 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
                   >
                     {showEnvSyncTargetPath ? '收起路径' : '查看路径'}
                   </button>
-                </div>
+                )}
+              >
                 {showEnvSyncTargetPath && (
-                  <div className="mt-3 text-sm dark:text-claude-darkSecondaryText text-claude-textSecondary break-all font-mono">
+                  <div className="text-sm break-all font-mono dark:text-claude-darkSecondaryText text-claude-textSecondary">
                     {envSyncTargetPath}
                   </div>
                 )}
-                <div className="mt-2 text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary">
+                <div className={`${showEnvSyncTargetPath ? 'mt-3' : ''} text-xs leading-5 dark:text-claude-darkTextSecondary text-claude-textSecondary`}>
                   {envSyncTargetExists === false
                     ? '当前目标文件不存在，设置保存时不会回写到环境文件。'
-                    : '设置页保存 API / IM 配置时，会同步写到这个环境文件。Linux 部署可通过 UCLAW_ENV_FILE 指向 /etc/uclaw/uclaw.env。'}
+                    : 'Linux 部署可通过 UCLAW_ENV_FILE 指向 /etc/uclaw/uclaw.env。'}
                 </div>
-              </div>
+              </SettingsSectionCard>
             )}
 
-            {/* Auto-launch Section (Electron only) */}
             {hasAutoLaunch() && (
-              <div>
-                <h4 className="text-sm font-medium dark:text-claude-darkText text-claude-text mb-3">
-                  {'开机自启动'}
-                </h4>
-                <label className="flex items-center justify-between cursor-pointer">
+              <SettingsSectionCard
+                title="开机自启动"
+                description="系统启动时自动运行应用。"
+              >
+                <label className="flex items-center justify-between gap-3 cursor-pointer">
                   <span className="text-sm dark:text-claude-darkSecondaryText text-claude-secondaryText">
                     {'系统启动时自动运行应用'}
                   </span>
@@ -1513,15 +1545,14 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
                     />
                   </button>
                 </label>
-              </div>
+              </SettingsSectionCard>
             )}
 
-            {/* System proxy Section */}
-            <div>
-              <h4 className="text-sm font-medium dark:text-claude-darkText text-claude-text mb-3">
-                {'使用系统代理'}
-              </h4>
-              <label className="flex items-center justify-between cursor-pointer">
+            <SettingsSectionCard
+              title="使用系统代理"
+              description="开启后网络请求将跟随系统代理，保存后生效。"
+            >
+              <label className="flex items-center justify-between gap-3 cursor-pointer">
                 <span className="text-sm dark:text-claude-darkSecondaryText text-claude-secondaryText">
                   {'开启后网络请求将跟随系统代理（保存后生效）'}
                 </span>
@@ -1545,14 +1576,14 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
                   />
                 </button>
               </label>
-            </div>
+            </SettingsSectionCard>
 
-            {/* Appearance Section */}
-            <div>
-              <h4 className="text-sm font-medium dark:text-claude-darkText text-claude-text mb-3">
-                {'外观'}
-              </h4>
-              <div className="grid grid-cols-3 gap-4">
+            <SettingsSectionCard
+              title="外观"
+              description="桌面端预览优先直观看样式，避免单列长卷。"
+              className={isMobileViewport ? '' : 'col-span-2'}
+            >
+              <div className={`${isMobileViewport ? 'grid grid-cols-1 gap-3' : 'grid grid-cols-3 gap-4'}`}>
                 {([
                   { value: 'light' as const, label: '浅色' },
                   { value: 'dark' as const, label: '深色' },
@@ -1620,7 +1651,6 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
                                 <rect x="60" y="0" width="60" height="80" />
                               </clipPath>
                             </defs>
-                            {/* Light half */}
                             <g clipPath="url(#left-half)">
                               <rect width="120" height="80" fill="#F8F9FB" />
                               <rect x="0" y="0" width="30" height="80" fill="#EBEDF0" />
@@ -1636,7 +1666,6 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
                               <rect x="42" y="46" width="40" height="4" rx="2" fill="#D5D7DB" />
                               <rect x="42" y="54" width="66" height="3" rx="1.5" fill="#E2E4E7" />
                             </g>
-                            {/* Dark half */}
                             <g clipPath="url(#right-half)">
                               <rect width="120" height="80" fill="#0F1117" />
                               <rect x="0" y="0" width="30" height="80" fill="#151820" />
@@ -1652,7 +1681,6 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
                               <rect x="42" y="46" width="40" height="4" rx="2" fill="#3A3F4B" />
                               <rect x="42" y="54" width="66" height="3" rx="1.5" fill="#252930" />
                             </g>
-                            {/* Divider line */}
                             <line x1="60" y1="0" x2="60" y2="80" stroke="#888" strokeWidth="0.5" />
                           </>
                         )}
@@ -1668,23 +1696,21 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
                   );
                 })}
               </div>
-            </div>
-          </div>
+            </SettingsSectionCard>
+          </SettingsTabShell>
         );
 
       case 'conversationCache':
         return (
-          <div className="space-y-6">
-            <div className="space-y-4 rounded-xl border px-4 py-4 dark:border-claude-darkBorder border-claude-border">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className="text-sm font-medium dark:text-claude-darkText text-claude-text">
-                    {'对话文件缓存目录'}
-                  </div>
-                  <div className="text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary">
-                    {'这里保存对话快照，以及浏览器侧暂存的附件和导出文件。'}
-                  </div>
-                </div>
+          <SettingsTabShell
+            isMobileViewport={isMobileViewport}
+            mobileClassName="space-y-5"
+            desktopClassName="grid grid-cols-2 gap-4"
+          >
+            <SettingsSectionCard
+              title="对话文件缓存目录"
+              description="这里保存对话快照以及浏览器端暂存文件。"
+              actions={(
                 <button
                   type="button"
                   onClick={() => setShowConversationCacheHint((value) => !value)}
@@ -1693,15 +1719,12 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
                   <InformationCircleIcon className="h-3.5 w-3.5" />
                   {'说明'}
                 </button>
-              </div>
-
-              <div>
-                <label
-                  htmlFor="conversation-cache-directory"
-                  className="block text-sm font-medium dark:text-claude-darkText text-claude-text mb-1"
-                >
-                  {'对话文件缓存目录'}
-                </label>
+              )}
+            >
+              <SettingsFieldGroup
+                label="对话文件缓存目录"
+                labelFor="conversation-cache-directory"
+              >
                 <div className="flex items-center gap-2">
                   <input
                     id="conversation-cache-directory"
@@ -1719,65 +1742,65 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
                     {'浏览'}
                   </button>
                 </div>
-              </div>
+              </SettingsFieldGroup>
 
               {showConversationCacheHint && (
                 <div className="rounded-lg dark:bg-claude-darkSurfaceInset bg-claude-surfaceInset px-3 py-3 text-xs leading-5 dark:text-claude-darkTextSecondary text-claude-textSecondary">
-                  {'系统会把每日对话快照写到这里；浏览器侧上传的暂存文件、Markdown 导出和图片导出也会优先往这里归档。运行中的 skills/workspace 仍会优先保留工作目录内的真实路径，避免打断 OpenClaw skills 读文件。'}
+                  {'系统会把每日对话快照写到这里；浏览器端上传的暂存文件、Markdown 导出和图片导出也会优先往这里归档。运行中的 skills/workspace 仍会优先保留工作目录内的真实路径，避免打断 OpenClaw skills 读文件。'}
                 </div>
               )}
+            </SettingsSectionCard>
 
-              <div className="rounded-lg dark:bg-claude-darkSurfaceInset bg-claude-surfaceInset px-3 py-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium dark:text-claude-darkText text-claude-text">
-                      {'最近一次对话归档'}
+            <SettingsSectionCard
+              title="最近一次对话归档"
+              description="查看最新归档状态并快速跳转目录。"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  {!conversationCacheDirectory.trim() ? (
+                    <div className="text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary">
+                      {'请先配置缓存目录，系统才会写入每日归档。'}
                     </div>
-                    {!conversationCacheDirectory.trim() ? (
-                      <div className="mt-1 text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary">
-                        {'先配置对话文件缓存目录，系统才会写入每日归档。'}
-                      </div>
-                    ) : conversationBackupStamp ? (
-                      <div className="mt-1 space-y-1 text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary">
-                        <div>{`日期目录：${conversationBackupStamp}`}</div>
-                        <div>{'需要时可用下方按钮直接打开归档目录或定位清单文件。'}</div>
-                      </div>
-                    ) : (
-                      <div className="mt-1 text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary">
-                        {'暂时还没有检测到已写入的每日归档。等本轮对话收口后，系统会把当天快照写进这里。'}
-                      </div>
-                    )}
-                  </div>
+                  ) : conversationBackupStamp ? (
+                    <div className="space-y-1 text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary">
+                      <div>{`日期目录：${conversationBackupStamp}`}</div>
+                      <div>{'需要时可用下方按钮打开归档目录或定位清单文件。'}</div>
+                    </div>
+                  ) : (
+                    <div className="text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary">
+                      {'暂未检测到已写入的每日归档，等本轮对话收口后系统会生成今日快照。'}
+                    </div>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { void loadConversationBackupState(); }}
+                  className="px-3 py-1.5 text-xs rounded-lg border dark:border-claude-darkBorder border-claude-border dark:text-claude-darkTextSecondary text-claude-textSecondary hover:bg-claude-surfaceHover dark:hover:bg-claude-darkSurfaceHover transition-colors"
+                >
+                  {'刷新'}
+                </button>
+              </div>
+
+              {conversationBackupStamp && conversationCacheDirectory.trim() && (
+                <div className="mt-3 flex flex-wrap items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => { void loadConversationBackupState(); }}
+                    onClick={() => { void handleOpenShellPath(conversationBackupDir, 'open'); }}
                     className="px-3 py-1.5 text-xs rounded-lg border dark:border-claude-darkBorder border-claude-border dark:text-claude-darkTextSecondary text-claude-textSecondary hover:bg-claude-surfaceHover dark:hover:bg-claude-darkSurfaceHover transition-colors"
                   >
-                    {'刷新'}
+                    {'打开归档目录'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { void handleOpenShellPath(conversationBackupManifestPath, 'reveal'); }}
+                    className="px-3 py-1.5 text-xs rounded-lg border dark:border-claude-darkBorder border-claude-border dark:text-claude-darkTextSecondary text-claude-textSecondary hover:bg-claude-surfaceHover dark:hover:bg-claude-darkSurfaceHover transition-colors"
+                  >
+                    {'定位 manifest'}
                   </button>
                 </div>
-
-                {conversationBackupStamp && conversationCacheDirectory.trim() && (
-                  <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => { void handleOpenShellPath(conversationBackupDir, 'open'); }}
-                      className="px-3 py-1.5 text-xs rounded-lg border dark:border-claude-darkBorder border-claude-border dark:text-claude-darkTextSecondary text-claude-textSecondary hover:bg-claude-surfaceHover dark:hover:bg-claude-darkSurfaceHover transition-colors"
-                    >
-                      {'打开归档目录'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { void handleOpenShellPath(conversationBackupManifestPath, 'reveal'); }}
-                      className="px-3 py-1.5 text-xs rounded-lg border dark:border-claude-darkBorder border-claude-border dark:text-claude-darkTextSecondary text-claude-textSecondary hover:bg-claude-surfaceHover dark:hover:bg-claude-darkSurfaceHover transition-colors"
-                    >
-                      {'定位 manifest'}
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
+              )}
+            </SettingsSectionCard>
+          </SettingsTabShell>
         );
 
       case 'im':
@@ -1825,6 +1848,7 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
             onDailyMemoryModelIdChange={setDailyMemoryModelId}
             onDailyMemoryApiFormatChange={setDailyMemoryApiFormat}
             onRefresh={handleRefreshCoworkMemoryData}
+            onClearBroadcastBoard={handleClearBroadcastBoard}
             onOpenModal={handleOpenCoworkMemoryModal}
             onRoleFilterChange={setCoworkMemoryAgentRoleKey}
             onQueryChange={setCoworkMemoryQuery}
@@ -1836,14 +1860,17 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
           />
         );
 
+      // ## 发现可疑一坨屎山，插旗
+      // model 页当前把角色列表、角色编辑、API 配置、协议、生图、测试全塞在一个 case 里。
+      // 先做分区换装，不碰保存链和连接测试逻辑。
       case 'model': {
         const activeRoleConfig = agentRoles[activeRole];
         const activeRolePresetUrl = SYSTEM_API_PRESET_BASE_URLS[activeRole];
         const isUsingSystemPreset = activeRoleConfig.apiUrl.trim() === activeRolePresetUrl && !apiUrlManualModeByRole[activeRole];
 
         return (
-          <div className="flex h-full gap-4">
-            <div className="w-2/5 border-r dark:border-claude-darkBorder border-claude-border pr-3 space-y-2 overflow-y-auto">
+          <div className={isMobileViewport ? 'space-y-4' : 'grid h-full min-h-0 grid-cols-[320px_minmax(0,1fr)] gap-5'}>
+            <section className="space-y-3 rounded-[24px] border border-white/60 bg-white/55 p-4 shadow-[0_10px_24px_rgba(203,174,150,0.08)] dark:border-white/10 dark:bg-white/[0.03] overflow-y-auto min-h-0">
               <div className="px-1 pb-2 border-b dark:border-claude-darkBorder border-claude-border">
                 <h3 className="text-sm font-medium dark:text-claude-darkText text-claude-text">
                   {'角色配置'}
@@ -1913,9 +1940,9 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
                   </button>
                 );
               })}
-            </div>
+            </section>
 
-            <div className="w-3/5 pl-1 pr-2 space-y-4 overflow-y-auto [scrollbar-gutter:stable]">
+            <section className="space-y-4 rounded-[24px] border border-white/60 bg-white/55 p-4 shadow-[0_10px_24px_rgba(203,174,150,0.08)] dark:border-white/10 dark:bg-white/[0.03] overflow-y-auto min-h-0 [scrollbar-gutter:stable]">
               <div className="flex items-center justify-between rounded-xl border px-4 py-3 dark:border-claude-darkBorder border-claude-border dark:bg-claude-darkSurface/40 bg-claude-surface/40">
                 <div className="flex items-center gap-3">
                   <span className="inline-flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-claude-border bg-white/80 text-lg shadow-sm dark:border-claude-darkBorder dark:bg-white/[0.08]">
@@ -1926,12 +1953,12 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
                     })}
                   </span>
                   <div>
-                  <h3 className="text-base font-medium dark:text-claude-darkText text-claude-text">
-                    {activeRoleConfig.label}
-                  </h3>
-                  <p className="mt-1 text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary">
-                    {activeRoleConfig.description}
-                  </p>
+                    <h3 className="text-base font-medium dark:text-claude-darkText text-claude-text">
+                      {activeRoleConfig.label}
+                    </h3>
+                    <p className="mt-1 text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary">
+                      {activeRoleConfig.description}
+                    </p>
                   </div>
                 </div>
                 <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${isAgentRoleReady(activeRoleConfig) ? 'bg-green-500/15 text-green-600 dark:text-green-400' : 'bg-amber-500/15 text-amber-600 dark:text-amber-300'}`}>
@@ -1939,224 +1966,39 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
                 </span>
               </div>
 
-              <div>
-                <label htmlFor={`${activeRole}-label`} className="block text-xs font-medium dark:text-claude-darkText text-claude-text mb-1">
-                  {'角色昵称'}
-                </label>
-                <input
-                  id={`${activeRole}-label`}
-                  type="text"
-                  value={activeRoleConfig.label}
-                  onChange={(event) => handleAgentRoleChange(activeRole, 'label', event.target.value)}
-                  className="block w-full rounded-xl bg-claude-surfaceInset dark:bg-claude-darkSurfaceInset dark:border-claude-darkBorder border-claude-border border focus:border-claude-accent focus:ring-1 focus:ring-claude-accent/30 dark:text-claude-darkText text-claude-text px-3 py-2 text-xs"
-                  placeholder="给这个角色起个好认的名字"
-                />
-              </div>
+              <AgentRoleIdentityCard
+                isMobileViewport={isMobileViewport}
+                activeRole={activeRole}
+                roleConfig={activeRoleConfig}
+                onLabelChange={(value) => handleAgentRoleChange(activeRole, 'label', value)}
+                onAvatarChange={(value) => handleAgentRoleChange(activeRole, 'avatar', value)}
+              />
 
-              <div>
-                <label htmlFor={`${activeRole}-avatar`} className="block text-xs font-medium dark:text-claude-darkText text-claude-text mb-1">
-                  {'角色头像'}
-                </label>
-                <div className="flex items-center gap-3">
-                  <span className="inline-flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-claude-border bg-white/80 text-lg shadow-sm dark:border-claude-darkBorder dark:bg-white/[0.08]">
-                    {renderAgentRoleAvatar(activeRoleConfig.avatar, {
-                      alt: activeRoleConfig.label,
-                      fallback: getAgentRoleDisplayAvatar(activeRole, null),
-                      className: 'h-full w-full object-cover text-lg leading-none flex items-center justify-center',
-                    })}
-                  </span>
-                  <input
-                    id={`${activeRole}-avatar`}
-                    type="text"
-                    value={activeRoleConfig.avatar ?? ''}
-                    onChange={(event) => handleAgentRoleChange(activeRole, 'avatar', event.target.value)}
-                    className="block w-full rounded-xl bg-claude-surfaceInset dark:bg-claude-darkSurfaceInset dark:border-claude-darkBorder border-claude-border border focus:border-claude-accent focus:ring-1 focus:ring-claude-accent/30 dark:text-claude-darkText text-claude-text px-3 py-2 text-xs"
-                    placeholder="可填 emoji、短字符，或图片 URL"
-                  />
-                </div>
-              </div>
+              <AgentRoleApiConfigCard
+                isMobileViewport={isMobileViewport}
+                activeRole={activeRole}
+                roleConfig={activeRoleConfig}
+                isUsingSystemPreset={isUsingSystemPreset}
+                showApiKey={showApiKey}
+                onToggleShowApiKey={() => setShowApiKey(!showApiKey)}
+                onApplySystemPreset={() => handleApplySystemApiPreset(activeRole)}
+                onEnableManualApiUrlEdit={() => handleEnableManualApiUrlEdit(activeRole)}
+                onOpenBuyKey={() => { void window.electron?.shell?.openExternal?.('https://www.feishu.cn/invitation/page/add_contact/?token=202v2dcb-120d-45ec-a736-131b34dc8026&unique_id=FbSH9BXDAeOfS6vxXyvEqA=='); }}
+                onApiUrlChange={(value) => handleAgentRoleChange(activeRole, 'apiUrl', value)}
+                onClearApiUrl={() => handleAgentRoleChange(activeRole, 'apiUrl', '')}
+                onApiKeyChange={(value) => handleAgentRoleChange(activeRole, 'apiKey', value)}
+                onClearApiKey={() => handleAgentRoleChange(activeRole, 'apiKey', '')}
+                onModelIdChange={(value) => handleAgentRoleChange(activeRole, 'modelId', value)}
+                onApiFormatChange={(value) => handleAgentRoleChange(activeRole, 'apiFormat', value)}
+                onImageApiTypeChange={(value) => handleAgentRoleChange(activeRole, 'imageApiType', value)}
+              />
 
-
-              <div>
-                <div className="mb-1 flex items-center justify-between gap-3">
-                  <label htmlFor={`${activeRole}-apiUrl`} className="block text-xs font-medium dark:text-claude-darkText text-claude-text">
-                    {'API 线路'}
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleApplySystemApiPreset(activeRole)}
-                      className="shrink-0 rounded-lg border px-2 py-1 text-[11px] font-medium border-claude-accent/30 text-claude-accent dark:border-claude-accent/40 dark:text-claude-accent dark:hover:bg-claude-accent/10 hover:bg-claude-accent/5 transition-colors"
-                    >
-                      {'使用系统预设'}
-                    </button>
-                    {activeRoleConfig.apiUrl && (
-                      <button
-                        type="button"
-                        onClick={() => handleEnableManualApiUrlEdit(activeRole)}
-                        className="shrink-0 rounded-lg border px-2 py-1 text-[11px] font-medium dark:border-claude-darkBorder border-claude-border dark:text-claude-darkTextSecondary text-claude-textSecondary dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover transition-colors"
-                      >
-                        {'手动填写'}
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => { void window.electron?.shell?.openExternal?.('https://www.feishu.cn/invitation/page/add_contact/?token=202v2dcb-120d-45ec-a736-131b34dc8026&unique_id=FbSH9BXDAeOfS6vxXyvEqA=='); }}
-                      className="shrink-0 rounded-lg border px-2 py-1 text-[11px] font-medium dark:border-claude-darkBorder border-claude-border dark:text-claude-darkTextSecondary text-claude-textSecondary dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover transition-colors"
-                    >
-                      {'点击购买 Key'}
-                    </button>
-                  </div>
-                </div>
-                <div className="relative">
-                  <input
-                    id={`${activeRole}-apiUrl`}
-                    type={isUsingSystemPreset ? 'password' : 'text'}
-                    value={isUsingSystemPreset ? '已使用系统预设线路' : activeRoleConfig.apiUrl}
-                    readOnly={isUsingSystemPreset}
-                    onChange={(event) => handleAgentRoleChange(activeRole, 'apiUrl', event.target.value)}
-                    className="block w-full rounded-xl bg-claude-surfaceInset dark:bg-claude-darkSurfaceInset dark:border-claude-darkBorder border-claude-border border dark:text-claude-darkText text-claude-text px-3 py-2 pr-8 text-xs"
-                    placeholder={isUsingSystemPreset ? '点击“使用系统预设”后自动应用' : '请输入 API Base URL'}
-                    onCopy={isUsingSystemPreset ? (event) => event.preventDefault() : undefined}
-                    onCut={isUsingSystemPreset ? (event) => event.preventDefault() : undefined}
-                    onPaste={isUsingSystemPreset ? (event) => event.preventDefault() : undefined}
-                    onContextMenu={isUsingSystemPreset ? (event) => event.preventDefault() : undefined}
-                  />
-                  {activeRoleConfig.apiUrl && (
-                    <div className="absolute right-2 inset-y-0 flex items-center">
-                      <button
-                        type="button"
-                        onClick={() => handleAgentRoleChange(activeRole, 'apiUrl', '')}
-                        className="p-0.5 rounded text-claude-textSecondary dark:text-claude-darkTextSecondary hover:text-claude-accent transition-colors"
-                        title={'清除'}
-                      >
-                        <XCircleIconSolid className="h-4 w-4" />
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <label htmlFor={`${activeRole}-apiKey`} className="block text-xs font-medium dark:text-claude-darkText text-claude-text mb-1">
-                  {'API Key（支持多个）'}
-                </label>
-                <div className="relative">
-                  <input
-                    id={`${activeRole}-apiKey`}
-                    type={showApiKey ? 'text' : 'password'}
-                    value={activeRoleConfig.apiKey}
-                    onChange={(event) => handleAgentRoleChange(activeRole, 'apiKey', event.target.value)}
-                    className="block w-full rounded-xl bg-claude-surfaceInset dark:bg-claude-darkSurfaceInset dark:border-claude-darkBorder border-claude-border border focus:border-claude-accent focus:ring-1 focus:ring-claude-accent/30 dark:text-claude-darkText text-claude-text px-3 py-2 pr-16 text-xs"
-                    placeholder={'输入你的 API Key'}
-                  />
-                  <div className="absolute right-2 inset-y-0 flex items-center gap-1">
-                    {activeRoleConfig.apiKey && (
-                      <button
-                        type="button"
-                        onClick={() => handleAgentRoleChange(activeRole, 'apiKey', '')}
-                        className="p-0.5 rounded text-claude-textSecondary dark:text-claude-darkTextSecondary hover:text-claude-accent transition-colors"
-                        title={'清除'}
-                      >
-                        <XCircleIconSolid className="h-4 w-4" />
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => setShowApiKey(!showApiKey)}
-                      className="p-0.5 rounded text-claude-textSecondary dark:text-claude-darkTextSecondary hover:text-claude-accent transition-colors"
-                      title={showApiKey ? '隐藏' : '显示'}
-                    >
-                      {showApiKey ? <EyeIcon className="h-4 w-4" /> : <EyeSlashIcon className="h-4 w-4" />}
-                    </button>
-                  </div>
-                </div>
-                <p className="mt-1 text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary">
-                  {'多个 Key 用英文逗号隔开，运行时会自动轮询。'}
-                </p>
-              </div>
-
-              <div>
-                <label htmlFor={`${activeRole}-modelId`} className="block text-xs font-medium dark:text-claude-darkText text-claude-text mb-1">
-                  {'模型 ID'}
-                </label>
-                <input
-                  id={`${activeRole}-modelId`}
-                  type="text"
-                  value={activeRoleConfig.modelId}
-                  onChange={(event) => handleAgentRoleChange(activeRole, 'modelId', event.target.value)}
-                  className="block w-full rounded-xl bg-claude-surfaceInset dark:bg-claude-darkSurfaceInset dark:border-claude-darkBorder border-claude-border border focus:border-claude-accent focus:ring-1 focus:ring-claude-accent/30 dark:text-claude-darkText text-claude-text px-3 py-2 text-xs"
-                  placeholder="gpt-4.1-mini"
-                />
-              </div>
-
-
-              <div>
-                <label className="block text-xs font-medium dark:text-claude-darkText text-claude-text mb-1">
-                  {'兼容协议'}
-                </label>
-                <div className="flex items-center gap-4">
-                  <label className="flex items-center">
-                    <input
-                      type="radio"
-                      name={`${activeRole}-apiFormat`}
-                      value="anthropic"
-                      checked={activeRoleConfig.apiFormat === 'anthropic'}
-                      onChange={() => handleAgentRoleChange(activeRole, 'apiFormat', 'anthropic')}
-                      className="h-3.5 w-3.5 text-claude-accent focus:ring-claude-accent dark:bg-claude-darkSurface bg-claude-surface"
-                    />
-                    <span className="ml-2 text-xs dark:text-claude-darkText text-claude-text">
-                      {'Anthropic 兼容'}
-                    </span>
-                  </label>
-                  <label className="flex items-center">
-                    <input
-                      type="radio"
-                      name={`${activeRole}-apiFormat`}
-                      value="openai"
-                      checked={activeRoleConfig.apiFormat === 'openai'}
-                      onChange={() => handleAgentRoleChange(activeRole, 'apiFormat', 'openai')}
-                      className="h-3.5 w-3.5 text-claude-accent focus:ring-claude-accent dark:bg-claude-darkSurface bg-claude-surface"
-                    />
-                    <span className="ml-2 text-xs dark:text-claude-darkText text-claude-text">
-                      {'OpenAI 兼容'}
-                    </span>
-                  </label>
-                </div>
-              </div>
-
-              {activeRole === 'designer' && (
-                <div>
-                  <label htmlFor={`${activeRole}-imageApiType`} className="block text-xs font-medium dark:text-claude-darkText text-claude-text mb-1">
-                    {'生图接口类型'}
-                  </label>
-                  <ThemedSelect
-                    id={`${activeRole}-imageApiType`}
-                    value={activeRoleConfig.imageApiType}
-                    onChange={(value) => handleAgentRoleChange(activeRole, 'imageApiType', value)}
-                    options={getDesignerImageApiTypeOptions(activeRoleConfig.imageApiType).map((option) => ({
-                      value: option.value,
-                      label: option.label,
-                    }))}
-                  />
-                </div>
-              )}
-
-              <div className="rounded-xl border px-4 py-3 dark:border-claude-darkBorder border-claude-border dark:bg-claude-darkSurface/35 bg-claude-surface/35 space-y-3">
-                <button
-                  type="button"
-                  onClick={() => { void handleTestAgentRoleConnection(); }}
-                  disabled={isTesting || !activeRoleConfig.apiKey.trim() || !activeRoleConfig.modelId.trim() || !activeRoleConfig.apiUrl.trim()}
-                  className="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-xl border dark:border-claude-darkBorder border-claude-border dark:text-claude-darkText text-claude-text dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  <SignalIcon className="h-3.5 w-3.5 mr-1.5" />
-                  {isTesting ? '测试中...' : '测试连接'}
-                </button>
-                <p className="mt-1 text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary">
-                  {'这里只保留角色级 API 配置主链：URL、Key、模型、协议与连接测试。'}
-                </p>
-              </div>
-            </div>
+              <AgentRoleStatusCard
+                roleConfig={activeRoleConfig}
+                isTesting={isTesting}
+                onTestConnection={() => { void handleTestAgentRoleConnection(); }}
+              />
+            </section>
           </div>
         );
       }
@@ -2192,10 +2034,10 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
       <div
         className={`relative ${isMobileViewport ? 'flex-col' : 'flex'} w-full modal-pearl overflow-hidden modal-content`}
         style={{
-          width: isMobileViewport ? '100vw' : 'min(92vw, var(--uclaw-shell-max-width), calc(88vh * 1.6))',
-          minWidth: isMobileViewport ? '100vw' : 'min(var(--uclaw-shell-min-width), 92vw)',
-          minHeight: isMobileViewport ? '100dvh' : 'min(var(--uclaw-shell-min-height), 88vh)',
-          maxHeight: isMobileViewport ? '100dvh' : '88vh',
+          width: isMobileViewport ? '100vw' : 'min(90vw, var(--uclaw-app-max-width), calc(90vh * 1.6))',
+          minWidth: isMobileViewport ? '100vw' : 'min(var(--uclaw-shell-min-width), 90vw)',
+          minHeight: isMobileViewport ? '100dvh' : 'min(var(--uclaw-shell-min-height), 90vh)',
+          maxHeight: isMobileViewport ? '100dvh' : '90vh',
           borderRadius: isMobileViewport ? '0' : 'var(--uclaw-shell-radius)',
           aspectRatio: isMobileViewport ? 'auto' : 'var(--uclaw-shell-aspect-ratio)',
         }}
@@ -2361,26 +2203,28 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
               className={`${isMobileViewport ? 'px-4 py-4' : 'px-8 py-6'} flex-1 overflow-y-auto`}
               style={{ scrollbarGutter: 'stable' }}
             >
-              {settingsLoaded ? (
-                settingsLoadFailed ? (
-                  <div className="flex h-full min-h-[320px] items-center justify-center">
-                    <div className="max-w-lg rounded-2xl border border-red-300/60 bg-red-50/80 px-5 py-4 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200">
-                      <div className="font-medium">{'设置读取失败'}</div>
-                      <div className="mt-2 leading-6">
-                        {error || '当前没有拿到配置真值。为避免把默认配置误写回去，保存已被暂时禁用。'}
+              <div className={isMobileViewport ? '' : SETTINGS_DESKTOP_CONTENT_WRAP_CLASS}>
+                {settingsLoaded ? (
+                  settingsLoadFailed ? (
+                    <div className="flex h-full min-h-[320px] items-center justify-center">
+                      <div className="max-w-lg rounded-2xl border border-red-300/60 bg-red-50/80 px-5 py-4 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200">
+                        <div className="font-medium">{'设置读取失败'}</div>
+                        <div className="mt-2 leading-6">
+                          {error || '当前没有拿到配置真值。为避免把默认配置误写回去，保存已被暂时禁用。'}
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  ) : (
+                    renderTabContent()
+                  )
                 ) : (
-                  renderTabContent()
-                )
-              ) : (
-                <div className="flex h-full min-h-[320px] items-center justify-center">
-                  <div className="rounded-2xl border border-claude-border/60 bg-claude-surface/60 px-5 py-4 text-sm text-claude-textSecondary dark:border-claude-darkBorder/60 dark:bg-claude-darkSurface/50 dark:text-claude-darkTextSecondary">
-                    正在读取设置真值...
+                  <div className="flex h-full min-h-[320px] items-center justify-center">
+                    <div className="rounded-2xl border border-claude-border/60 bg-claude-surface/60 px-5 py-4 text-sm text-claude-textSecondary dark:border-claude-darkBorder/60 dark:bg-claude-darkSurface/50 dark:text-claude-darkTextSecondary">
+                      正在读取设置真值...
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
 
             {/* Footer buttons */}

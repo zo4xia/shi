@@ -223,8 +223,12 @@ export interface CoworkPromptInputRef {
   focus: () => void;
 }
 
+export interface CoworkSubmitOptions {
+  zenMode?: boolean;
+}
+
 interface CoworkPromptInputProps {
-  onSubmit: (prompt: string, skillPrompt?: string, imageAttachments?: CoworkImageAttachment[]) => void;
+  onSubmit: (prompt: string, skillPrompt?: string, imageAttachments?: CoworkImageAttachment[], submitOptions?: CoworkSubmitOptions) => void;
   onStop?: () => void;
   isStreaming?: boolean;
   placeholder?: string;
@@ -267,6 +271,7 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
     const [showFolderRequiredWarning, setShowFolderRequiredWarning] = useState(false);
     const [inputWasTruncated, setInputWasTruncated] = useState(initialPrompt.wasTruncated);
     const [isDraggingFiles, setIsDraggingFiles] = useState(false);
+    const [zenModeEnabled, setZenModeEnabled] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const folderButtonRef = useRef<HTMLButtonElement>(null);
@@ -445,7 +450,12 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
         base64Lengths: imageAtts.map(a => a.base64Data.length),
       });
     }
-    onSubmit(finalPrompt, skillPrompt, imageAtts.length > 0 ? imageAtts : undefined);
+    onSubmit(
+      finalPrompt,
+      skillPrompt,
+      imageAtts.length > 0 ? imageAtts : undefined,
+      zenModeEnabled ? { zenMode: true } : undefined,
+    );
     updateValue('');
     dispatch(setDraftPrompt(''));
     setAttachments([]);
@@ -886,6 +896,9 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
   const enhancedContainerClass = isDraggingFiles
     ? `${containerClass} ring-2 ring-claude-accent/50 border-claude-accent/60`
     : containerClass;
+  const zenButtonClass = zenModeEnabled
+    ? 'inline-flex items-center gap-1.5 rounded-full border border-emerald-300/60 bg-emerald-50/85 px-3 py-1.5 text-[11px] font-medium text-emerald-700 shadow-sm transition-colors hover:bg-emerald-100 dark:border-emerald-400/30 dark:bg-emerald-400/10 dark:text-emerald-200 dark:hover:bg-emerald-400/16'
+    : 'inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-white/60 px-3 py-1.5 text-[11px] font-medium text-[#7A7065] transition-colors hover:bg-white/80 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/60 dark:hover:bg-white/[0.08]';
 
   return (
     <div className="relative">
@@ -896,6 +909,20 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
         className="hidden"
         onChange={handleFileInputChange}
       />
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex justify-end">
+        <div className="pointer-events-auto">
+          <button
+            type="button"
+            onClick={() => setZenModeEnabled((current) => !current)}
+            className={`${zenButtonClass} ${isLarge ? 'shadow-[0_8px_20px_rgba(90,82,72,0.08)]' : 'scale-[0.95] origin-top-right'} translate-y-[-55%]`}
+            title={zenModeEnabled ? '禅模式已开启：关闭广播板读写' : '开启禅模式：关闭广播板读写'}
+            aria-pressed={zenModeEnabled}
+          >
+            <span className="font-semibold">{zenModeEnabled ? '禅' : '常'}</span>
+            <span>{zenModeEnabled ? '禅模式开' : '禅模式关'}</span>
+          </button>
+        </div>
+      </div>
       {attachments.length > 0 && (
         <div className="mb-2 flex flex-wrap gap-2">
           {attachments.map((attachment) => {
@@ -911,10 +938,10 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
                 ) : (
                   <PaperClipIcon className="h-4 w-4 flex-shrink-0 text-[#9A9085]/80" />
                 )}
-                <span className="flex min-w-0 max-w-[220px] flex-col leading-tight">
-                  <span className="truncate max-w-[220px] text-[12px]">{display.primary}</span>
+                <span className="flex min-w-0 max-w-[240px] flex-col leading-tight">
+                  <span className="truncate max-w-[240px] text-[12px]">{display.primary}</span>
                   {display.secondary && (
-                    <span className="truncate max-w-[220px] text-[10px] text-[#9A9085]/85 dark:text-white/55">
+                    <span className="truncate max-w-[240px] text-[10px] text-[#9A9085]/85 dark:text-white/55">
                       {display.secondary}
                     </span>
                   )}
@@ -959,8 +986,8 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
               className={textareaClass}
               style={{ minHeight: `${minHeight}px`, maxHeight: `${maxHeight}px` }}
             />
-            <div className="flex items-center justify-between px-4 pb-2 pt-1.5">
-              <div className="flex items-center gap-2 relative">
+            <div className="flex flex-wrap items-center gap-2 px-4 pb-2 pt-1.5">
+              <div className="relative flex min-w-0 flex-1 flex-wrap items-center gap-2">
                 {showFolderSelector && (
                   <>
                     <div className="relative group">
@@ -968,16 +995,16 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
                         ref={folderButtonRef as React.RefObject<HTMLButtonElement>}
                         type="button"
                         onClick={() => setShowFolderMenu(!showFolderMenu)}
-                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm dark:text-white/50 text-[#9A9085] dark:hover:bg-white/10 hover:bg-[#9A9085]/10 dark:hover:text-white/70 hover:text-[#7A7065] transition-colors"
+                        className="flex max-w-full items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm text-[#9A9085] transition-colors hover:bg-[#9A9085]/10 hover:text-[#7A7065] dark:text-white/50 dark:hover:bg-white/10 dark:hover:text-white/70"
                       >
-                        <FolderIcon className="h-4 w-4" />
-                        <span className="max-w-[150px] truncate text-xs">
+                        <FolderIcon className="h-4 w-4 shrink-0" />
+                        <span className="max-w-[120px] truncate text-xs sm:max-w-[180px]">
                           {truncatePath(workingDirectory)}
                         </span>
                       </button>
                       {/* Tooltip - hidden when folder menu is open */}
                       {!showFolderMenu && (
-                        <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-3.5 py-2.5 text-[13px] leading-relaxed rounded-xl shadow-lg dark:bg-white/10 bg-white/80 dark:text-white/90 text-[#5A5248] dark:border-white/10 border border-white/20 backdrop-blur-sm opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-colors duration-200 pointer-events-none z-50 max-w-[400px] break-all whitespace-nowrap">
+                        <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 max-w-[min(20rem,calc(100vw-2rem))] px-3.5 py-2.5 text-[13px] leading-relaxed rounded-xl shadow-lg dark:bg-white/10 bg-white/80 dark:text-white/90 text-[#5A5248] dark:border-white/10 border border-white/20 backdrop-blur-sm opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-colors duration-200 pointer-events-none z-50 break-all whitespace-nowrap">
                           {truncatePath(workingDirectory, 120)}
                         </div>
                       )}
@@ -1001,7 +1028,7 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
                 <button
                   type="button"
                   onClick={handleAddFile}
-                  className="flex items-center justify-center p-1.5 rounded-lg text-sm dark:text-white/50 text-[#9A9085] dark:hover:bg-white/10 hover:bg-[#9A9085]/10 dark:hover:text-white/70 hover:text-[#7A7065] transition-colors"
+                  className="flex shrink-0 items-center justify-center rounded-lg p-1.5 text-sm text-[#9A9085] transition-colors hover:bg-[#9A9085]/10 hover:text-[#7A7065] dark:text-white/50 dark:hover:bg-white/10 dark:hover:text-white/70"
                   title={'添加文件'}
                   aria-label={'添加文件'}
                   disabled={disabled || isStreaming}
@@ -1011,7 +1038,7 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
                 <button
                   type="button"
                   onClick={() => { void handleOpenBrowserEyes(); }}
-                  className="flex items-center justify-center p-1.5 rounded-lg text-sm dark:text-white/50 text-[#9A9085] dark:hover:bg-white/10 hover:bg-[#9A9085]/10 dark:hover:text-white/70 hover:text-[#7A7065] transition-colors"
+                  className="flex shrink-0 items-center justify-center rounded-lg p-1.5 text-sm text-[#9A9085] transition-colors hover:bg-[#9A9085]/10 hover:text-[#7A7065] dark:text-white/50 dark:hover:bg-white/10 dark:hover:text-white/70"
                   title={'打开小眼睛小电视'}
                   aria-label={'打开小眼睛小电视'}
                   disabled={disabled}
@@ -1026,7 +1053,7 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
                 />
                 <ActiveSkillBadge />
               </div>
-              <div className="flex items-center gap-2">
+              <div className="ml-auto flex shrink-0 items-center gap-2">
                 {isStreaming ? (
                   <button
                     type="button"

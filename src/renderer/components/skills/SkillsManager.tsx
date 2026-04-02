@@ -23,6 +23,7 @@ import { WebFileOperations } from '../../utils/fileOperations';
 import ErrorMessage from '../ErrorMessage';
 import ConfirmDialog from '../ui/ConfirmDialog';
 import ImportDialog from '../ui/ImportDialog';
+import SkillDetailOverlay, { type RoleOptionKey } from './SkillDetailOverlay';
 import { AGENT_ROLE_ORDER, AGENT_ROLE_SHORT_LABELS } from '../../../shared/agentRoleConfig';
 import { RUNTIME_FLOW_TAGS } from '../../../shared/runtimeFlowTags';
 
@@ -734,172 +735,203 @@ const SkillsManager: React.FC = () => {
   const selectedSkillCategory = selectedSkill?.category?.trim() || '';
   const hasSelectedSkillCategoryChanged = Boolean(selectedSkill) && selectedSkillCategory !== skillCategoryDraft.trim();
 
+  const selectedSkillRoleBindings = selectedSkill ? getSkillRoleBindings(selectedSkill) : [];
+  const selectedSkillUnboundRoleLabels = selectedSkill ? getUnboundRoleLabels(selectedSkill) : [];
+  const selectedSkillDescription = selectedSkill
+    ? skillService.getLocalizedSkillDescription(selectedSkill.id, selectedSkill.name, selectedSkill.description)
+    : '';
+  const selectedSkillSourceLabel = selectedSkill ? getSkillSourceLabel(selectedSkill) : '';
+  const handleSkillDetailToggleEnabled = () => {
+    if (!selectedSkill) return;
+    handleToggleSkill(selectedSkill.id);
+    setSelectedSkill((prev) => (prev ? { ...prev, enabled: !prev.enabled } : prev));
+  };
+  const handleSkillDetailRoleToggle = (roleKey: RoleOptionKey) => {
+    if (!selectedSkill) return;
+    void handleToggleSkillRole(selectedSkill, roleKey);
+  };
+  const formatSkillHeader = (skill: Skill) => `(${skill.category?.trim() || '未分类'}) ${getSkillDisplayName(skill)}`;
+
   return (
-    <div className="space-y-4">
-      <div>
-        <p className="text-sm dark:text-claude-darkTextSecondary text-claude-textSecondary">
-          {'把常用技能装给当前角色。首屏只看名字和用途，细节点进去再看。'}
-        </p>
-        <p className="mt-1 text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary">
-          {'上传目录导入时，请确保里面只有 1 个技能；如果目录里混了多个 SKILL.md，系统现在会直接拦住。'}
-        </p>
-      </div>
+    <div className="space-y-5">
+      <div className="rounded-2xl border dark:border-claude-darkBorder border-claude-border dark:bg-claude-darkSurface/40 bg-claude-surface/60 p-4 space-y-4">
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 space-y-1">
+                <p className="text-sm font-semibold dark:text-claude-text text-claude-text">
+                  {'当前角色可用技能，可直接调整后在对话中使用。'}
+                </p>
+                <p className="text-xs text-claude-textSecondary dark:text-claude-darkTextSecondary">
+                  {'保持首屏简洁，需时点击卡片展开详情。'}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowRuntimeHint((value) => !value)}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-sky-100/80 dark:border-sky-800/70 bg-sky-50/80 dark:bg-sky-950/20 px-2.5 py-1 text-[11px] font-medium text-sky-700 dark:text-sky-200 transition-colors"
+                >
+                  <InformationCircleIcon className="h-3.5 w-3.5" />
+                  {'说明'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowCompatHint((value) => !value)}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-amber-100/80 dark:border-amber-800/70 bg-amber-50/70 dark:bg-amber-950/20 px-2.5 py-1 text-[11px] font-medium text-amber-700 dark:text-amber-200 transition-colors"
+                >
+                  <span className="inline-block h-2 w-2 rounded-full bg-amber-500" />
+                  {'兼容'}
+                </button>
+              </div>
+            </div>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="relative flex-1">
+                <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 dark:text-claude-darkTextSecondary text-claude-textSecondary" />
+                <input
+                  type="text"
+                  placeholder={'搜索技能'}
+                  value={skillSearchQuery}
+                  onChange={(e) => setSkillSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 text-sm rounded-xl dark:bg-claude-darkSurface bg-claude-surface dark:text-claude-darkText text-claude-text dark:placeholder-claude-darkTextSecondary placeholder-claude-textSecondary border dark:border-claude-darkBorder border-claude-border focus:outline-none focus:ring-2 focus:ring-claude-accent"
+                />
+              </div>
+              <div className="flex flex-wrap gap-2 justify-end w-full sm:w-auto">
+                {invalidSkills.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowCleanConfirm(true)}
+                    disabled={isCleaningInvalid}
+                    className="flex items-center gap-2 rounded-full border border-red-300/70 dark:border-red-800 text-xs px-3 py-1 text-red-600 dark:text-red-300 bg-red-50/60 dark:bg-red-900/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <TrashIcon className="h-4 w-4" />
+                    <span>{isCleaningInvalid ? '清理中...' : `清理无效 (${invalidSkills.length})`}</span>
+                  </button>
+                )}
+                {duplicateSkillCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowDuplicateCleanConfirm(true)}
+                    disabled={isCleaningDuplicates}
+                    className="flex items-center gap-2 rounded-full border border-amber-300/70 dark:border-amber-800 text-xs px-3 py-1 text-amber-700 dark:text-amber-200 bg-amber-50/60 dark:bg-amber-900/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <TrashIcon className="h-4 w-4" />
+                    <span>{isCleaningDuplicates ? '清理中...' : `清理重复 (${duplicateSkillCount})`}</span>
+                  </button>
+                )}
+                <div className="relative">
+                  <button
+                    ref={addSkillButtonRef}
+                    type="button"
+                    onClick={() => setIsAddSkillMenuOpen(prev => !prev)}
+                    className="inline-flex items-center gap-2 rounded-full border bg-claude-surface/80 dark:bg-claude-darkSurface border-claude-border dark:border-claude-darkBorder px-3 py-1 text-sm dark:text-claude-text text-claude-text"
+                  >
+                    <PlusCircleIcon className="h-4 w-4" />
+                    <span>{'添加'}</span>
+                  </button>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          onClick={() => setShowRuntimeHint((value) => !value)}
-          className="inline-flex items-center gap-1.5 rounded-full border border-sky-200/80 dark:border-sky-800/70 bg-sky-50/90 dark:bg-sky-950/20 px-2.5 py-1 text-[11px] font-medium text-sky-700 dark:text-sky-200 transition-colors"
-        >
-          <InformationCircleIcon className="h-3.5 w-3.5" />
-          {'说明'}
-        </button>
-        <button
-          type="button"
-          onClick={() => setShowCompatHint((value) => !value)}
-          className="inline-flex items-center gap-1.5 rounded-full border border-amber-200/80 dark:border-amber-800/70 bg-amber-50/90 dark:bg-amber-950/20 px-2.5 py-1 text-[11px] font-medium text-amber-700 dark:text-amber-200 transition-colors"
-        >
-          <span className="inline-block h-2 w-2 rounded-full bg-amber-500" />
-          {'兼容提示'}
-        </button>
-      </div>
-
-      {showRuntimeHint && (
-        <div className="rounded-2xl border border-sky-200/80 dark:border-sky-800/70 bg-sky-50/90 dark:bg-sky-950/20 px-4 py-3 space-y-1.5">
-          <p className="text-sm leading-6 text-sky-700 dark:text-sky-200">
-            {'这里看到的是角色当前真正能用到的技能结果，不是随便展示一个列表。系统会按角色绑定和运行配置，筛出实际会进对话的那部分。'}
-          </p>
-          <div className="space-y-1 text-xs leading-5 text-sky-600 dark:text-sky-300/90">
-            <div>{'先导入，再选择给哪个角色使用，最后才会进入这个角色的真实对话能力。'}</div>
-            <div>{'这里默认只保留已经对当前角色生效的结果，不把底层路径和技术细节直接铺给用户。'}</div>
-            <div>{'这里默认只显示当前角色真正会带上的技能：角色绑定 + 全部角色通用。'}</div>
-            <div>{'像 Memory、Playwright 这类工具接入不在这里看，它们归到 MCP。'}</div>
-          </div>
-        </div>
-      )}
-
-      {showCompatHint && (
-        <div className="rounded-2xl border border-amber-200/80 dark:border-amber-800/70 bg-amber-50/90 dark:bg-amber-950/20 px-4 py-3">
-          <p className="text-sm leading-6 text-amber-700 dark:text-amber-200">
-            {claudeCliSkillsNotice}
-          </p>
-        </div>
-      )}
-
-      {skillActionError && (
-        <ErrorMessage
-          message={skillActionError}
-          onClose={() => setSkillActionError('')}
-        />
-      )}
-
-      <div className="flex items-center gap-3">
-        <div className="relative flex-1">
-          <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 dark:text-claude-darkTextSecondary text-claude-textSecondary" />
-          <input
-            type="text"
-            placeholder={'搜索技能'}
-            value={skillSearchQuery}
-            onChange={(e) => setSkillSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 text-sm rounded-xl dark:bg-claude-darkSurface bg-claude-surface dark:text-claude-darkText text-claude-text dark:placeholder-claude-darkTextSecondary placeholder-claude-textSecondary border dark:border-claude-darkBorder border-claude-border focus:outline-none focus:ring-2 focus:ring-claude-accent"
-          />
-        </div>
-        {invalidSkills.length > 0 && (
-          <button
-            type="button"
-            onClick={() => setShowCleanConfirm(true)}
-            disabled={isCleaningInvalid}
-            className="px-3 py-2 text-sm rounded-xl border transition-colors border-red-300 dark:border-red-800 text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
-          >
-            <TrashIcon className="h-4 w-4" />
-            <span>{isCleaningInvalid ? '清理中...' : `清理无效 (${invalidSkills.length})`}</span>
-          </button>
-        )}
-        {duplicateSkillCount > 0 && (
-          <button
-            type="button"
-            onClick={() => setShowDuplicateCleanConfirm(true)}
-            disabled={isCleaningDuplicates}
-            className="px-3 py-2 text-sm rounded-xl border transition-colors border-amber-300 dark:border-amber-800 text-amber-600 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/20 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
-          >
-            <TrashIcon className="h-4 w-4" />
-            <span>{isCleaningDuplicates ? '清理中...' : `清理重复 (${duplicateSkillCount})`}</span>
-          </button>
-        )}
-        <div className="relative">
-          <button
-            ref={addSkillButtonRef}
-            type="button"
-            onClick={() => setIsAddSkillMenuOpen(prev => !prev)}
-            className="px-3 py-2 text-sm rounded-xl border transition-colors dark:bg-claude-darkSurface bg-claude-surface dark:border-claude-darkBorder border-claude-border dark:text-claude-darkText text-claude-text dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover flex items-center gap-2"
-          >
-            <PlusCircleIcon className="h-4 w-4" />
-            <span>{'添加'}</span>
-          </button>
-
-          {isAddSkillMenuOpen && (
-            <div
-              ref={addSkillMenuRef}
-              className="absolute right-0 mt-2 w-80 rounded-xl border dark:border-claude-darkBorder border-claude-border dark:bg-claude-darkSurface bg-claude-surface shadow-lg z-50 overflow-hidden"
-            >
-              <div className="px-3 py-3 border-b dark:border-claude-darkBorder/70 border-claude-border/70">
-                {renderImportTargetPicker()}
-                <div className="mt-3">
-                  <div className="text-xs font-semibold dark:text-claude-darkText text-claude-text">
-                    {'显示别名'}
-                  </div>
-                  <input
-                    type="text"
-                    value={skillDisplayAlias}
-                    onChange={(e) => setSkillDisplayAlias(e.target.value)}
-                    placeholder={'可选：只改界面显示名，不改 skill_id'}
-                    className="mt-2 w-full px-3 py-2 text-sm rounded-xl dark:bg-claude-darkBg bg-claude-bg dark:text-claude-darkText text-claude-text dark:placeholder-claude-darkTextSecondary placeholder-claude-textSecondary border dark:border-claude-darkBorder border-claude-border focus:outline-none focus:ring-2 focus:ring-claude-accent"
-                  />
+                  {isAddSkillMenuOpen && (
+                    <div
+                      ref={addSkillMenuRef}
+                      className="absolute right-0 mt-2 w-80 rounded-2xl border border-claude-border dark:border-claude-darkBorder bg-claude-surface/80 dark:bg-claude-darkSurface shadow-lg z-50 overflow-hidden"
+                    >
+                      <div className="px-3 py-3 border-b border-claude-border dark:border-claude-darkBorder/70">
+                        {renderImportTargetPicker()}
+                        <div className="mt-3 space-y-1">
+                          <div className="text-xs font-semibold dark:text-claude-darkText text-claude-text">
+                            {'显示别名'}
+                          </div>
+                          <input
+                            type="text"
+                            value={skillDisplayAlias}
+                            onChange={(e) => setSkillDisplayAlias(e.target.value)}
+                            placeholder={'可选：只改界面显示名，不改 skill_id'}
+                            className="w-full px-3 py-2 text-sm rounded-xl dark:bg-claude-darkBg bg-claude-bg dark:text-claude-darkText text-claude-text dark:placeholder-claude-darkTextSecondary placeholder-claude-textSecondary border dark:border-claude-darkBorder border-claude-border focus:outline-none focus:ring-2 focus:ring-claude-accent"
+                          />
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleUploadSkillZip}
+                        disabled={isDownloadingSkill}
+                        className="w-full flex items-center gap-3 px-3 py-2.5 text-sm dark:text-claude-darkText text-claude-text hover:bg-claude-surfaceHover dark:hover:bg-claude-darkSurfaceHover transition-colors disabled:opacity-50"
+                      >
+                        <UploadIcon className="h-4 w-4 dark:text-claude-darkTextSecondary text-claude-textSecondary" />
+                        <span>{'上传 .zip'}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleUploadSkillFolder}
+                        disabled={isDownloadingSkill}
+                        className="w-full flex items-center gap-3 px-3 py-2.5 text-sm dark:text-claude-darkText text-claude-text hover:bg-claude-surfaceHover dark:hover:bg-claude-darkSurfaceHover transition-colors disabled:opacity-50"
+                      >
+                        <FolderOpenIcon className="h-4 w-4 dark:text-claude-darkTextSecondary text-claude-textSecondary" />
+                        <span>{'上传文件夹'}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleOpenGithubImport}
+                        className="w-full flex items-center gap-3 px-3 py-2.5 text-sm dark:text-claude-darkText text-claude-text hover:bg-claude-surfaceHover dark:hover:bg-claude-darkSurfaceHover transition-colors"
+                      >
+                        <LinkIcon className="h-4 w-4 dark:text-claude-darkTextSecondary text-claude-textSecondary" />
+                        <span>{'从 GitHub 导入'}</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={handleUploadSkillZip}
-                disabled={isDownloadingSkill}
-                className="w-full flex items-center gap-3 px-3 py-2.5 text-sm dark:text-claude-darkText text-claude-text dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover transition-colors disabled:opacity-50"
-              >
-                <UploadIcon className="h-4 w-4 dark:text-claude-darkTextSecondary text-claude-textSecondary" />
-                <span>{'上传 .zip'}</span>
-              </button>
-              <button
-                type="button"
-                onClick={handleUploadSkillFolder}
-                disabled={isDownloadingSkill}
-                className="w-full flex items-center gap-3 px-3 py-2.5 text-sm dark:text-claude-darkText text-claude-text dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover transition-colors disabled:opacity-50"
-              >
-                <FolderOpenIcon className="h-4 w-4 dark:text-claude-darkTextSecondary text-claude-textSecondary" />
-                <span>{'上传文件夹'}</span>
-              </button>
-              <button
-                type="button"
-                onClick={handleOpenGithubImport}
-                className="w-full flex items-center gap-3 px-3 py-2.5 text-sm dark:text-claude-darkText text-claude-text dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover transition-colors"
-              >
-                <LinkIcon className="h-4 w-4 dark:text-claude-darkTextSecondary text-claude-textSecondary" />
-                <span>{'从 GitHub 导入'}</span>
-              </button>
             </div>
-          )}
+          </div>
         </div>
+
+        {showRuntimeHint && (
+          <div className="rounded-2xl border border-sky-200/70 dark:border-sky-800/70 bg-sky-50/80 dark:bg-sky-950/20 px-4 py-3 space-y-1">
+            <p className="text-sm leading-6 text-sky-700 dark:text-sky-200">
+              {'这里看到的是角色当前真正能用到的技能结果，系统会按角色绑定和运行配置筛出实际能力。'}
+            </p>
+            <div className="text-xs text-sky-600 dark:text-sky-300/90 space-y-1">
+              <div>{'先导入，再选择给哪个角色使用，最后才会进入真实对话能力。'}</div>
+              <div>{'只保留已经对当前角色生效的结果，不直接铺开底层技术细节。'}</div>
+            </div>
+          </div>
+        )}
+
+        {showCompatHint && (
+          <div className="rounded-2xl border border-amber-200/70 dark:border-amber-800/70 bg-amber-50/70 dark:bg-amber-950/20 px-4 py-3">
+            <p className="text-sm leading-6 text-amber-700 dark:text-amber-200">
+              {claudeCliSkillsNotice}
+            </p>
+          </div>
+        )}
+
+        {skillActionError && (
+          <ErrorMessage
+            message={skillActionError}
+            onClose={() => setSkillActionError('')}
+          />
+        )}
       </div>
 
       {availableSkillLabels.length > 0 && (
-        <div className="mb-4 rounded-xl border dark:border-claude-darkBorder border-claude-border dark:bg-claude-darkSurface/35 bg-claude-surface/35 p-3">
-          <div className="text-xs font-semibold dark:text-claude-darkText text-claude-text">
-            {'标签 / 分类'}
+        <div
+          aria-label="技能市场"
+          className="rounded-2xl border dark:border-claude-darkBorder border-claude-border dark:bg-claude-darkSurface/30 bg-claude-surface/50 px-4 py-3 space-y-3"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold dark:text-claude-text text-claude-text">
+              {'标签 / 分类'}
+            </span>
+            <span className="text-[11px] text-claude-textSecondary dark:text-claude-darkTextSecondary">
+              {'过滤已装技能，快速定位能力面。'}
+            </span>
           </div>
-          <div className="mt-2 flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2">
             {availableSkillLabels.map((label) => {
               const checked = selectedSkillLabels.includes(label);
               return (
                 <label
                   key={label}
-                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs cursor-pointer transition-colors ${
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs cursor-pointer transition-colors ${
                     checked
                       ? 'border-claude-accent bg-claude-accent/10 text-claude-accent'
                       : 'dark:border-claude-darkBorder border-claude-border dark:text-claude-darkTextSecondary text-claude-textSecondary'
@@ -919,314 +951,142 @@ const SkillsManager: React.FC = () => {
         </div>
       )}
 
-      <div className="space-y-4">
+      <div className="rounded-2xl border dark:border-claude-darkBorder border-claude-border dark:bg-claude-darkSurface/30 bg-claude-surface/50 p-4 space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-semibold dark:text-claude-darkText text-claude-text">
+              {'已装技能'}
+            </p>
+            <p className="text-[11px] text-claude-textSecondary dark:text-claude-darkTextSecondary">
+              {'点击卡片查看详情，保持首屏轻量。'}
+            </p>
+          </div>
+          <span className="text-xs text-claude-textSecondary dark:text-claude-darkTextSecondary">{`共 ${filteredSkills.length} 项`}</span>
+        </div>
+
         {filteredSkills.length === 0 ? (
           <div className="text-center py-8 text-sm dark:text-claude-darkTextSecondary text-claude-textSecondary">
             {'暂无可用技能'}
           </div>
         ) : (
-          groupedSkills.map((group) => (
-            <div
-              key={`skill-group-${group.key}`}
-              className="rounded-2xl border dark:border-claude-darkBorder border-claude-border dark:bg-claude-darkSurface/30 bg-claude-surface/30 p-3"
-            >
-              <button
-                type="button"
-                onClick={() => setCollapsedSkillGroups((prev) => ({
-                  ...prev,
-                  [group.key]: !prev[group.key],
-                }))}
-                className="mb-3 flex w-full items-center justify-between rounded-xl px-2 py-2 text-left transition-colors dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover"
-              >
-                <div className="flex items-center gap-2">
-                  <span className="rounded-full bg-claude-accent/10 px-2 py-0.5 text-[11px] font-medium text-claude-accent">
-                    {group.entries.length}
-                  </span>
-                  <span className="text-sm font-medium dark:text-claude-darkText text-claude-text">
-                    {group.title}
-                  </span>
-                </div>
-                <span className="text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary">
-                  {collapsedSkillGroups[group.key] ? '展开' : '收起'}
-                </span>
-              </button>
-
-              {!collapsedSkillGroups[group.key] && (
-                <div className="grid grid-cols-2 gap-4">
-                  {group.entries.map((skill) => {
-            const bindings = getSkillRoleBindings(skill);
-            const visibleLabels = getSkillFilterLabels(skill).slice(0, 2);
-            const roleLabel = bindings.length === 0
-              ? '未绑定'
-              : bindings.some((binding) => binding.roleKey === 'all')
-                ? '全部角色'
-                : bindings
-                  .slice(0, 2)
-                  .map((binding) => AGENT_ROLE_SHORT_LABELS[binding.roleKey] || binding.roleKey)
-                  .join(' / ');
-
-            return (
+          <div className="space-y-4">
+            {groupedSkills.map((group) => (
               <div
-                key={skill.id}
-                className="rounded-xl border dark:border-claude-darkBorder border-claude-border dark:bg-claude-darkSurface/50 bg-claude-surface/50 p-3 transition-colors hover:border-claude-accent/50 cursor-pointer"
-                onClick={() => setSelectedSkill(skill)}
+                key={`skill-group-${group.key}`}
+                className="space-y-3 border-b border-claude-border dark:border-claude-darkBorder pb-4 last:border-0"
               >
-                <div className="flex items-start justify-between mb-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <div className="w-7 h-7 rounded-lg dark:bg-claude-darkSurface bg-claude-surface flex items-center justify-center flex-shrink-0">
-                      <PuzzleIcon className="h-4 w-4 dark:text-claude-darkTextSecondary text-claude-textSecondary" />
-                    </div>
-                    <span className="text-sm font-medium dark:text-claude-darkText text-claude-text truncate">
-                      {getSkillDisplayName(skill)}
+                <button
+                  type="button"
+                  onClick={() => setCollapsedSkillGroups((prev) => ({
+                    ...prev,
+                    [group.key]: !prev[group.key],
+                  }))}
+                  className="flex w-full items-center justify-between rounded-lg px-2 py-2 text-left text-sm font-medium dark:text-claude-darkText text-claude-text transition-colors hover:bg-claude-surfaceHover dark:hover:bg-claude-darkSurfaceHover"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full bg-claude-accent/10 px-2 py-0.5 text-[11px] font-medium text-claude-accent">
+                      {group.entries.length}
                     </span>
+                    <span>{group.title}</span>
                   </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    {!skill.isBuiltIn && (
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); handleRequestDeleteSkill(skill); }}
-                        className="p-1 rounded-lg text-claude-textSecondary dark:text-claude-darkTextSecondary hover:text-red-500 dark:hover:text-red-400 transition-colors"
-                        title={'删除技能'}
-                      >
-                        <TrashIcon className="h-4 w-4" />
-                      </button>
-                    )}
-                    <div
-                      className={`w-9 h-5 rounded-full flex items-center transition-colors cursor-pointer flex-shrink-0 ${
-                        skill.enabled ? 'bg-claude-accent' : 'dark:bg-claude-darkBorder bg-claude-border'
-                      }`}
-                      onClick={(e) => { e.stopPropagation(); handleToggleSkill(skill.id); }}
-                    >
-                      <div
-                        className={`w-3.5 h-3.5 rounded-full bg-white shadow-md transform transition-transform ${
-                          skill.enabled ? 'translate-x-[18px]' : 'translate-x-[3px]'
-                        }`}
-                      />
-                    </div>
+                  <span className="text-xs text-claude-textSecondary dark:text-claude-darkTextSecondary">
+                    {collapsedSkillGroups[group.key] ? '展开' : '收起'}
+                  </span>
+                </button>
+
+                {!collapsedSkillGroups[group.key] && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {group.entries.map((skill) => {
+                      const bindings = getSkillRoleBindings(skill);
+                      const roleLabel = bindings.length === 0
+                        ? '未绑定'
+                        : bindings.some((binding) => binding.roleKey === 'all')
+                          ? '全部角色'
+                          : bindings
+                            .slice(0, 2)
+                            .map((binding) => AGENT_ROLE_SHORT_LABELS[binding.roleKey] || binding.roleKey)
+                            .join(' / ');
+                      const description = skillService.getLocalizedSkillDescription(skill.id, skill.name, skill.description);
+
+                      return (
+                        <div
+                          key={skill.id}
+                          className="group rounded-xl border border-claude-border dark:border-claude-darkBorder bg-white/60 dark:bg-claude-darkSurface/80 p-3 cursor-pointer transition-colors hover:border-claude-accent/60 dark:hover:border-claude-accent/60"
+                          onClick={() => setSelectedSkill(skill)}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0 space-y-1">
+                              <p className="text-sm font-semibold dark:text-claude-darkText text-claude-text line-clamp-1">
+                                {formatSkillHeader(skill)}
+                              </p>
+                              <p className="text-[12px] leading-5 text-claude-textSecondary dark:text-claude-darkTextSecondary line-clamp-1">
+                                {description}
+                              </p>
+                              <span className="text-[11px] font-medium text-claude-accent">
+                                {'查看更多'}
+                              </span>
+                            </div>
+                            <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                              {!skill.isBuiltIn && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); handleRequestDeleteSkill(skill); }}
+                                  className="p-1 rounded-lg text-claude-textSecondary dark:text-claude-darkTextSecondary hover:text-red-500 dark:hover:text-red-400 transition-colors"
+                                  title={'删除技能'}
+                                >
+                                  <TrashIcon className="h-4 w-4" />
+                                </button>
+                              )}
+                              <div
+                                className={`w-9 h-5 rounded-full flex items-center transition-colors cursor-pointer ${
+                                  skill.enabled ? 'bg-claude-accent' : 'dark:bg-claude-darkBorder bg-claude-border'
+                                }`}
+                                onClick={(e) => { e.stopPropagation(); handleToggleSkill(skill.id); }}
+                              >
+                                <div
+                                  className={`w-3.5 h-3.5 rounded-full bg-white shadow-md transform transition-transform ${
+                                    skill.enabled ? 'translate-x-[18px]' : 'translate-x-[3px]'
+                                  }`}
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="mt-2 space-y-1 text-[11px] text-claude-textSecondary dark:text-claude-darkTextSecondary">
+                            <div className="min-w-0">{`绑定角色：${roleLabel}`}</div>
+                            <div className={`font-semibold ${skill.enabled ? 'text-emerald-500' : 'text-amber-600 dark:text-amber-400'}`}>
+                              {skill.enabled ? '已开启' : '已关闭'}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                </div>
-
-                <p className="text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary line-clamp-2">
-                  {skillService.getLocalizedSkillDescription(skill.id, skill.name, skill.description)}
-                </p>
-
-                <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px]">
-                  <span className="px-2 py-0.5 rounded-full bg-slate-500/10 text-slate-600 dark:text-slate-300 font-medium">
-                    {`ID ${skill.id.slice(-12)}`}
-                  </span>
-                  {visibleLabels.map((label, index) => (
-                    <span
-                      key={`${skill.id}:${label}`}
-                      className={`px-2 py-0.5 rounded-full font-medium ${
-                        index % 2 === 0
-                          ? 'bg-violet-500/10 text-violet-600 dark:text-violet-300'
-                          : 'bg-rose-500/10 text-rose-600 dark:text-rose-300'
-                      }`}
-                    >
-                      {label}
-                    </span>
-                  ))}
-                  {skill.isOfficial && (
-                    <span className="px-2 py-0.5 rounded-full bg-claude-accent/10 text-claude-accent font-medium">
-                      {'官方'}
-                    </span>
-                  )}
-                  <span
-                    className={`px-2 py-0.5 rounded-full font-medium ${
-                      bindings.length === 0
-                        ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
-                        : 'bg-blue-500/10 text-blue-600 dark:text-blue-400'
-                    }`}
-                  >
-                    {roleLabel}
-                  </span>
-                </div>
+                )}
               </div>
-            );
-                  })}
-                </div>
-              )}
-            </div>
-          ))
+            ))}
+          </div>
         )}
       </div>
 
-      {selectedSkill && createPortal(
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
-          onClick={() => setSelectedSkill(null)}
-        >
-          <div
-            className="w-full max-w-md mx-4 rounded-2xl dark:bg-claude-darkSurface bg-claude-surface border dark:border-claude-darkBorder border-claude-border shadow-2xl p-6"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="flex items-start justify-between mb-4">
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-9 h-9 rounded-lg dark:bg-claude-darkBg bg-claude-bg flex items-center justify-center flex-shrink-0">
-                  <PuzzleIcon className="h-5 w-5 dark:text-claude-darkTextSecondary text-claude-textSecondary" />
-                </div>
-                <div className="min-w-0">
-                  <div className="text-base font-semibold dark:text-claude-darkText text-claude-text truncate">
-                    {getSkillDisplayName(selectedSkill)}
-                  </div>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSelectedSkill(null)}
-                className="p-1.5 rounded-lg dark:text-claude-darkTextSecondary text-claude-textSecondary dark:hover:text-claude-darkText hover:text-claude-text dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover transition-colors flex-shrink-0"
-              >
-                <XMarkIcon className="h-5 w-5" />
-              </button>
-            </div>
-
-            <p className="text-sm dark:text-claude-darkTextSecondary text-claude-textSecondary mb-4">
-              {skillService.getLocalizedSkillDescription(selectedSkill.id, selectedSkill.name, selectedSkill.description)}
-            </p>
-
-            <div className="space-y-2 mb-5">
-              {selectedSkill.isOfficial && (
-                <div className="flex items-center text-xs">
-                  <span className="w-16 flex-shrink-0 dark:text-claude-darkTextSecondary text-claude-textSecondary">{'来源'}</span>
-                  <span className="px-1.5 py-0.5 rounded bg-claude-accent/10 text-claude-accent font-medium">
-                    {'官方'}
-                  </span>
-                </div>
-              )}
-              <div className="flex items-center text-xs">
-                <span className="w-16 flex-shrink-0 dark:text-claude-darkTextSecondary text-claude-textSecondary">{'来源'}</span>
-                <span className="px-1.5 py-0.5 rounded dark:bg-claude-darkSurfaceHover bg-claude-surfaceHover dark:text-claude-darkText text-claude-text font-medium">
-                  {getSkillSourceLabel(selectedSkill)}
-                </span>
-              </div>
-            </div>
-
-            <div className="mb-5 rounded-xl border dark:border-claude-darkBorder/70 border-claude-border/70 bg-black/5 dark:bg-white/5 px-3 py-3">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className="text-xs font-semibold tracking-wide dark:text-claude-darkTextSecondary text-claude-textSecondary">
-                    {'分类'}
-                  </div>
-                  <div className="mt-1 text-[11px] leading-5 dark:text-claude-darkTextSecondary text-claude-textSecondary">
-                    {'只改当前 Skills 面板里的本地分类，不回写到底层 SKILL.md。'}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleSaveSkillCategory}
-                  disabled={!hasSelectedSkillCategoryChanged || isSavingSkillCategory}
-                  className="px-3 py-1.5 text-xs rounded-lg border border-claude-accent/30 bg-claude-accent/10 text-claude-accent transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isSavingSkillCategory ? '保存中...' : '保存'}
-                </button>
-              </div>
-              <input
-                type="text"
-                value={skillCategoryDraft}
-                onChange={(event) => setSkillCategoryDraft(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
-                    event.preventDefault();
-                    void handleSaveSkillCategory();
-                  }
-                }}
-                placeholder={'例如：安装部署 / 数据处理 / 前端体验'}
-                className="mt-3 w-full px-3 py-2 text-sm rounded-xl dark:bg-claude-darkBg bg-claude-bg dark:text-claude-darkText text-claude-text dark:placeholder-claude-darkTextSecondary placeholder-claude-textSecondary border dark:border-claude-darkBorder border-claude-border focus:outline-none focus:ring-2 focus:ring-claude-accent"
-              />
-              {(selectedSkill.tags ?? []).length > 0 && (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {(selectedSkill.tags ?? []).map((tag) => (
-                    <span
-                      key={`${selectedSkill.id}:tag:${tag}`}
-                      className="px-2 py-1 text-[11px] rounded-full dark:bg-claude-darkSurfaceHover bg-claude-surfaceHover dark:text-claude-darkTextSecondary text-claude-textSecondary"
-                    >
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="mb-5">
-              <div className="text-xs font-semibold tracking-wide dark:text-claude-darkTextSecondary text-claude-textSecondary mb-2">
-                {'角色绑定'}
-              </div>
-              <p className="mb-2 text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary">
-                {'选中角色后，这个技能才会进入对应角色的真实对话能力。'}
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {[{ key: 'all', label: '全部角色（公共）' }, ...AGENT_ROLE_ORDER.map((key) => ({ key, label: AGENT_ROLE_SHORT_LABELS[key] }))].map((role) => {
-                  const isBound = getSkillRoleBindings(selectedSkill).some((binding) => binding.roleKey === role.key);
-                  return (
-                    <button
-                      key={role.key}
-                      type="button"
-                      onClick={() => handleToggleSkillRole(selectedSkill, role.key)}
-                      className={`px-2.5 py-1 text-xs rounded-lg border transition-colors ${
-                        isBound
-                          ? 'border-claude-accent bg-claude-accent/10 text-claude-accent'
-                          : 'dark:border-claude-darkBorder border-claude-border dark:text-claude-darkTextSecondary text-claude-textSecondary dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover'
-                      }`}
-                    >
-                      {role.label}
-                    </button>
-                  );
-                })}
-              </div>
-              {getSkillRoleBindings(selectedSkill).length === 0 && (
-                <p className="mt-2 text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary">
-                  {'当前未绑定任何角色，所以不会进入真实运行链；请选择上方角色或“全部角色（公共）”后才会生效。'}
-                </p>
-              )}
-              {getSkillRoleBindings(selectedSkill).length > 0 && (
-                <div className="mt-3 rounded-xl border border-slate-200/80 dark:border-slate-700/70 bg-slate-50/90 dark:bg-slate-900/40 px-3 py-2.5 space-y-1.5">
-                  <div className="text-[11px] font-medium text-slate-700 dark:text-slate-200">
-                    {'真实运行状态'}
-                  </div>
-                  <div className="text-[11px] leading-5 text-slate-600 dark:text-slate-300/90">
-                    {'技能已经装入系统；只有上面已勾选的角色，在真实对话里才会看到它。'}
-                  </div>
-                  {getUnboundRoleLabels(selectedSkill).length > 0 && (
-                    <div className="text-[11px] leading-5 text-amber-700 dark:text-amber-300">
-                      {`当前未生效角色：${getUnboundRoleLabels(selectedSkill).join(' / ')}`}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            <div className="flex items-center justify-between">
-              {!selectedSkill.isBuiltIn ? (
-                <button
-                  type="button"
-                  onClick={() => { setSelectedSkill(null); handleRequestDeleteSkill(selectedSkill); }}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-xl text-red-500 dark:text-red-400 hover:bg-red-500/10 transition-colors"
-                >
-                  <TrashIcon className="h-4 w-4" />
-                  {'删除技能'}
-                </button>
-              ) : (
-                <div />
-              )}
-              <div
-                className={`w-9 h-5 rounded-full flex items-center transition-colors cursor-pointer flex-shrink-0 ${
-                  selectedSkill.enabled ? 'bg-claude-accent' : 'dark:bg-claude-darkBorder bg-claude-border'
-                }`}
-                onClick={() => {
-                  handleToggleSkill(selectedSkill.id);
-                  setSelectedSkill({ ...selectedSkill, enabled: !selectedSkill.enabled });
-                }}
-              >
-                <div
-                  className={`w-3.5 h-3.5 rounded-full bg-white shadow-md transform transition-transform ${
-                    selectedSkill.enabled ? 'translate-x-[18px]' : 'translate-x-[3px]'
-                  }`}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      , document.body)}
+      {selectedSkill && (
+        <SkillDetailOverlay
+          skill={selectedSkill}
+          description={selectedSkillDescription}
+          sourceLabel={selectedSkillSourceLabel}
+          onClose={() => setSelectedSkill(null)}
+          onToggleEnabled={handleSkillDetailToggleEnabled}
+          onDeleteRequest={handleRequestDeleteSkill}
+          categoryDraft={skillCategoryDraft}
+          onCategoryDraftChange={(value) => setSkillCategoryDraft(value)}
+          onSaveCategory={handleSaveSkillCategory}
+          hasCategoryChanged={hasSelectedSkillCategoryChanged}
+          isSavingCategory={isSavingSkillCategory}
+          roleBindings={selectedSkillRoleBindings}
+          unboundRoleLabels={selectedSkillUnboundRoleLabels}
+          onToggleRole={handleSkillDetailRoleToggle}
+        />
+      )}
 
       {skillPendingDelete && createPortal(
         <ConfirmDialog

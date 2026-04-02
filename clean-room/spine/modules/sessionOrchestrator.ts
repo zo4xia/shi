@@ -15,6 +15,7 @@ export interface SessionExecutor {
       skipInitialUserMessage?: boolean;
       skillIds?: string[];
       systemPrompt?: string;
+      zenMode?: boolean;
       autoApprove?: boolean;
       workspaceRoot?: string;
       confirmationMode?: 'modal' | 'text';
@@ -28,6 +29,7 @@ export interface SessionExecutor {
       skipInitialUserMessage?: boolean;
       systemPrompt?: string;
       skillIds?: string[];
+      zenMode?: boolean;
       autoApprove?: boolean;
       workspaceRoot?: string;
       confirmationMode?: 'modal' | 'text';
@@ -68,6 +70,9 @@ function buildMessageMetadata(request: InboundRequest): Record<string, unknown> 
   const metadata: Record<string, unknown> = {};
   if (request.skillIds?.length) {
     metadata.skillIds = request.skillIds;
+  }
+  if (request.zenMode) {
+    metadata.zenMode = true;
   }
   if (request.imageAttachments?.length) {
     metadata.imageAttachments = request.imageAttachments;
@@ -139,6 +144,7 @@ export async function orchestrateWebTurn(params: {
         skipInitialUserMessage: true,
         systemPrompt: request.systemPrompt,
         skillIds: request.skillIds,
+        zenMode: request.zenMode,
         autoApprove: request.autoApprove,
         workspaceRoot: request.cwd,
         confirmationMode: request.confirmationMode ?? 'modal',
@@ -165,6 +171,7 @@ export async function orchestrateWebTurn(params: {
         skipInitialUserMessage: true,
         skillIds: request.skillIds,
         systemPrompt: request.systemPrompt,
+        zenMode: request.zenMode,
         autoApprove: request.autoApprove,
         workspaceRoot: request.cwd || defaultCwd,
         confirmationMode: request.confirmationMode ?? 'modal',

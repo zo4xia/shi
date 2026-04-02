@@ -27,8 +27,17 @@ import {
 } from '../../src/shared/nativeCapabilities';
 import { readCurrentBrowserEyesStateFromConfigStore } from '../../src/shared/browserObserverRuntime';
 import { z } from 'zod';
-import { getRoleSkillsIndexPath } from './roleSkillFiles';
-import { getRoleCapabilitySnapshotPath } from './roleRuntimeViews';
+import {
+  getRoleRoot,
+  getRoleSkillConfigsRoot,
+  getRoleSkillSecretsRoot,
+  getRoleSkillsIndexPath,
+} from './roleSkillFiles';
+import {
+  getRoleCapabilitySnapshotPath,
+  getRoleNotesPath,
+  getRolePitfallsPath,
+} from './roleRuntimeViews';
 import {
   emitSessionComplete,
   emitSessionError,
@@ -95,6 +104,7 @@ type TurnOptions = {
   skipInitialUserMessage?: boolean;
   skillIds?: string[];
   systemPrompt?: string;
+  zenMode?: boolean;
   autoApprove?: boolean;
   workspaceRoot?: string;
   confirmationMode?: 'modal' | 'text';
@@ -153,7 +163,12 @@ const CACHE_REPLAY_CHUNK_SIZE = 48;
 const CACHE_REPLAY_CHUNK_DELAY_MS = 10;
 const FORWARDED_RAW_CONTEXT_MESSAGE_LIMIT = 3;
 const BOUNDED_LOOP_MAX_STEPS = 10;
-const BOUNDED_LOOP_MAX_DURATION_MS = 90_000;
+const DEFAULT_BOUNDED_LOOP_MAX_DURATION_MS = 180_000;
+const LONG_FORM_BOUNDED_LOOP_MAX_DURATION_MS = 420_000;
+const ATTACHMENT_BOUNDED_LOOP_MAX_DURATION_MS = 480_000;
+const UPSTREAM_RETRY_DELAY_MS = 1_200;
+const MIN_CONFIGURED_BOUNDED_LOOP_TIMEOUT_MS = 30_000;
+const MAX_CONFIGURED_BOUNDED_LOOP_TIMEOUT_MS = 900_000;
 const PER_TURN_TOOL_LIMITS: Record<string, number> = {
   broadcast_board_write: 1,
 };
@@ -290,7 +305,8 @@ export class HttpSessionExecutor implements SessionExecutor {
           systemPrompt,
           apiConfig,
           streamState,
-          abortController.signal
+          abortController.signal,
+          options
         );
       } else {
         await this.runOpenAIStream(sessionId, session, systemPrompt, apiConfig, streamState, abortController.signal);
@@ -390,6 +406,9 @@ export class HttpSessionExecutor implements SessionExecutor {
     if (options.skillIds?.length) {
       metadata.skillIds = options.skillIds;
     }
+    if (options.zenMode) {
+      metadata.zenMode = true;
+    }
     if (options.imageAttachments?.length) {
       metadata.imageAttachments = options.imageAttachments;
     }
@@ -426,6 +445,7 @@ export class HttpSessionExecutor implements SessionExecutor {
 
     const promptSections: string[] = [];
     const mergedSkillIds = this.resolveMergedSkillIds(session, options);
+    const zenModeEnabled = Boolean(options.zenMode);
 
     if (options.systemPrompt?.trim()) {
       promptSections.push(options.systemPrompt.trim());
@@ -469,21 +489,35 @@ export class HttpSessionExecutor implements SessionExecutor {
         promptSections.push(runtimeMcpAwareness);
       }
 
-      const continuity = resolveContinuityBootstrap({
-        db: this.store.getDatabase(),
-        saveDb: this.store.getSaveFunction(),
-        agentRoleKey: session.agentRoleKey,
-        stateStore: this.configStore,
-      });
-      continuitySource = continuity.source;
-      if (continuity.wakeupText.trim()) {
-        promptSections.push(continuity.wakeupText.trim());
-      }
-      if (continuity.promptText.trim()) {
-        promptSections.push(continuity.promptText.trim());
+      const roleHomePrompt = this.buildRoleHomePrompt(resolveRuntimeAgentRoleKey(session.agentRoleKey));
+      if (roleHomePrompt) {
+        promptSections.push(roleHomePrompt);
       }
 
-      promptSections.push(this.buildBroadcastBoardOperatingPrompt());
+      if (zenModeEnabled) {
+        promptSections.push([
+          '## Zen Mode',
+          '- Broadcast baton is disabled for this turn.',
+          '- Do not read from, write to, summarize from, or rely on the 24h shared broadcast board in this turn.',
+          '- Keep using the current conversation, explicit tool results, selected skills, and direct database-backed tools when needed.',
+        ].join('\n'));
+      } else {
+        const continuity = resolveContinuityBootstrap({
+          db: this.store.getDatabase(),
+          saveDb: this.store.getSaveFunction(),
+          agentRoleKey: session.agentRoleKey,
+          stateStore: this.configStore,
+        });
+        continuitySource = continuity.source;
+        if (continuity.wakeupText.trim()) {
+          promptSections.push(continuity.wakeupText.trim());
+        }
+        if (continuity.promptText.trim()) {
+          promptSections.push(continuity.promptText.trim());
+        }
+
+        promptSections.push(this.buildBroadcastBoardOperatingPrompt());
+      }
     }
 
     const latestUserMessage = [...session.messages].reverse().find((message) => message.type === 'user');
@@ -500,6 +534,42 @@ export class HttpSessionExecutor implements SessionExecutor {
       prompt: promptSections.filter((section) => section.trim()).join('\n\n'),
       continuitySource,
     };
+  }
+
+  private buildRoleHomePrompt(roleKey: AgentRoleKey): string {
+    try {
+      const userDataPath = resolveRuntimeUserDataPath();
+      const projectRoot = getProjectRoot();
+      const toRelative = (targetPath: string): string => {
+        const relativePath = path.relative(projectRoot, targetPath).replace(/\\/g, '/');
+        return relativePath || '.';
+      };
+
+      const roleRoot = toRelative(getRoleRoot(userDataPath, roleKey));
+      const skillsIndex = toRelative(getRoleSkillsIndexPath(userDataPath, roleKey));
+      const capabilitySnapshot = toRelative(getRoleCapabilitySnapshotPath(userDataPath, roleKey));
+      const configsRoot = toRelative(getRoleSkillConfigsRoot(userDataPath, roleKey));
+      const secretsRoot = toRelative(getRoleSkillSecretsRoot(userDataPath, roleKey));
+      const roleNotesPath = toRelative(getRoleNotesPath(userDataPath, roleKey));
+      const pitfallsPath = toRelative(getRolePitfallsPath(userDataPath, roleKey));
+
+      return [
+        '## Role Home',
+        `- Your role home is \`${roleRoot}/\`. This folder is also your home for current capabilities, supported skills, MCP awareness, and mistake notes.`,
+        `- Supported skills index: \`${skillsIndex}\`.`,
+        `- Runtime capability snapshot (including current MCP awareness): \`${capabilitySnapshot}\`.`,
+        `- Role skill configs live under: \`${configsRoot}/\`.`,
+        `- Role skill secrets live under: \`${secretsRoot}/\`.`,
+        `- Your role notes live at: \`${roleNotesPath}\`.`,
+        `- Your pitfalls / mistake notebook lives at: \`${pitfallsPath}\`.`,
+        '- Use these relative paths as the ground truth for what belongs to your current role.',
+        '- If a skill is not present in the role skills index, do not assume it is already available for this role.',
+        '- If an MCP tool is not present in the runtime capability snapshot, do not assume it is currently live for this role.',
+        '- Treat the pitfalls notebook as your role-specific mistake book: use it to avoid repeating known errors, not as a source of runtime truth.',
+      ].join('\n');
+    } catch {
+      return '';
+    }
   }
 
   private buildBroadcastBoardOperatingPrompt(): string {
@@ -908,6 +978,11 @@ export class HttpSessionExecutor implements SessionExecutor {
       return false;
     }
 
+    const attachmentContext = buildAttachmentRuntimeContext(prompt);
+    if (attachmentContext.shouldPreferToolReading) {
+      return true;
+    }
+
     const hasBrowserEyesSkill = mergedSkillIds.includes(BLINGBLING_LITTLE_EYE_SKILL_ID);
     if (hasBrowserEyesSkill && this.promptLikelyNeedsBrowserTool(prompt)) {
       return true;
@@ -926,18 +1001,9 @@ export class HttpSessionExecutor implements SessionExecutor {
       return false;
     }
 
-    const availableExecutorToolCount = this.buildExecutorTools(session, prompt).length;
     const roleKey = resolveRuntimeAgentRoleKey(session.agentRoleKey);
     const runtimeMcpCount = this.readRuntimeMcpToolCount(roleKey);
     const likelyAgenticLoop = this.promptLikelyNeedsAgenticLoop(prompt);
-
-    if (availableExecutorToolCount > 2) {
-      return true;
-    }
-
-    if (availableExecutorToolCount > 0) {
-      return true;
-    }
 
     if (mergedSkillIds.length > 0) {
       return true;
@@ -964,17 +1030,86 @@ export class HttpSessionExecutor implements SessionExecutor {
       return false;
     }
 
-    const availableExecutorToolCount = this.buildExecutorTools(session, prompt).length;
-    if (availableExecutorToolCount > 0) {
-      return true;
-    }
-
-    const roleKey = resolveRuntimeAgentRoleKey(session.agentRoleKey);
-    if (mergedSkillIds.length > 0 || this.readRuntimeMcpToolCount(roleKey) > 0) {
-      return true;
-    }
-
     return this.needsBoundedToolLoop(session, prompt, mergedSkillIds);
+  }
+
+  private promptLikelyLongFormCreation(prompt: string): boolean {
+    return /(长文|文章|稿子|专栏|博客|推文|公众号|文案|方案|报告|小说|故事|大纲|章节|润色|扩写|续写|write\s+(?:a|an)\s+(?:long\s+)?article|draft\s+(?:an?\s+)?article|long-form|blog\s+post|essay|story|outline|chapter)/i.test(
+      String(prompt || '').trim()
+    );
+  }
+
+  private readConfiguredBoundedLoopTimeoutMs(): number | null {
+    try {
+      const appConfig = this.configStore.get<Record<string, unknown>>('app_config') as Record<string, unknown> | null;
+      const coworkConfig = appConfig?.cowork;
+      if (!coworkConfig || typeof coworkConfig !== 'object') {
+        return null;
+      }
+
+      const rawValue = (coworkConfig as Record<string, unknown>).boundedToolLoopTimeoutMs;
+      if (typeof rawValue !== 'number' || !Number.isFinite(rawValue)) {
+        return null;
+      }
+
+      return Math.max(
+        MIN_CONFIGURED_BOUNDED_LOOP_TIMEOUT_MS,
+        Math.min(MAX_CONFIGURED_BOUNDED_LOOP_TIMEOUT_MS, Math.round(rawValue))
+      );
+    } catch {
+      return null;
+    }
+  }
+
+  private resolveBoundedToolLoopDurationMs(prompt: string, hasChunkedSources: boolean): number {
+    const configuredTimeoutMs = this.readConfiguredBoundedLoopTimeoutMs();
+    if (configuredTimeoutMs !== null) {
+      return configuredTimeoutMs;
+    }
+
+    if (hasChunkedSources) {
+      return ATTACHMENT_BOUNDED_LOOP_MAX_DURATION_MS;
+    }
+
+    if (this.promptLikelyLongFormCreation(prompt)) {
+      return LONG_FORM_BOUNDED_LOOP_MAX_DURATION_MS;
+    }
+
+    return DEFAULT_BOUNDED_LOOP_MAX_DURATION_MS;
+  }
+
+  private async fetchUpstreamResponseWithSingleRetry(
+    label: string,
+    request: () => Promise<Response>,
+    signal: AbortSignal,
+  ): Promise<Response> {
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      try {
+        const response = await request();
+        if (response.ok || !isRetryableUpstreamStatus(response.status) || attempt === 2) {
+          return response;
+        }
+
+        console.warn(
+          `[HttpSessionExecutor] ${label} failed with retryable status ${response.status}; retrying once...`
+        );
+      } catch (error) {
+        if (signal.aborted) {
+          throw error;
+        }
+        if (!isRetryableUpstreamFetchError(error) || attempt === 2) {
+          throw error;
+        }
+
+        console.warn(
+          `[HttpSessionExecutor] ${label} transient error; retrying once: ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
+
+      await sleep(UPSTREAM_RETRY_DELAY_MS);
+    }
+
+    throw new Error(`${label} failed after retry`);
   }
 
   private async runBoundedToolLoopOrFallback(
@@ -984,7 +1119,8 @@ export class HttpSessionExecutor implements SessionExecutor {
     systemPrompt: string,
     apiConfig: DirectApiConfig,
     streamState: StreamState,
-    signal: AbortSignal
+    signal: AbortSignal,
+    options: TurnOptions
   ): Promise<void> {
     try {
       await this.runBoundedToolLoop(
@@ -994,7 +1130,8 @@ export class HttpSessionExecutor implements SessionExecutor {
         systemPrompt,
         apiConfig,
         streamState,
-        signal
+        signal,
+        options
       );
     } catch (error) {
       if (!isToolLoopCompatibilityError(error)) {
@@ -1086,9 +1223,10 @@ export class HttpSessionExecutor implements SessionExecutor {
     systemPrompt: string,
     apiConfig: DirectApiConfig,
     streamState: StreamState,
-    signal: AbortSignal
+    signal: AbortSignal,
+    options: TurnOptions
   ): Promise<void> {
-    const toolDefinitions = this.buildExecutorTools(session, prompt);
+    const toolDefinitions = this.buildExecutorTools(session, prompt, options);
     if (toolDefinitions.length === 0) {
       await this.runOpenAIStream(sessionId, session, systemPrompt, apiConfig, streamState, signal);
       return;
@@ -1096,7 +1234,10 @@ export class HttpSessionExecutor implements SessionExecutor {
 
     const attachmentContext = buildAttachmentRuntimeContext(prompt);
     const boundedLoopMaxSteps = attachmentContext.hasChunkedSources ? 24 : BOUNDED_LOOP_MAX_STEPS;
-    const boundedLoopMaxDurationMs = attachmentContext.hasChunkedSources ? 180_000 : BOUNDED_LOOP_MAX_DURATION_MS;
+    const boundedLoopMaxDurationMs = this.resolveBoundedToolLoopDurationMs(
+      prompt,
+      attachmentContext.hasChunkedSources
+    );
     const toolInvocationCounts = new Map<string, number>();
     const timeoutController = new AbortController();
     const timeoutId = setTimeout(() => {
@@ -1244,10 +1385,14 @@ export class HttpSessionExecutor implements SessionExecutor {
       `[HttpSessionExecutor] Tool completion request summary=${JSON.stringify(request.summary)}`
     );
 
-    const response = await fetch(request.url, {
-      ...request.init,
-      signal: params.signal,
-    });
+    const response = await this.fetchUpstreamResponseWithSingleRetry(
+      'tool completion',
+      () => fetch(request.url, {
+        ...request.init,
+        signal: params.signal,
+      }),
+      params.signal,
+    );
 
     if (!response.ok) {
       throw new Error(await buildUpstreamError(response));
@@ -1310,7 +1455,8 @@ export class HttpSessionExecutor implements SessionExecutor {
 
   private buildExecutorTools(
     session: NonNullable<ReturnType<CoworkStore['getSession']>>,
-    prompt: string
+    prompt: string,
+    options: Pick<TurnOptions, 'zenMode'> = {}
   ): ExecutorToolDefinition[] {
     // {BUG} bug-tool-surface-routing-001
     // {说明} 当前回合 agent 真正能看到哪些工具，是从这里收口的。
@@ -1386,7 +1532,10 @@ export class HttpSessionExecutor implements SessionExecutor {
           }),
         }),
       },
-      {
+    ];
+
+    if (!options.zenMode) {
+      tools.push({
         name: 'broadcast_board_write',
         spec: {
           type: 'function',
@@ -1404,8 +1553,8 @@ export class HttpSessionExecutor implements SessionExecutor {
           },
         },
         handler: async (args: { content: string }) => this.runBroadcastBoardWriteTool(args, session),
-      },
-    ];
+      });
+    }
 
     if (attachmentContext.attachments.length > 0) {
       tools.push({
@@ -1889,18 +2038,22 @@ export class HttpSessionExecutor implements SessionExecutor {
       headers.Authorization = `Bearer ${apiConfig.apiKey.trim()}`;
     }
 
-    const response = await fetch(buildOpenAIChatCompletionsURL(apiConfig.baseURL), {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        model: apiConfig.model,
-        stream: true,
-        stream_options: { include_usage: true },
-        max_tokens: DEFAULT_OPENAI_MAX_TOKENS,
-        messages,
+    const response = await this.fetchUpstreamResponseWithSingleRetry(
+      'openai stream',
+      () => fetch(buildOpenAIChatCompletionsURL(apiConfig.baseURL), {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          model: apiConfig.model,
+          stream: true,
+          stream_options: { include_usage: true },
+          max_tokens: DEFAULT_OPENAI_MAX_TOKENS,
+          messages,
+        }),
+        signal,
       }),
       signal,
-    });
+    );
 
     if (!response.ok) {
       throw new Error(await buildUpstreamError(response));
@@ -1954,12 +2107,16 @@ export class HttpSessionExecutor implements SessionExecutor {
       headers.Authorization = `Bearer ${apiConfig.apiKey.trim()}`;
     }
 
-    const response = await fetch(buildGoogleGenerateContentURL(apiConfig.baseURL, apiConfig.model, apiConfig.apiKey), {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(requestBody),
+    const response = await this.fetchUpstreamResponseWithSingleRetry(
+      'google generateContent',
+      () => fetch(buildGoogleGenerateContentURL(apiConfig.baseURL, apiConfig.model, apiConfig.apiKey), {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(requestBody),
+        signal,
+      }),
       signal,
-    });
+    );
 
     if (!response.ok) {
       throw new Error(await buildUpstreamError(response));
@@ -1988,15 +2145,19 @@ export class HttpSessionExecutor implements SessionExecutor {
       headers.Authorization = `Bearer ${apiConfig.apiKey.trim()}`;
     }
 
-    const response = await fetch(buildOpenAIImagesGenerationURL(apiConfig.baseURL), {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        model: apiConfig.model,
-        ...requestBody,
+    const response = await this.fetchUpstreamResponseWithSingleRetry(
+      'images generation',
+      () => fetch(buildOpenAIImagesGenerationURL(apiConfig.baseURL), {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          model: apiConfig.model,
+          ...requestBody,
+        }),
+        signal,
       }),
       signal,
-    });
+    );
 
     if (!response.ok) {
       throw new Error(await buildUpstreamError(response));
@@ -3014,6 +3175,32 @@ async function buildUpstreamError(response: Response): Promise<string> {
   return snippet
     ? `Upstream request failed (${response.status}): ${snippet}`
     : `Upstream request failed (${response.status})`;
+}
+
+function isRetryableUpstreamStatus(status: number): boolean {
+  return status === 408
+    || status === 409
+    || status === 425
+    || status === 429
+    || status === 500
+    || status === 502
+    || status === 503
+    || status === 504;
+}
+
+function isRetryableUpstreamFetchError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  if (error.name === 'AbortError') {
+    return false;
+  }
+
+  const normalized = `${error.name} ${error.message}`.toLowerCase();
+  return /fetch failed|network|timeout|timed out|headers timeout|body timeout|econn|eai_again|enotfound|socket hang up|connection reset|connection refused|terminated|other side closed/i.test(
+    normalized
+  );
 }
 
 function resolveIdentityAgentRoleKey(value: string | null | undefined): string {

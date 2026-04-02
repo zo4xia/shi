@@ -6,7 +6,7 @@ import { generateSessionTitle } from '../../src/main/libs/coworkUtil';
 import { resolveAgentRolesFromConfig, type AgentRoleKey as SharedAgentRoleKey } from '../../src/shared/agentRoleConfig';
 import { getProjectRoot } from '../../src/shared/runtimeDataPaths';
 import { getOrCreateWebSessionExecutor } from '../libs/httpSessionExecutor';
-import { listIdentityThreadBoardSnapshots } from '../libs/identityThreadHelper';
+import { clearIdentityThreadForRole, listIdentityThreadBoardSnapshots } from '../libs/identityThreadHelper';
 import {
   getRoleSkillConfigPath,
   getRoleSkillSecretPath,
@@ -143,6 +143,7 @@ export function setupCoworkRoutes(app: Router) {
         title,
         activeSkillIds,
         imageAttachments,
+        zenMode,
       } = req.body;
 
       const config = coworkStore.getConfig();
@@ -177,6 +178,7 @@ export function setupCoworkRoutes(app: Router) {
         systemPrompt: resolvedSystemPrompt,
         skillIds: activeSkillIds,
         imageAttachments,
+        zenMode: Boolean(zenMode),
         cwd: taskWorkingDirectory,
         agentRoleKey,
         modelId,
@@ -225,7 +227,7 @@ export function setupCoworkRoutes(app: Router) {
     try {
       const { coworkStore, store, skillManager } = req.context as RequestContext;
       const { sessionId } = req.params;
-      const { prompt, systemPrompt, activeSkillIds, imageAttachments } = req.body;
+      const { prompt, systemPrompt, activeSkillIds, imageAttachments, zenMode } = req.body;
 
       const session = coworkStore.getSession(sessionId as CoworkSessionId);
       const agentRoleKey = resolveIdentityRoleKey(session?.agentRoleKey || coworkStore.getConfig().agentRoleKey);
@@ -246,6 +248,7 @@ export function setupCoworkRoutes(app: Router) {
         systemPrompt,
         skillIds: activeSkillIds,
         imageAttachments,
+        zenMode: Boolean(zenMode),
         cwd: session?.cwd,
         sessionId,
         agentRoleKey,
@@ -651,6 +654,33 @@ export function setupCoworkRoutes(app: Router) {
       res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : 'Failed to load broadcast boards',
+      });
+    }
+  });
+
+  // POST /api/cowork/memory/broadcast-boards/clear - Clear one role's 24h broadcast board
+  // {路标} FLOW-ROUTE-COWORK-MEMORY
+  router.post('/memory/broadcast-boards/clear', async (req: Request, res: Response) => {
+    try {
+      const { coworkStore } = req.context as RequestContext;
+      const agentRoleKey = typeof req.body?.agentRoleKey === 'string' ? req.body.agentRoleKey.trim() : '';
+      if (!agentRoleKey) {
+        return res.status(400).json({
+          success: false,
+          error: 'agentRoleKey is required',
+        });
+      }
+
+      const cleared = clearIdentityThreadForRole(coworkStore.getDatabase(), agentRoleKey);
+      if (cleared > 0) {
+        coworkStore.getSaveFunction()();
+      }
+
+      res.json({ success: true, cleared });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to clear broadcast board',
       });
     }
   });

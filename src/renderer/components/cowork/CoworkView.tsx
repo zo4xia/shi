@@ -7,19 +7,24 @@ import { clearActiveSkills } from '../../store/slices/skillSlice';
 import { clearSelection } from '../../store/slices/quickActionSlice';
 import { coworkService } from '../../services/cowork';
 import { getPlatform } from '../../utils/platform';
-import CoworkPromptInput, { type CoworkPromptInputRef } from './CoworkPromptInput';
+import CoworkPromptInput, { type CoworkPromptInputRef, type CoworkSubmitOptions } from './CoworkPromptInput';
 import CoworkSessionDetail from './CoworkSessionDetail';
 import { buildSessionPreviewText, type SessionSourceFilter } from './sessionRecordUtils';
-import ModelSelector from '../ModelSelector';
-import { AGENT_ROLE_ORDER, getAgentRoleDisplayAvatar, getAgentRoleDisplayLabel, resolveAgentRolesFromConfig, type AgentRoleKey } from '../../../shared/agentRoleConfig';
-import { setSelectedModel } from '../../store/slices/modelSlice';
-import { coworkService as coworkServiceForRole } from '../../services/cowork';
+import {
+  AGENT_ROLE_ORDER,
+  getAgentRoleDisplayAvatar,
+  getAgentRoleDisplayLabel,
+  resolveAgentRolesFromConfig,
+  type AgentRoleKey,
+} from '../../../shared/agentRoleConfig';
 import SidebarToggleIcon from '../icons/SidebarToggleIcon';
 import ComposeIcon from '../icons/ComposeIcon';
 import WindowTitleBar from '../window/WindowTitleBar';
 import type { SettingsOpenOptions } from '../Settings';
 import type { CoworkImageAttachment } from '../../types/cowork';
 import { configService } from '../../services/config';
+import HomePromptPanel from './HomePromptPanel';
+import { setSelectedModel } from '../../store/slices/modelSlice';
 import { renderAgentRoleAvatar } from '../../utils/agentRoleDisplay';
 
 export interface CoworkViewProps {
@@ -108,7 +113,12 @@ const CoworkView: React.FC<CoworkViewProps> = ({ onRequestAppSettings, onShowSki
     void init();
   }, [dispatch, onRequestAppSettings]);
 
-  const handleStartSession = async (prompt: string, skillPrompt?: string, imageAttachments?: CoworkImageAttachment[]) => {
+  const handleStartSession = async (
+    prompt: string,
+    skillPrompt?: string,
+    imageAttachments?: CoworkImageAttachment[],
+    submitOptions?: CoworkSubmitOptions,
+  ) => {
     // {FLOW} CONTINUITY-UI-START-SESSION
     // {BREAKPOINT} continuity-ui-start-001
     // Prevent duplicate submissions
@@ -160,6 +170,7 @@ const CoworkView: React.FC<CoworkViewProps> = ({ onRequestAppSettings, onShowSki
         systemPrompt: combinedSystemPrompt,
         activeSkillIds: sessionSkillIds,
         imageAttachments,
+        zenMode: submitOptions?.zenMode,
       });
 
       // 启动失败时清理临时会话状态
@@ -191,7 +202,12 @@ const CoworkView: React.FC<CoworkViewProps> = ({ onRequestAppSettings, onShowSki
     }
   };
 
-  const handleContinueSession = async (prompt: string, skillPrompt?: string, imageAttachments?: CoworkImageAttachment[]) => {
+  const handleContinueSession = async (
+    prompt: string,
+    skillPrompt?: string,
+    imageAttachments?: CoworkImageAttachment[],
+    submitOptions?: CoworkSubmitOptions,
+  ) => {
     // {FLOW} CONTINUITY-UI-CONTINUE-SESSION
     // {BREAKPOINT} continuity-ui-continue-001
     if (!currentSession) return;
@@ -223,6 +239,7 @@ const CoworkView: React.FC<CoworkViewProps> = ({ onRequestAppSettings, onShowSki
       systemPrompt: combinedSystemPrompt,
       activeSkillIds: sessionSkillIds.length > 0 ? sessionSkillIds : undefined,
       imageAttachments,
+      zenMode: submitOptions?.zenMode,
     });
   };
 
@@ -310,37 +327,32 @@ const CoworkView: React.FC<CoworkViewProps> = ({ onRequestAppSettings, onShowSki
   return (
     <div className="flex-1 flex flex-col dark:bg-claude-darkBg bg-transparent h-full">
       {/* Header */}
-      <div className="draggable flex h-12 items-center justify-between px-6 border-b dark:border-claude-darkBorder/50 border-claude-border/30 shrink-0 backdrop-blur-xl bg-gradient-pearl-header">
-        <div className="non-draggable h-8 flex items-center">
-          {isSidebarCollapsed && (
-            <div className={`flex items-center gap-1 mr-2 ${isMac ? 'pl-[68px]' : ''}`}>
-              <button
-                type="button"
-                onClick={onToggleSidebar}
-                className="h-8 w-8 inline-flex items-center justify-center rounded-xl dark:text-claude-darkTextSecondary text-claude-textSecondary hover:bg-claude-surfaceHover/50 dark:hover:bg-claude-darkSurfaceHover/50 transition-colors duration-200"
-              >
-                <SidebarToggleIcon className="h-4 w-4" isCollapsed={true} />
-              </button>
-              <button
-                type="button"
-                onClick={onNewChat}
-                className="h-8 w-8 inline-flex items-center justify-center rounded-xl dark:text-claude-darkTextSecondary text-claude-textSecondary hover:bg-claude-surfaceHover/50 dark:hover:bg-claude-darkSurfaceHover/50 transition-colors duration-200"
-              >
-                <ComposeIcon className="h-4 w-4" />
-              </button>
-              {updateBadge}
-            </div>
-          )}
-          <div className="flex items-center gap-3">
-            <ModelSelector />
+        <div className="draggable flex h-12 items-center justify-between px-6 border-b dark:border-claude-darkBorder/50 border-claude-border/30 shrink-0 backdrop-blur-xl bg-gradient-pearl-header">
+        {isSidebarCollapsed ? (
+          <div className={`non-draggable flex items-center gap-1 mr-2 ${isMac ? 'pl-[68px]' : ''}`}>
+            <button
+              type="button"
+              onClick={onToggleSidebar}
+              className="h-8 w-8 inline-flex items-center justify-center rounded-xl dark:text-claude-darkTextSecondary text-claude-textSecondary hover:bg-claude-surfaceHover/50 dark:hover:bg-claude-darkSurfaceHover/50 transition-colors duration-200"
+            >
+              <SidebarToggleIcon className="h-4 w-4" isCollapsed={true} />
+            </button>
+            <button
+              type="button"
+              onClick={onNewChat}
+              className="h-8 w-8 inline-flex items-center justify-center rounded-xl dark:text-claude-darkTextSecondary text-claude-textSecondary hover:bg-claude-surfaceHover/50 dark:hover:bg-claude-darkSurfaceHover/50 transition-colors duration-200"
+            >
+              <ComposeIcon className="h-4 w-4" />
+            </button>
+            {updateBadge}
           </div>
-        </div>
+        ) : null}
         <WindowTitleBar inline />
       </div>
 
       {/* Main Content - 欢迎页自适应高度，不产生滚动 */}
       <div className="flex-1 overflow-y-auto min-h-0">
-        <div className="mx-auto flex w-full max-w-[1120px] flex-col px-4 py-8 sm:px-6 sm:py-[50px]">
+        <div className="mx-auto flex w-full max-w-[var(--uclaw-home-max-width,1080px)] flex-col px-4 py-8 sm:px-6 sm:py-[50px]">
           <div className="relative mb-10 text-center sm:mb-14">
             <div className="absolute inset-x-0 top-3 -z-10 mx-auto h-36 w-36 rounded-full bg-gradient-radial from-claude-accent/6 to-transparent blur-3xl" />
             <div className="mx-auto inline-flex flex-col items-center">
@@ -366,107 +378,61 @@ const CoworkView: React.FC<CoworkViewProps> = ({ onRequestAppSettings, onShowSki
             </div>
           </div>
 
-          {/* Prompt Input Area - 精致输入框容器 */}
           <div className="uclaw-home-chip-row mb-5 flex flex-wrap items-center justify-start gap-3 px-2">
-            {(() => {
-              const resolvedRoles = resolveAgentRolesFromConfig(configService.getConfig());
-              const roleCards: { key: AgentRoleKey; label: string; icon: string; color: string; bg: string; border: string; activeTone: string; activeShadow: string }[] = [
-                { key: 'organizer', label: getAgentRoleDisplayLabel('organizer', resolvedRoles), icon: getAgentRoleDisplayAvatar('organizer', resolvedRoles), color: 'text-blue-600 dark:text-blue-400', bg: 'from-blue-500/10 to-blue-400/5', border: 'border-blue-400/30 hover:border-blue-400/60', activeTone: 'from-blue-400/22 to-blue-300/12 ring-blue-300/35 border-blue-400/55', activeShadow: 'shadow-[0_10px_22px_rgba(96,165,250,0.22)]' },
-                { key: 'writer', label: getAgentRoleDisplayLabel('writer', resolvedRoles), icon: getAgentRoleDisplayAvatar('writer', resolvedRoles), color: 'text-emerald-600 dark:text-emerald-400', bg: 'from-emerald-500/10 to-emerald-400/5', border: 'border-emerald-400/30 hover:border-emerald-400/60', activeTone: 'from-emerald-400/22 to-emerald-300/12 ring-emerald-300/35 border-emerald-400/55', activeShadow: 'shadow-[0_10px_22px_rgba(52,211,153,0.20)]' },
-                { key: 'designer', label: getAgentRoleDisplayLabel('designer', resolvedRoles), icon: getAgentRoleDisplayAvatar('designer', resolvedRoles), color: 'text-purple-600 dark:text-purple-400', bg: 'from-purple-500/10 to-purple-400/5', border: 'border-purple-400/30 hover:border-purple-400/60', activeTone: 'from-purple-400/24 to-purple-300/14 ring-purple-300/35 border-purple-400/55', activeShadow: 'shadow-[0_10px_22px_rgba(192,132,252,0.22)]' },
-                { key: 'analyst', label: getAgentRoleDisplayLabel('analyst', resolvedRoles), icon: getAgentRoleDisplayAvatar('analyst', resolvedRoles), color: 'text-amber-600 dark:text-amber-400', bg: 'from-amber-500/10 to-amber-400/5', border: 'border-amber-400/30 hover:border-amber-400/60', activeTone: 'from-amber-400/24 to-amber-300/14 ring-amber-300/35 border-amber-400/55', activeShadow: 'shadow-[0_10px_22px_rgba(251,191,36,0.20)]' },
-              ];
-              const currentModel = selectedModelRef.current;
-              const currentRoleKey = currentModel?.providerKey && AGENT_ROLE_ORDER.includes(currentModel.providerKey as AgentRoleKey) ? currentModel.providerKey as AgentRoleKey : 'organizer';
-              return roleCards.map(card => {
-                const isActive = card.key === currentRoleKey;
-                const roleModel = availableModelsRef.current.find(m => m.providerKey === card.key);
-                if (!roleModel) return null;
-                return (
-                  <button
-                    key={card.key}
-                    type="button"
-                    onClick={() => {
-                      dispatch(setSelectedModel(roleModel));
-                      coworkServiceForRole.updateConfig({ agentRoleKey: card.key }).catch(() => {});
-                    }}
-                    className={`inline-flex min-h-10 items-center justify-start gap-2.5 rounded-full border bg-gradient-to-r px-4 py-2 text-sm transition-all duration-200 ${card.bg} ${card.border} ${isActive ? `scale-[1.04] ring-2 ${card.activeTone} ${card.activeShadow}` : 'opacity-90 hover:scale-[1.02] hover:shadow-sm'} `}
-                  >
-                    <span className={`inline-flex h-7 w-7 items-center justify-center overflow-hidden rounded-full border border-white/60 bg-white/75 text-[18px] shadow-sm transition-transform duration-200 dark:border-white/10 dark:bg-white/[0.08] ${isActive ? 'scale-110' : ''}`}>
-                      {renderAgentRoleAvatar(card.icon, {
-                        alt: card.label,
-                        className: 'h-full w-full object-cover text-[18px] leading-none flex items-center justify-center',
-                      })}
-                    </span>
-                    <span className={`font-medium ${card.color}`}>{card.label}</span>
-                  </button>
-                );
-              });
-            })()}
+              {(() => {
+                const resolvedRoles = resolveAgentRolesFromConfig(configService.getConfig());
+                const roleCards: { key: AgentRoleKey; label: string; icon: string; color: string; bg: string; border: string; activeTone: string; activeShadow: string }[] = [
+                  { key: 'organizer', label: getAgentRoleDisplayLabel('organizer', resolvedRoles), icon: getAgentRoleDisplayAvatar('organizer', resolvedRoles), color: 'text-blue-600 dark:text-blue-400', bg: 'from-blue-500/10 to-blue-400/5', border: 'border-blue-400/30 hover:border-blue-400/60', activeTone: 'from-blue-400/22 to-blue-300/12 ring-blue-300/35 border-blue-400/55', activeShadow: 'shadow-[0_10px_22px_rgba(96,165,250,0.22)]' },
+                  { key: 'writer', label: getAgentRoleDisplayLabel('writer', resolvedRoles), icon: getAgentRoleDisplayAvatar('writer', resolvedRoles), color: 'text-emerald-600 dark:text-emerald-400', bg: 'from-emerald-500/10 to-emerald-400/5', border: 'border-emerald-400/30 hover:border-emerald-400/60', activeTone: 'from-emerald-400/22 to-emerald-300/12 ring-emerald-300/35 border-emerald-400/55', activeShadow: 'shadow-[0_10px_22px_rgba(52,211,153,0.20)]' },
+                  { key: 'designer', label: getAgentRoleDisplayLabel('designer', resolvedRoles), icon: getAgentRoleDisplayAvatar('designer', resolvedRoles), color: 'text-purple-600 dark:text-purple-400', bg: 'from-purple-500/10 to-purple-400/5', border: 'border-purple-400/30 hover:border-purple-400/60', activeTone: 'from-purple-400/24 to-purple-300/14 ring-purple-300/35 border-purple-400/55', activeShadow: 'shadow-[0_10px_22px_rgba(192,132,252,0.22)]' },
+                  { key: 'analyst', label: getAgentRoleDisplayLabel('analyst', resolvedRoles), icon: getAgentRoleDisplayAvatar('analyst', resolvedRoles), color: 'text-amber-600 dark:text-amber-400', bg: 'from-amber-500/10 to-amber-400/5', border: 'border-amber-400/30 hover:border-amber-400/60', activeTone: 'from-amber-400/24 to-amber-300/14 ring-amber-300/35 border-amber-400/55', activeShadow: 'shadow-[0_10px_22px_rgba(251,191,36,0.20)]' },
+                ];
+                const currentModel = selectedModelRef.current;
+                const currentRoleKey = currentModel?.providerKey && AGENT_ROLE_ORDER.includes(currentModel.providerKey as AgentRoleKey)
+                  ? currentModel.providerKey as AgentRoleKey
+                  : 'organizer';
+
+                return roleCards.map((card) => {
+                  const roleModel = availableModelsRef.current.find((model) => model.providerKey === card.key);
+                  if (!roleModel) return null;
+                  const isActive = card.key === currentRoleKey;
+
+                  return (
+                    <button
+                      key={card.key}
+                      type="button"
+                      onClick={() => {
+                        dispatch(setSelectedModel(roleModel));
+                        coworkService.updateConfig({ agentRoleKey: card.key }).catch(() => {});
+                      }}
+                      className={`inline-flex min-h-10 items-center justify-start gap-2.5 rounded-full border bg-gradient-to-r px-4 py-2 text-sm transition-all duration-200 ${card.bg} ${card.border} ${isActive ? `scale-[1.04] ring-2 ${card.activeTone} ${card.activeShadow}` : 'opacity-90 hover:scale-[1.02] hover:shadow-sm'}`}
+                    >
+                      <span className={`inline-flex h-7 w-7 items-center justify-center overflow-hidden rounded-full border border-white/60 bg-white/75 text-[18px] shadow-sm transition-transform duration-200 dark:border-white/10 dark:bg-white/[0.08] ${isActive ? 'scale-110' : ''}`}>
+                        {renderAgentRoleAvatar(card.icon, {
+                          alt: card.label,
+                          className: 'h-full w-full object-cover text-[18px] leading-none flex items-center justify-center',
+                        })}
+                      </span>
+                      <span className={`font-medium ${card.color}`}>{card.label}</span>
+                    </button>
+                  );
+                });
+              })()}
           </div>
 
-          <div className="uclaw-home-input-region">
-            <div className="relative group">
-              <div className="uclaw-panel-shell">
-                <div className="px-3 pt-3">
-                  {latestVisibleSession ? (
-                    <div className="mb-3 flex items-center gap-3 rounded-2xl border border-violet-200/60 bg-violet-50/60 px-3.5 py-2.5 dark:border-violet-400/15 dark:bg-violet-400/[0.06] sm:rounded-full">
-                      <div className="min-w-0 flex-1 overflow-hidden whitespace-nowrap">
-                        <span className="text-[11px] font-medium uppercase tracking-[0.16em] text-violet-700 dark:text-violet-300">
-                          最近一个对话
-                        </span>
-                        <span className="mx-2 text-violet-400/70 dark:text-violet-300/40">·</span>
-                        <span className="inline-block max-w-full align-bottom truncate text-xs leading-5 text-claude-textSecondary dark:text-claude-darkTextSecondary">
-                          摘要：{buildSessionPreviewText(latestVisibleSession)}
-                        </span>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-3">
-                        <button
-                          type="button"
-                          onClick={() => { void coworkService.loadSession(latestVisibleSession.id); }}
-                          className="inline-flex items-center text-xs font-medium text-violet-700 transition-colors hover:text-violet-800 hover:underline dark:text-violet-300 dark:hover:text-violet-200"
-                        >
-                          点击继续
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onShowSessionHistory?.('all')}
-                          className="inline-flex items-center text-xs text-claude-textSecondary transition-colors hover:text-claude-text hover:underline dark:text-claude-darkTextSecondary dark:hover:text-claude-darkText"
-                        >
-                          所有记录
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="mb-3">
-                      <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-claude-textSecondary dark:text-claude-darkTextSecondary">
-                        Start Here
-                      </div>
-                      <div className="mt-1 text-[15px] font-medium leading-6 text-claude-text dark:text-claude-darkText">
-                        给小伙伴分配任务，或直接开始一段对话
-                      </div>
-                    </div>
-                  )}
-                </div>
-                <div className="uclaw-panel-inner">
-                  <CoworkPromptInput
-                    ref={promptInputRef}
-                    onSubmit={handleStartSession}
-                    onStop={handleStopSession}
-                    isStreaming={isStreaming}
-                    placeholder={'分配一个任务或提问任何问题'}
-                    size="large"
-                    workingDirectory={config.workingDirectory}
-                    onWorkingDirectoryChange={async (dir: string) => {
-                      await coworkService.updateConfig({ workingDirectory: dir });
-                    }}
-                    showFolderSelector={true}
-                    onManageSkills={() => onShowSkills?.()}
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
+          <HomePromptPanel
+            latestVisibleSession={latestVisibleSession}
+            promptInputRef={promptInputRef}
+            onStartSession={handleStartSession}
+            onStopSession={handleStopSession}
+            isStreaming={isStreaming}
+            workingDirectory={config.workingDirectory}
+            onWorkingDirectoryChange={async (dir: string) => {
+              await coworkService.updateConfig({ workingDirectory: dir });
+            }}
+            onShowSessionHistory={onShowSessionHistory}
+            onShowSkills={onShowSkills}
+          />
 
           <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
             <button
@@ -497,6 +463,7 @@ const CoworkView: React.FC<CoworkViewProps> = ({ onRequestAppSettings, onShowSki
               <span>资源下载</span>
             </button>
           </div>
+
         </div>
       </div>
     </div>

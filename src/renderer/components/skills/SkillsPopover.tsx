@@ -217,6 +217,16 @@ const SkillsPopover: React.FC<SkillsPopoverProps> = ({
      当前技能快速选择器仍是桌面 popover。
      后续移动端适合降级成 SkillsPickerSheet，和 ModelSelector / FolderSelector 保持一致。 */
   if (isMobileViewport) {
+    const mobileFooter = (
+      <button
+        onClick={handleManageSkills}
+        className="w-full flex items-center justify-between px-4 py-3 text-sm dark:text-claude-darkText text-claude-text dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover transition-colors rounded-xl border dark:border-claude-darkBorder border-claude-border"
+      >
+        <span>{'管理技能'}</span>
+        <Cog6ToothIcon className="h-4 w-4 dark:text-claude-darkTextSecondary text-claude-textSecondary" />
+      </button>
+    );
+
     return (
       <ModalWrapper
         isOpen={true}
@@ -224,6 +234,7 @@ const SkillsPopover: React.FC<SkillsPopoverProps> = ({
         title={'选择技能'}
         maxWidth="md"
         maxHeight="80vh"
+        footer={mobileFooter}
       >
         <div className="space-y-4">
           <div className="rounded-lg border border-sky-200/70 bg-sky-50/80 px-2.5 py-2 text-[11px] leading-5 text-sky-700 dark:border-sky-800/60 dark:bg-sky-950/20 dark:text-sky-200">
@@ -330,13 +341,6 @@ const SkillsPopover: React.FC<SkillsPopoverProps> = ({
               </div>
             )}
           </div>
-          <button
-            onClick={handleManageSkills}
-            className="w-full flex items-center justify-between px-4 py-3 text-sm dark:text-claude-darkText text-claude-text dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover transition-colors rounded-xl border dark:border-claude-darkBorder border-claude-border"
-          >
-            <span>{'管理技能'}</span>
-            <Cog6ToothIcon className="h-4 w-4 dark:text-claude-darkTextSecondary text-claude-textSecondary" />
-          </button>
         </div>
       </ModalWrapper>
     );

@@ -311,304 +311,349 @@ const McpManager: React.FC = () => {
     }`;
 
   return (
-    <div className="space-y-4">
-      {/* Description */}
-      <p className="text-sm dark:text-claude-darkTextSecondary text-claude-textSecondary">
-        {'把外部工具接给当前角色。首屏只看用途和归属，细节点进去再看。'}
-      </p>
+    <div className="space-y-6">
+      <section
+        aria-label="工具条"
+        className="space-y-4 rounded-2xl border dark:border-claude-darkBorder border-claude-border dark:bg-claude-darkSurface/30 bg-claude-surface/30 px-4 py-4"
+      >
+        {/* Description */}
+        <p className="text-sm dark:text-claude-darkTextSecondary text-claude-textSecondary">
+          {'把外部工具接给当前角色。首屏只看用途和归属，细节点进去再看。'}
+        </p>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          onClick={() => setShowGuideNote((value) => !value)}
-          className="inline-flex items-center gap-1.5 rounded-full border border-sky-200/80 dark:border-sky-800/70 bg-sky-50/90 dark:bg-sky-950/20 px-2.5 py-1 text-[11px] font-medium text-sky-700 dark:text-sky-200 transition-colors"
-        >
-          <InformationCircleIcon className="h-3.5 w-3.5" />
-          {'说明'}
-        </button>
-        <button
-          type="button"
-          onClick={() => setShowRuntimeNote((value) => !value)}
-          className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200/80 dark:border-emerald-800/70 bg-emerald-50/90 dark:bg-emerald-950/20 px-2.5 py-1 text-[11px] font-medium text-emerald-700 dark:text-emerald-200 transition-colors"
-        >
-          <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
-          {`当前接入 ${AGENT_ROLE_SHORT_LABELS[selectedRole]} · ${runtimeMcpTools.length}`}
-        </button>
-      </div>
-
-      {showGuideNote && (
-        <div className="rounded-2xl border border-sky-200/80 dark:border-sky-800/70 bg-sky-50/90 dark:bg-sky-950/20 px-4 py-3 space-y-1.5">
-          <p className="text-sm leading-6 text-sky-700 dark:text-sky-200">
-            {'这里展示的是 MCP 工具链，不是 Skill 文件夹。真正已经能用的放在“当前支持”；还没装或还要填 key 的放在“可接入”。一期先隐藏自定义入口，避免把未收口能力提前暴露。旧 Memory 兼容记录不再算 MCP 可接入项。'}
-          </p>
-          <div className="space-y-1 text-xs leading-5 text-sky-600 dark:text-sky-300/90">
-            <div>{'这里优先看“当前角色现在能不能用”，而不是先看技术配置长相。'}</div>
-            <div>{'已经接入的能力会按角色过滤展示；没到当前角色的，不会冒充成可用。'}</div>
-            <div>{'记忆相关能力会继续回写系统记忆链，不需要用户理解底层存放路径。'}</div>
-          </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowGuideNote((value) => !value)}
+            className="inline-flex items-center gap-1.5 rounded-full border border-sky-200/80 dark:border-sky-800/70 bg-sky-50/90 dark:bg-sky-950/20 px-2.5 py-1 text-[11px] font-medium text-sky-700 dark:text-sky-200 transition-colors"
+          >
+            <InformationCircleIcon className="h-3.5 w-3.5" />
+            {'说明'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowRuntimeNote((value) => !value)}
+            className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200/80 dark:border-emerald-800/70 bg-emerald-50/90 dark:bg-emerald-950/20 px-2.5 py-1 text-[11px] font-medium text-emerald-700 dark:text-emerald-200 transition-colors"
+          >
+            <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
+            {`当前接入 ${AGENT_ROLE_SHORT_LABELS[selectedRole]} · ${runtimeMcpTools.length}`}
+          </button>
         </div>
-      )}
 
-      {showRuntimeNote && (
-        <div className="rounded-2xl border border-emerald-200/80 dark:border-emerald-800/70 bg-emerald-50/90 dark:bg-emerald-950/20 px-4 py-3 space-y-3">
-          <div className="flex flex-wrap items-center gap-2">
-            {AGENT_ROLE_ORDER.map((roleKey) => (
-              <button
-                key={roleKey}
-                type="button"
-                onClick={() => setSelectedRole(roleKey)}
-                className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
-                  selectedRole === roleKey
-                    ? 'bg-emerald-600 text-white'
-                    : 'bg-white/70 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200'
-                }`}
-              >
-                {AGENT_ROLE_SHORT_LABELS[roleKey]}
-              </button>
-            ))}
-          </div>
-          <div className="text-xs leading-5 text-emerald-700/90 dark:text-emerald-200/90">
-            {`当前角色 ${AGENT_ROLE_SHORT_LABELS[selectedRole]} 现在会带上 ${runtimeMcpTools.length} 个 MCP 工具。`}
-          </div>
-          {hiddenServerCount > 0 && (
-            <div className="text-[11px] leading-5 text-emerald-700/80 dark:text-emerald-200/80">
-              {`另有 ${hiddenServerCount} 条配置暂时还没对当前角色生效，已先收起。`}
+        {showGuideNote && (
+          <div className="rounded-2xl border border-sky-200/80 dark:border-sky-800/70 bg-sky-50/90 dark:bg-sky-950/20 px-4 py-3 space-y-1.5">
+            <p className="text-sm leading-6 text-sky-700 dark:text-sky-200">
+              {'这里展示的是 MCP 工具链，不是 Skill 文件夹。真正已经能用的放在“当前支持”；还没装或还要填 key 的放在“可接入”。一期先隐藏自定义入口，避免把未收口能力提前暴露。旧 Memory 兼容记录不再算 MCP 可接入项。'}
+            </p>
+            <div className="space-y-1 text-xs leading-5 text-sky-600 dark:text-sky-300/90">
+              <div>{'这里优先看“当前角色现在能不能用”，而不是先看技术配置长相。'}</div>
+              <div>{'已经接入的能力会按角色过滤展示；没到当前角色的，不会冒充成可用。'}</div>
+              <div>{'记忆相关能力会继续回写系统记忆链，不需要用户理解底层存放路径。'}</div>
             </div>
-          )}
-          {runtimeMcpTools.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {runtimeMcpTools.map((tool) => (
-                <span
-                  key={`${selectedRole}:${tool.id}`}
-                  className="rounded-full bg-white/80 dark:bg-emerald-900/30 px-2 py-1 text-[11px] text-emerald-700 dark:text-emerald-200"
+          </div>
+        )}
+
+        {showRuntimeNote && (
+          <div className="rounded-2xl border border-emerald-200/80 dark:border-emerald-800/70 bg-emerald-50/90 dark:bg-emerald-950/20 px-4 py-3 space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              {AGENT_ROLE_ORDER.map((roleKey) => (
+                <button
+                  key={roleKey}
+                  type="button"
+                  onClick={() => setSelectedRole(roleKey)}
+                  className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
+                    selectedRole === roleKey
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-white/70 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200'
+                  }`}
                 >
-                  {`${tool.name} · ${formatMcpScopeLabel(tool.scope)}`}
-                </span>
+                  {AGENT_ROLE_SHORT_LABELS[roleKey]}
+                </button>
               ))}
             </div>
-          )}
-          {runtimeWarnings.length > 0 && (
-            <div className="text-xs leading-5 text-amber-700 dark:text-amber-300">
-              {runtimeWarnings[0]}
+            <div className="text-xs leading-5 text-emerald-700/90 dark:text-emerald-200/90">
+              {`当前角色 ${AGENT_ROLE_SHORT_LABELS[selectedRole]} 现在会带上 ${runtimeMcpTools.length} 个 MCP 工具。`}
             </div>
-          )}
-        </div>
-      )}
-
-      {actionError && (
-        <ErrorMessage
-          message={actionError}
-          onClose={() => setActionError('')}
-        />
-      )}
-
-      {/* Search */}
-      <div className="flex items-center gap-3">
-        <div className="relative flex-1">
-          <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 dark:text-claude-darkTextSecondary text-claude-textSecondary" />
-          <input
-            type="text"
-            placeholder={'搜索 MCP 服务'}
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 text-sm rounded-xl dark:bg-claude-darkSurface bg-claude-surface dark:text-claude-darkText text-claude-text dark:placeholder-claude-darkTextSecondary placeholder-claude-textSecondary border dark:border-claude-darkBorder border-claude-border focus:outline-none focus:ring-2 focus:ring-claude-accent"
-          />
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className={getResponsiveTabBarClass('dark:border-claude-darkBorder border-claude-border')}>
-        <button type="button" onClick={() => setActiveTab('supported')} className={tabClass('supported')}>
-          {'当前支持'}
-          {runtimeSupportedServers.length > 0 && (
-            <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full dark:bg-claude-darkSurfaceHover bg-claude-surfaceHover">
-              {runtimeSupportedServers.length}
-            </span>
-          )}
-          <div className={tabIndicatorClass('supported')} />
-        </button>
-        <button type="button" onClick={() => setActiveTab('templates')} className={tabClass('templates')}>
-          {'可接入'}
-          {marketplaceCount > 0 && (
-            <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full dark:bg-claude-darkSurfaceHover bg-claude-surfaceHover">
-              {marketplaceCount}
-            </span>
-          )}
-          <div className={tabIndicatorClass('templates')} />
-        </button>
-      </div>
-
-      <div>
-      {/* ── Tab: Supported ──────────────────────────────── */}
-      {activeTab === 'supported' && (
-        <div className="grid grid-cols-2 gap-4">
-          {filteredInstalled.length === 0 ? (
-            <div className="col-span-2 text-center py-12 text-sm dark:text-claude-darkTextSecondary text-claude-textSecondary">
-              {'当前角色还没有可用的 MCP 支持'}
-            </div>
-          ) : (
-            filteredInstalled.map((server) => {
-              const registryEntry = getRegistryEntryForServer(server);
-              const installedDescription = getInstalledDescription(server);
-              return (
-                <div
-                  key={server.id}
-                  className="rounded-xl border dark:border-claude-darkBorder border-claude-border dark:bg-claude-darkSurface/50 bg-claude-surface/50 p-3 transition-colors hover:border-claude-accent/50"
-                >
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <div className="w-7 h-7 rounded-lg dark:bg-claude-darkSurface bg-claude-surface flex items-center justify-center flex-shrink-0">
-                        <ConnectorIcon className="h-4 w-4 dark:text-claude-darkTextSecondary text-claude-textSecondary" />
-                      </div>
-                      <span className="text-sm font-medium dark:text-claude-darkText text-claude-text truncate">
-                        {server.name}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1.5 flex-shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => handleOpenEditForm(server)}
-                        className="p-1 rounded-lg text-claude-textSecondary dark:text-claude-darkTextSecondary hover:text-claude-accent dark:hover:text-claude-accent transition-colors"
-                        title={'编辑 MCP 服务'}
-                      >
-                        <PencilIcon className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleRequestDelete(server)}
-                        className="p-1 rounded-lg text-claude-textSecondary dark:text-claude-darkTextSecondary hover:text-red-500 dark:hover:text-red-400 transition-colors"
-                        title={'删除 MCP 服务'}
-                      >
-                        <TrashIcon className="h-3.5 w-3.5" />
-                      </button>
-                      <div
-                        className={`w-9 h-5 rounded-full flex items-center transition-colors cursor-pointer flex-shrink-0 ${
-                          server.enabled ? 'bg-claude-accent' : 'dark:bg-claude-darkBorder bg-claude-border'
-                        }`}
-                        onClick={() => handleToggleEnabled(server.id)}
-                      >
-                        <div
-                          className={`w-3.5 h-3.5 rounded-full bg-white shadow-md transform transition-transform ${
-                            server.enabled ? 'translate-x-[18px]' : 'translate-x-[3px]'
-                          }`}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <Tooltip
-                    content={installedDescription}
-                    position="bottom"
-                    maxWidth="360px"
-                    className="block w-full"
-                  >
-                    <p className="text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary line-clamp-2 mb-2">
-                      {installedDescription}
-                    </p>
-                  </Tooltip>
-
-                  <div className="flex flex-wrap items-center gap-2 text-[11px]">
-                    <span className="px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-600 dark:text-violet-300 font-medium">
-                      {getCategoryLabel(registryEntry?.category)}
-                    </span>
-                    <span className="px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 font-medium">
-                      {server.agentRoleKey === 'all'
-                        ? '全部角色'
-                        : (AGENT_ROLE_SHORT_LABELS[server.agentRoleKey] || server.agentRoleKey || '当前角色')}
-                    </span>
-                    <span className={`px-2 py-0.5 rounded-full font-medium ${
-                      runtimeVisibleServerIds.has(server.id)
-                        ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
-                        : 'bg-slate-500/10 text-slate-600 dark:text-slate-400'
-                    }`}>
-                      {runtimeVisibleServerIds.has(server.id) ? '当前可用' : '暂未生效'}
-                    </span>
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
-      )}
-
-      {/* ── Tab: Templates ─────────────────────────────── */}
-      {activeTab === 'templates' && (
-        <div>
-          <div className="mb-4 rounded-xl border border-sky-200/70 bg-sky-50 px-3 py-2 text-xs text-sky-700 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-200">
-            {'这里显示的是尚未在当前角色真实可用的可接入能力。它们说明“这条接入链支持”，但很多在真正可用前还需要安装、绑定角色，或补环境变量 / API Key。'}
-          </div>
-
-          {/* Category filter pills */}
-          <div className="flex items-center gap-1.5 mb-4 flex-wrap">
-            {dynamicCategories.map((cat) => (
-              <button
-                key={cat.id}
-                type="button"
-                onClick={() => setActiveCategory(cat.id)}
-                className={`px-2.5 py-1 text-xs rounded-lg transition-colors ${
-                  activeCategory === cat.id
-                    ? 'bg-claude-accent text-white'
-                    : 'dark:bg-claude-darkSurface bg-claude-surface dark:text-claude-darkTextSecondary text-claude-textSecondary dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover border dark:border-claude-darkBorder border-claude-border'
-                }`}
-              >
-                {cat.name_zh || cat.key}
-              </button>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            {filteredMarketplace.length === 0 ? (
-              <div className="col-span-2 text-center py-12 text-sm dark:text-claude-darkTextSecondary text-claude-textSecondary">
-                {'暂无 MCP 服务'}
+            {hiddenServerCount > 0 && (
+              <div className="text-[11px] leading-5 text-emerald-700/80 dark:text-emerald-200/80">
+                {`另有 ${hiddenServerCount} 条配置暂时还没对当前角色生效，已先收起。`}
               </div>
-            ) : (
-              filteredMarketplace.map((entry) => (
-                <div
-                  key={entry.id}
-                  className="rounded-xl border dark:border-claude-darkBorder border-claude-border dark:bg-claude-darkSurface/50 bg-claude-surface/50 p-3 transition-colors hover:border-claude-accent/50"
-                >
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <div className="w-7 h-7 rounded-lg dark:bg-claude-darkSurface bg-claude-surface flex items-center justify-center flex-shrink-0">
-                        <ConnectorIcon className="h-4 w-4 dark:text-claude-darkTextSecondary text-claude-textSecondary" />
-                      </div>
-                      <span className="text-sm font-medium dark:text-claude-darkText text-claude-text truncate">
-                        {entry.name}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1.5 flex-shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => handleInstallFromRegistry(entry)}
-                        className="px-2.5 py-1 text-xs rounded-lg bg-claude-accent text-white hover:bg-claude-accent/90 transition-colors"
-                      >
-                        {'接入'}
-                      </button>
-                    </div>
-                  </div>
-
-                  <p className="text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary line-clamp-2 mb-2">
-                    {getRegistryEntryDescription(entry)}
-                  </p>
-
-                  <div className="flex flex-wrap items-center gap-2 text-[11px]">
-                    <span className="px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-600 dark:text-violet-300 font-medium">
-                      {getCategoryLabel(entry.category)}
-                    </span>
-                    <span className={`px-2 py-0.5 rounded-full font-medium ${TRANSPORT_BADGE_COLORS[entry.transportType] || ''}`}>
-                      {entry.transportType}
-                    </span>
-                    <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 font-medium">
-                      {'待接入'}
-                    </span>
-                  </div>
-                </div>
-              ))
+            )}
+            {runtimeMcpTools.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {runtimeMcpTools.map((tool) => (
+                  <span
+                    key={`${selectedRole}:${tool.id}`}
+                    className="rounded-full bg-white/80 dark:bg-emerald-900/30 px-2 py-1 text-[11px] text-emerald-700 dark:text-emerald-200"
+                  >
+                    {`${tool.name} · ${formatMcpScopeLabel(tool.scope)}`}
+                  </span>
+                ))}
+              </div>
+            )}
+            {runtimeWarnings.length > 0 && (
+              <div className="text-xs leading-5 text-amber-700 dark:text-amber-300">
+                {runtimeWarnings[0]}
+              </div>
             )}
           </div>
+        )}
+
+        {actionError && (
+          <ErrorMessage
+            message={actionError}
+            onClose={() => setActionError('')}
+          />
+        )}
+
+        {/* Search */}
+        <div className="flex items-center gap-3">
+          <div className="relative flex-1">
+            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 dark:text-claude-darkTextSecondary text-claude-textSecondary" />
+            <input
+              type="text"
+              placeholder={'搜索 MCP 服务'}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-3 py-2 text-sm rounded-xl dark:bg-claude-darkSurface bg-claude-surface dark:text-claude-darkText text-claude-text dark:placeholder-claude-darkTextSecondary placeholder-claude-textSecondary border dark:border-claude-darkBorder border-claude-border focus:outline-none focus:ring-2 focus:ring-claude-accent"
+            />
+          </div>
         </div>
-      )}
-      </div>
+
+        {/* Tabs */}
+        <div className={getResponsiveTabBarClass('dark:border-claude-darkBorder border-claude-border')}>
+          <button type="button" onClick={() => setActiveTab('supported')} className={tabClass('supported')}>
+            {'当前支持'}
+            {runtimeSupportedServers.length > 0 && (
+              <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full dark:bg-claude-darkSurfaceHover bg-claude-surfaceHover">
+                {runtimeSupportedServers.length}
+              </span>
+            )}
+            <div className={tabIndicatorClass('supported')} />
+          </button>
+          <button type="button" onClick={() => setActiveTab('templates')} className={tabClass('templates')}>
+            {'可接入'}
+            {marketplaceCount > 0 && (
+              <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full dark:bg-claude-darkSurfaceHover bg-claude-surfaceHover">
+                {marketplaceCount}
+              </span>
+            )}
+            <div className={tabIndicatorClass('templates')} />
+          </button>
+        </div>
+      </section>
+
+      <section
+        aria-label="已装区"
+        className="space-y-4 rounded-2xl border dark:border-claude-darkBorder border-claude-border dark:bg-claude-darkSurface/30 bg-claude-surface/30 px-4 py-4"
+      >
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-semibold dark:text-claude-darkText text-claude-text">
+              {'当前已装'}
+            </p>
+            <p className="text-xs text-claude-textSecondary dark:text-claude-darkTextSecondary">
+              {'展示当前角色已激活的 MCP 服务，点击卡片可查看详情或编辑。'}
+            </p>
+          </div>
+          <span className="text-xs text-claude-textSecondary dark:text-claude-darkTextSecondary">
+            {`${runtimeSupportedServers.length} 个配置`}
+          </span>
+        </div>
+        {activeTab === 'supported' ? (
+          <div className="grid grid-cols-2 gap-4">
+            {filteredInstalled.length === 0 ? (
+              <div className="col-span-2 text-center py-12 text-sm dark:text-claude-darkTextSecondary text-claude-textSecondary">
+                {'当前角色还没有可用的 MCP 支持'}
+              </div>
+            ) : (
+              filteredInstalled.map((server) => {
+                const registryEntry = getRegistryEntryForServer(server);
+                const installedDescription = getInstalledDescription(server);
+                return (
+                  <div
+                    key={server.id}
+                    className="rounded-xl border dark:border-claude-darkBorder border-claude-border dark:bg-claude-darkSurface/50 bg-claude-surface/50 p-3 transition-colors hover:border-claude-accent/50"
+                  >
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-7 h-7 rounded-lg dark:bg-claude-darkSurface bg-claude-surface flex items-center justify-center flex-shrink-0">
+                          <ConnectorIcon className="h-4 w-4 dark:text-claude-darkTextSecondary text-claude-textSecondary" />
+                        </div>
+                        <span className="text-sm font-medium dark:text-claude-darkText text-claude-text truncate">
+                          {server.name}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditForm(server)}
+                          className="p-1 rounded-lg text-claude-textSecondary dark:text-claude-darkTextSecondary hover:text-claude-accent dark:hover:text-claude-accent transition-colors"
+                          title={'编辑 MCP 服务'}
+                        >
+                          <PencilIcon className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRequestDelete(server)}
+                          className="p-1 rounded-lg text-claude-textSecondary dark:text-claude-darkTextSecondary hover:text-red-500 dark:hover:text-red-400 transition-colors"
+                          title={'删除 MCP 服务'}
+                        >
+                          <TrashIcon className="h-3.5 w-3.5" />
+                        </button>
+                        <div
+                          className={`w-9 h-5 rounded-full flex items-center transition-colors cursor-pointer flex-shrink-0 ${
+                            server.enabled ? 'bg-claude-accent' : 'dark:bg-claude-darkBorder bg-claude-border'
+                          }`}
+                          onClick={() => handleToggleEnabled(server.id)}
+                        >
+                          <div
+                            className={`w-3.5 h-3.5 rounded-full bg-white shadow-md transform transition-transform ${
+                              server.enabled ? 'translate-x-[18px]' : 'translate-x-[3px]'
+                            }`}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <Tooltip
+                      content={installedDescription}
+                      position="bottom"
+                      maxWidth="360px"
+                      className="block w-full"
+                    >
+                      <p className="text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary line-clamp-2 mb-2">
+                        {installedDescription}
+                      </p>
+                    </Tooltip>
+
+                    <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                      <span className="px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-600 dark:text-violet-300 font-medium">
+                        {getCategoryLabel(registryEntry?.category)}
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 font-medium">
+                        {server.agentRoleKey === 'all'
+                          ? '全部角色'
+                          : (AGENT_ROLE_SHORT_LABELS[server.agentRoleKey] || server.agentRoleKey || '当前角色')}
+                      </span>
+                      <span className={`px-2 py-0.5 rounded-full font-medium ${
+                        runtimeVisibleServerIds.has(server.id)
+                          ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+                          : 'bg-slate-500/10 text-slate-600 dark:text-slate-400'
+                      }`}>
+                        {runtimeVisibleServerIds.has(server.id) ? '当前可用' : '暂未生效'}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        ) : (
+          <div className="text-center py-8 text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary">
+            {'请切换到“当前支持”选项卡查看已装 MCP 服务。'}
+          </div>
+        )}
+      </section>
+
+      <section
+        aria-label="市场区"
+        className="space-y-4 rounded-2xl border dark:border-claude-darkBorder border-claude-border dark:bg-claude-darkSurface/30 bg-claude-surface/30 px-4 py-4"
+      >
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-semibold dark:text-claude-darkText text-claude-text">
+              {'市场区'}
+            </p>
+            <p className="text-xs text-claude-textSecondary dark:text-claude-darkTextSecondary">
+              {'展示尚未在当前角色可用的可接入能力，需额外安装或绑定。'}
+            </p>
+          </div>
+          <span className="text-xs text-claude-textSecondary dark:text-claude-darkTextSecondary">
+            {`${marketplaceCount} 个条目`}
+          </span>
+        </div>
+        {activeTab === 'templates' ? (
+          <div>
+            <div className="mb-4 rounded-xl border border-sky-200/70 bg-sky-50 px-3 py-2 text-xs text-sky-700 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-200">
+              {'这里显示的是尚未在当前角色真实可用的可接入能力。它们说明“这条接入链支持”，但很多在真正可用前还需要安装、绑定角色，或补环境变量 / API Key。'}
+            </div>
+
+            {/* Category filter pills */}
+            <div className="flex items-center gap-1.5 mb-4 flex-wrap">
+              {dynamicCategories.map((cat) => (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => setActiveCategory(cat.id)}
+                  className={`px-2.5 py-1 text-xs rounded-lg transition-colors ${
+                    activeCategory === cat.id
+                      ? 'bg-claude-accent text-white'
+                      : 'dark:bg-claude-darkSurface bg-claude-surface dark:text-claude-darkTextSecondary text-claude-textSecondary dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover border dark:border-claude-darkBorder border-claude-border'
+                  }`}
+                >
+                  {cat.name_zh || cat.key}
+                </button>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              {filteredMarketplace.length === 0 ? (
+                <div className="col-span-2 text-center py-12 text-sm dark:text-claude-darkTextSecondary text-claude-textSecondary">
+                  {'暂无 MCP 服务'}
+                </div>
+              ) : (
+                filteredMarketplace.map((entry) => (
+                  <div
+                    key={entry.id}
+                    className="rounded-xl border dark:border-claude-darkBorder border-claude-border dark:bg-claude-darkSurface/50 bg-claude-surface/50 p-3 transition-colors hover:border-claude-accent/50"
+                  >
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-7 h-7 rounded-lg dark:bg-claude-darkSurface bg-claude-surface flex items-center justify-center flex-shrink-0">
+                          <ConnectorIcon className="h-4 w-4 dark:text-claude-darkTextSecondary text-claude-textSecondary" />
+                        </div>
+                        <span className="text-sm font-medium dark:text-claude-darkText text-claude-text truncate">
+                          {entry.name}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleInstallFromRegistry(entry)}
+                          className="px-2.5 py-1 text-xs rounded-lg bg-claude-accent text-white hover:bg-claude-accent/90 transition-colors"
+                        >
+                          {'接入'}
+                        </button>
+                      </div>
+                    </div>
+
+                    <p className="text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary line-clamp-2 mb-2">
+                      {getRegistryEntryDescription(entry)}
+                    </p>
+
+                    <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                      <span className="px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-600 dark:text-violet-300 font-medium">
+                        {getCategoryLabel(entry.category)}
+                      </span>
+                      <span className={`px-2 py-0.5 rounded-full font-medium ${TRANSPORT_BADGE_COLORS[entry.transportType] || ''}`}>
+                        {entry.transportType}
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 font-medium">
+                        {'待接入'}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="text-center py-8 text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary">
+            {'请切换到“可接入”选项卡查看市场中还未激活的 MCP 工具。'}
+          </div>
+        )}
+      </section>
 
       {/* ## {提取} ConfirmDialog
           这里是 MCP 的确认删除弹窗。

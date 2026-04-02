@@ -116,94 +116,114 @@ const DataBackup: React.FC = () => {
         </div>
       )}
 
-      {/* 数据概览 */}
-      <div>
-        <h3 className="text-sm font-semibold dark:text-claude-darkText text-claude-text mb-3">数据概览</h3>
-        {loading ? (
-          <div className="text-sm dark:text-claude-darkTextSecondary text-claude-textSecondary">加载中...</div>
-        ) : stats ? (
-          <div className="rounded-xl border dark:border-claude-darkBorder border-claude-border overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="dark:bg-claude-darkSurfaceHover/50 bg-claude-surfaceHover/50">
-                  <th className="text-left px-4 py-2 font-medium dark:text-claude-darkTextSecondary text-claude-textSecondary">数据类型</th>
-                  <th className="text-right px-4 py-2 font-medium dark:text-claude-darkTextSecondary text-claude-textSecondary">数量</th>
-                </tr>
-              </thead>
-              <tbody>
-                {stats.stats.map((s) => (
-                  <tr key={s.table} className="border-t dark:border-claude-darkBorder/50 border-claude-border/50">
-                    <td className="px-4 py-2 dark:text-claude-darkText text-claude-text">{s.label}</td>
-                    <td className="px-4 py-2 text-right tabular-nums dark:text-claude-darkText text-claude-text">{s.count.toLocaleString()}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <div className="px-4 py-2 border-t dark:border-claude-darkBorder/50 border-claude-border/50 text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary">
-              数据库大小: {formatBytes(stats.sizeBytes)}
+      <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+        <section className="rounded-[24px] border border-white/60 bg-white/55 px-5 py-5 shadow-[0_10px_24px_rgba(203,174,150,0.08)] dark:border-white/10 dark:bg-white/[0.03]">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-semibold dark:text-claude-darkText text-claude-text">数据概览</h3>
+              <p className="mt-1 text-xs leading-5 dark:text-claude-darkTextSecondary text-claude-textSecondary">
+                当前数据库中的主要内容和体积。
+              </p>
             </div>
+            {stats && (
+              <span className="rounded-full border dark:border-claude-darkBorder border-claude-border px-2.5 py-1 text-[11px] dark:text-claude-darkTextSecondary text-claude-textSecondary">
+                {formatBytes(stats.sizeBytes)}
+              </span>
+            )}
           </div>
-        ) : null}
-      </div>
 
-      {/* 操作按钮 */}
-      <div className="space-y-3">
-        <h3 className="text-sm font-semibold dark:text-claude-darkText text-claude-text">备份与还原</h3>
+          <div className="mt-4">
+            {loading ? (
+              <div className="text-sm dark:text-claude-darkTextSecondary text-claude-textSecondary">加载中...</div>
+            ) : stats ? (
+              <div className="rounded-xl border dark:border-claude-darkBorder border-claude-border overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="dark:bg-claude-darkSurfaceHover/50 bg-claude-surfaceHover/50">
+                      <th className="text-left px-4 py-2 font-medium dark:text-claude-darkTextSecondary text-claude-textSecondary">数据类型</th>
+                      <th className="text-right px-4 py-2 font-medium dark:text-claude-darkTextSecondary text-claude-textSecondary">数量</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {stats.stats.map((s) => (
+                      <tr key={s.table} className="border-t dark:border-claude-darkBorder/50 border-claude-border/50">
+                        <td className="px-4 py-2 dark:text-claude-darkText text-claude-text">{s.label}</td>
+                        <td className="px-4 py-2 text-right tabular-nums dark:text-claude-darkText text-claude-text">{s.count.toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div className="px-4 py-2 border-t dark:border-claude-darkBorder/50 border-claude-border/50 text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary">
+                  数据库大小: {formatBytes(stats.sizeBytes)}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </section>
 
-        {/* 导出 */}
-        <button
-          type="button"
-          onClick={handleExport}
-          disabled={exporting}
-          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl border dark:border-claude-darkBorder border-claude-border hover:bg-claude-surfaceHover/50 dark:hover:bg-claude-darkSurfaceHover/50 transition-colors disabled:opacity-50"
-        >
-          <div className="w-9 h-9 rounded-lg bg-blue-500/10 flex items-center justify-center flex-shrink-0">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="h-5 w-5 text-blue-500">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
-            </svg>
+        <section className="rounded-[24px] border border-white/60 bg-white/55 px-5 py-5 shadow-[0_10px_24px_rgba(203,174,150,0.08)] dark:border-white/10 dark:bg-white/[0.03]">
+          <div>
+            <h3 className="text-sm font-semibold dark:text-claude-darkText text-claude-text">备份与还原</h3>
+            <p className="mt-1 text-xs leading-5 dark:text-claude-darkTextSecondary text-claude-textSecondary">
+              建议先导出再还原，避免误覆盖当前数据。
+            </p>
           </div>
-          <div className="text-left">
-            <div className="text-sm font-medium dark:text-claude-darkText text-claude-text">
-              {exporting ? '导出中...' : '导出备份'}
-            </div>
-            <div className="text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary">
-              下载完整数据库文件 (.sqlite)
-            </div>
-          </div>
-        </button>
 
-        {/* 还原 */}
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={importing}
-          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl border dark:border-claude-darkBorder border-claude-border hover:bg-claude-surfaceHover/50 dark:hover:bg-claude-darkSurfaceHover/50 transition-colors disabled:opacity-50"
-        >
-          <div className="w-9 h-9 rounded-lg bg-amber-500/10 flex items-center justify-center flex-shrink-0">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="h-5 w-5 text-amber-500">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
-            </svg>
-          </div>
-          <div className="text-left">
-            <div className="text-sm font-medium dark:text-claude-darkText text-claude-text">
-              {importing ? '还原中...' : '还原备份'}
-            </div>
-            <div className="text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary">
-              上传 .sqlite 备份文件覆盖当前数据
-            </div>
-          </div>
-        </button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".sqlite"
-          onChange={handleImport}
-          className="hidden"
-        />
+          <div className="mt-4 space-y-3">
+            <button
+              type="button"
+              onClick={handleExport}
+              disabled={exporting}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl border dark:border-claude-darkBorder border-claude-border hover:bg-claude-surfaceHover/50 dark:hover:bg-claude-darkSurfaceHover/50 transition-colors disabled:opacity-50"
+            >
+              <div className="w-9 h-9 rounded-lg bg-blue-500/10 flex items-center justify-center flex-shrink-0">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="h-5 w-5 text-blue-500">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                </svg>
+              </div>
+              <div className="text-left">
+                <div className="text-sm font-medium dark:text-claude-darkText text-claude-text">
+                  {exporting ? '导出中...' : '导出备份'}
+                </div>
+                <div className="text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary">
+                  下载完整数据库文件 (.sqlite)
+                </div>
+              </div>
+            </button>
 
-        <p className="text-xs dark:text-claude-darkTextSecondary/60 text-claude-textSecondary/60 px-1">
-          还原操作会覆盖所有现有数据，建议先导出当前备份。
-        </p>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={importing}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl border dark:border-claude-darkBorder border-claude-border hover:bg-claude-surfaceHover/50 dark:hover:bg-claude-darkSurfaceHover/50 transition-colors disabled:opacity-50"
+            >
+              <div className="w-9 h-9 rounded-lg bg-amber-500/10 flex items-center justify-center flex-shrink-0">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="h-5 w-5 text-amber-500">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                </svg>
+              </div>
+              <div className="text-left">
+                <div className="text-sm font-medium dark:text-claude-darkText text-claude-text">
+                  {importing ? '还原中...' : '还原备份'}
+                </div>
+                <div className="text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary">
+                  上传 .sqlite 备份文件覆盖当前数据
+                </div>
+              </div>
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".sqlite"
+              onChange={handleImport}
+              className="hidden"
+            />
+
+            <p className="px-1 text-xs leading-5 dark:text-claude-darkTextSecondary/60 text-claude-textSecondary/60">
+              还原操作会覆盖所有现有数据，建议先导出当前备份。
+            </p>
+          </div>
+        </section>
       </div>
     </div>
   );

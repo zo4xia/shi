@@ -39,6 +39,7 @@ export interface CoworkMessageMetadata {
   skillIds?: string[];  // Skills used for this message
   imageAttachments?: CoworkImageAttachment[];
   generatedImages?: CoworkRenderableImage[];
+  zenMode?: boolean;
   [key: string]: unknown;
 }
 
@@ -205,6 +206,7 @@ export interface CoworkStartOptions {
   title?: string;
   activeSkillIds?: string[];
   imageAttachments?: CoworkImageAttachment[];
+  zenMode?: boolean;
 }
 
 // Continue session options
@@ -214,6 +216,7 @@ export interface CoworkContinueOptions {
   systemPrompt?: string;
   activeSkillIds?: string[];
   imageAttachments?: CoworkImageAttachment[];
+  zenMode?: boolean;
 }
 
 // IPC result types

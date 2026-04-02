@@ -40,6 +40,7 @@ export const routes = {
     memoryEntry: (id: string) => `/cowork/memory/entries/${encodeURIComponent(id)}`,
     memoryStats: () => '/cowork/memory/stats',
     broadcastBoards: () => '/cowork/memory/broadcast-boards',
+    clearBroadcastBoard: () => '/cowork/memory/broadcast-boards/clear',
     generateTitle: () => '/cowork/generateTitle',
     recentCwds: () => '/cowork/recentCwds',
   },

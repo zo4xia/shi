@@ -542,6 +542,12 @@ const cowork = {
     return unwrap(await apiClient.get(url));
   },
 
+  async clearBroadcastBoard(input: {
+    agentRoleKey: string;
+  }): Promise<{ success: boolean; cleared?: number; error?: string }> {
+    return unwrap(await apiClient.post(routes.cowork.clearBroadcastBoard(), input));
+  },
+
   // Stream event listeners
   onStreamMessage(callback: (data: { sessionId: string; message: CoworkMessage }) => void): () => void {
     return webSocketClient.on(WS_EVENTS.COWORK_MESSAGE, callback);

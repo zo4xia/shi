@@ -10,7 +10,6 @@ import {
   CheckIcon,
   InformationCircleIcon,
   SignalIcon,
-  ShareIcon,
   ExclamationTriangleIcon,
   ChevronRightIcon,
   ChevronUpIcon,
@@ -24,14 +23,14 @@ import SidebarToggleIcon from '../icons/SidebarToggleIcon';
 import ComposeIcon from '../icons/ComposeIcon';
 import PuzzleIcon from '../icons/PuzzleIcon';
 import EllipsisHorizontalIcon from '../icons/EllipsisHorizontalIcon';
-import PencilSquareIcon from '../icons/PencilSquareIcon';
-import TrashIcon from '../icons/TrashIcon';
 import WindowTitleBar from '../window/WindowTitleBar';
 import Tooltip from '../ui/Tooltip';
 import { getCompactFolderName } from '../../utils/path';
 import { WebFileOperations } from '../../utils/fileOperations';
 import { isWebBuild } from '../../utils/platform';
 import * as SessionDetailHelpers from './sessionDetailHelpers';
+import CoworkImagePreviewModal from './CoworkImagePreviewModal';
+import CoworkSessionActionMenu from './CoworkSessionActionMenu';
 
 
 interface CoworkSessionDetailProps {
@@ -44,28 +43,6 @@ interface CoworkSessionDetailProps {
   onNewChat?: () => void;
   updateBadge?: React.ReactNode;
 }
-
-// PushPinIcon component for pin/unpin functionality
-const PushPinIcon: React.FC<React.SVGProps<SVGSVGElement> & { slashed?: boolean }> = ({
-  slashed,
-  ...props
-}) => (
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth={1.5}
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    {...props}
-  >
-    <g transform="rotate(45 12 12)">
-      <path d="M9 3h6l-1 5 2 2v2H8v-2l2-2-1-5z" />
-      <path d="M12 12v9" />
-    </g>
-    {slashed && <path d="M5 5L19 19" />}
-  </svg>
-);
 
 // Local functions that are not in helpers
 const getToolResultDisplay = (message: CoworkMessage): string => {
@@ -153,7 +130,7 @@ const MessageImageGallery: React.FC<{
   images: CoworkRenderableImage[];
   compact?: boolean;
 }> = React.memo(({ images, compact = false }) => {
-  const [expandedImage, setExpandedImage] = useState<string | null>(null);
+  const [expandedImage, setExpandedImage] = useState<{ src: string; name: string } | null>(null);
   const renderableImages = useMemo(
     () => images
       .map((image) => ({
@@ -178,7 +155,7 @@ const MessageImageGallery: React.FC<{
               alt={image.name}
               className="max-h-48 max-w-[16rem] rounded-lg object-contain cursor-pointer border dark:border-claude-darkBorder/50 border-claude-border/50 hover:border-claude-accent/50 transition-colors"
               title={image.name}
-              onClick={() => setExpandedImage(src)}
+              onClick={() => setExpandedImage({ src, name: image.name })}
             />
             <div className="absolute bottom-1 left-1 right-1 flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-black/50 text-white text-[10px] opacity-0 group-hover:opacity-100 transition-opacity truncate pointer-events-none">
               <PhotoIcon className="h-3 w-3 flex-shrink-0" />
@@ -188,17 +165,12 @@ const MessageImageGallery: React.FC<{
         ))}
       </div>
       {expandedImage && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 cursor-pointer"
-          onClick={() => setExpandedImage(null)}
-        >
-          <img
-            src={expandedImage}
-            alt="Preview"
-            className="max-h-[90vh] max-w-[90vw] object-contain rounded-lg shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          />
-        </div>
+        <CoworkImagePreviewModal
+          src={expandedImage.src}
+          alt={expandedImage.name}
+          fileName={expandedImage.name}
+          onClose={() => setExpandedImage(null)}
+        />
       )}
     </>
   );
@@ -1648,6 +1620,70 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
           if (!scrollContainer) {
             throw new Error('Capture target not found');
           }
+          const shouldFallbackToBrowserExport = (error?: string | null): boolean => {
+            const normalized = String(error || '').trim().toLowerCase();
+            if (!normalized) {
+              return false;
+            }
+            return normalized.includes('not available in web version')
+              || normalized.includes('capture api not available')
+              || normalized.includes('save image api not available')
+              || normalized.includes('image capture not available')
+              || normalized.includes('image save not available');
+          };
+
+          const captureAndLoad = async (rect: SessionDetailHelpers.CaptureRect): Promise<HTMLImageElement> => {
+            if (isWebBuild()) {
+              const pngBase64 = await SessionDetailHelpers.captureScrollableViewportAsPngBase64(scrollContainer);
+              return SessionDetailHelpers.loadImageFromBase64(pngBase64);
+            }
+
+            const chunk = await coworkService.captureSessionImageChunk({ rect });
+            if (chunk.success && chunk.pngBase64) {
+              return SessionDetailHelpers.loadImageFromBase64(chunk.pngBase64);
+            }
+
+            if (shouldFallbackToBrowserExport(chunk.error)) {
+              const pngBase64 = await SessionDetailHelpers.captureScrollableViewportAsPngBase64(scrollContainer);
+              return SessionDetailHelpers.loadImageFromBase64(pngBase64);
+            }
+
+            throw new Error(chunk.error || 'Failed to capture image chunk');
+          };
+
+          const savePngExport = async (pngBase64: string, fileName: string): Promise<boolean> => {
+            if (isWebBuild()) {
+              const saveResult = await window.electron.dialog.saveInlineFile({
+                dataBase64: pngBase64,
+                fileName,
+                mimeType: 'image/png',
+                cwd: currentSession.cwd,
+                purpose: 'export',
+              });
+              if (saveResult.success && (!('canceled' in saveResult) || !saveResult.canceled)) {
+                return true;
+              }
+              WebFileOperations.downloadFile(pngBase64, fileName, 'image/png');
+              return true;
+            }
+
+            const saveResult = await coworkService.saveSessionResultImage({
+              pngBase64,
+              defaultFileName: fileName,
+            });
+            if (saveResult.success && (!('canceled' in saveResult) || !saveResult.canceled)) {
+              return true;
+            }
+            if (shouldFallbackToBrowserExport(saveResult.error)) {
+              WebFileOperations.downloadFile(pngBase64, fileName, 'image/png');
+              return true;
+            }
+            if (!saveResult.success) {
+              throw new Error(saveResult.error || 'Failed to export image');
+            }
+            return false;
+          };
+
           const initialScrollTop = scrollContainer.scrollTop;
           try {
             const scrollRect = SessionDetailHelpers.domRectToCaptureRect(scrollContainer.getBoundingClientRect());
@@ -1708,18 +1744,6 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
               throw new Error('Canvas context unavailable');
             }
 
-            const captureAndLoad = async (rect: SessionDetailHelpers.CaptureRect): Promise<HTMLImageElement> => {
-              if (isWebBuild()) {
-                const pngBase64 = await SessionDetailHelpers.captureScrollableViewportAsPngBase64(scrollContainer);
-                return SessionDetailHelpers.loadImageFromBase64(pngBase64);
-              }
-              const chunk = await coworkService.captureSessionImageChunk({ rect });
-              if (!chunk.success || !chunk.pngBase64) {
-                throw new Error(chunk.error || 'Failed to capture image chunk');
-              }
-              return SessionDetailHelpers.loadImageFromBase64(chunk.pngBase64);
-            };
-
             scrollContainer.scrollTop = Math.min(contentStart, Math.max(0, scrollContainer.scrollHeight - scrollContainer.clientHeight));
             await SessionDetailHelpers.waitForNextFrame();
             await SessionDetailHelpers.waitForNextFrame();
@@ -1769,24 +1793,10 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
             const timestamp = SessionDetailHelpers.formatExportTimestamp(new Date());
             const fileName = SessionDetailHelpers.sanitizeExportFileName(`${currentSession.title}-${timestamp}.png`);
             const pngBase64 = pngDataUrl.slice(base64Index + 1);
-            const saveResult = isWebBuild()
-              ? await window.electron.dialog.saveInlineFile({
-                dataBase64: pngBase64,
-                fileName,
-                mimeType: 'image/png',
-                cwd: currentSession.cwd,
-                purpose: 'export',
-              })
-              : await coworkService.saveSessionResultImage({
-                pngBase64,
-                defaultFileName: fileName,
-              });
-            if (saveResult.success && (!('canceled' in saveResult) || !saveResult.canceled)) {
+            const saved = await savePngExport(pngBase64, fileName);
+            if (saved) {
               showGlobalToast('图片导出成功');
               return;
-            }
-            if (!saveResult.success) {
-              throw new Error(saveResult.error || 'Failed to export image');
             }
           } finally {
             scrollContainer.scrollTop = initialScrollTop;
@@ -1825,18 +1835,6 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
       const dataBase64 = encodeBase64Utf8(markdown);
 
       if (isWebBuild()) {
-        const saveResult = await window.electron.dialog.saveInlineFile({
-          dataBase64,
-          fileName,
-          mimeType: 'text/markdown',
-          cwd: sessionForExport.cwd,
-          purpose: 'export',
-        });
-        if (saveResult.success) {
-          showGlobalToast('Markdown 导出成功');
-          return;
-        }
-        // {标记} P1-MD-EXPORT-WEB: Web 端优先写缓存目录，失败时回退浏览器下载，避免无响应。
         WebFileOperations.downloadFile(dataBase64, fileName, 'text/markdown;charset=utf-8');
         showGlobalToast('Markdown 已下载到浏览器默认目录');
         return;
@@ -1851,7 +1849,9 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
       });
 
       if (!result.success) {
-        throw new Error(result.error || 'Failed to export markdown');
+        WebFileOperations.downloadFile(dataBase64, fileName, 'text/markdown;charset=utf-8');
+        showGlobalToast('Markdown 已下载到浏览器默认目录');
+        return;
       }
 
       showGlobalToast('Markdown 导出成功');
@@ -2344,57 +2344,18 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
 
       {/* Floating Menu */}
       {menuPosition && (
-        <div
+        <CoworkSessionActionMenu
           ref={menuRef}
-          className="fixed z-50 min-w-[180px] rounded-xl border dark:border-claude-darkBorder border-claude-border dark:bg-claude-darkSurface bg-claude-surface shadow-popover popover-enter overflow-hidden"
-          style={{ top: menuPosition.y, left: menuPosition.x }}
-          role="menu"
-        >
-          <button
-            type="button"
-            onClick={handleRenameClick}
-            className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm dark:text-claude-darkText text-claude-text hover:bg-claude-surfaceHover dark:hover:bg-claude-darkSurfaceHover transition-colors"
-          >
-            <PencilSquareIcon className="h-4 w-4" />
-            {'重命名'}
-          </button>
-          <button
-            type="button"
-            onClick={handleTogglePin}
-            className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm dark:text-claude-darkText text-claude-text hover:bg-claude-surfaceHover dark:hover:bg-claude-darkSurfaceHover transition-colors"
-          >
-            <PushPinIcon
-              slashed={currentSession.pinned}
-              className={`h-4 w-4 ${currentSession.pinned ? 'opacity-60' : ''}`}
-            />
-            {currentSession.pinned ? '取消置顶' : '置顶任务'}
-          </button>
-          <button
-            type="button"
-            onClick={handleShareClick}
-            disabled={isExportingImage}
-            className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm dark:text-claude-darkText text-claude-text hover:bg-claude-surfaceHover dark:hover:bg-claude-darkSurfaceHover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <ShareIcon className="h-4 w-4" />
-            {'分享'}
-          </button>
-          <button
-            type="button"
-            onClick={handleExportMarkdown}
-            className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm dark:text-claude-darkText text-claude-text hover:bg-claude-surfaceHover dark:hover:bg-claude-darkSurfaceHover transition-colors"
-          >
-            <ShareIcon className="h-4 w-4" />
-            {'导出 Markdown'}
-          </button>
-          <button
-            type="button"
-            onClick={handleDeleteClick}
-            className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-red-500 hover:bg-red-500/10 transition-colors"
-          >
-            <TrashIcon className="h-4 w-4" />
-            {'删除任务'}
-          </button>
-        </div>
+          top={menuPosition.y}
+          left={menuPosition.x}
+          pinned={currentSession.pinned}
+          isExportingImage={isExportingImage}
+          onRename={handleRenameClick}
+          onTogglePin={handleTogglePin}
+          onShare={handleShareClick}
+          onExportMarkdown={handleExportMarkdown}
+          onDelete={handleDeleteClick}
+        />
       )}
 
       {/* Delete Confirmation Modal */}
@@ -2497,7 +2458,7 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
       </div>
 
       {turns.length > 0 && (
-        <div className="pointer-events-none absolute right-4 top-24 z-20">
+        <div className="pointer-events-none absolute right-4 top-36 z-20 xl:top-32">
           <div className="pointer-events-auto flex flex-col gap-1 rounded-2xl border border-white/55 bg-white/72 p-1.5 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-claude-darkSurface/72">
           <Tooltip content={'跳到最前'} position="left" delay={120}>
             <button

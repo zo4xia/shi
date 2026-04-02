@@ -126,19 +126,19 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
   ), [effectiveModel, modelsByRole]);
 
   return (
-    <div ref={containerRef} className="relative cursor-pointer">
+    <div ref={containerRef} className="relative min-w-0 max-w-full cursor-pointer">
       <button
         onClick={() => {
           if (!readOnly) {
             setIsOpen(!isOpen);
           }
         }}
-        className={`flex items-center space-x-2 px-3 py-1.5 rounded-xl dark:text-claude-darkText text-claude-text transition-colors ${readOnly ? 'cursor-default' : 'cursor-pointer dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover'} ${isOpen ? 'dark:bg-claude-darkSurfaceHover bg-claude-surfaceHover' : ''}`}
+        className={`flex max-w-full items-center gap-2 rounded-xl px-3 py-1.5 text-claude-text dark:text-claude-darkText transition-colors ${readOnly ? 'cursor-default' : 'cursor-pointer hover:bg-claude-surfaceHover dark:hover:bg-claude-darkSurfaceHover'} ${isOpen ? 'bg-claude-surfaceHover dark:bg-claude-darkSurfaceHover' : ''}`}
       >
-        <span className="text-base">{AGENT_ROLE_ICONS[currentRole]}</span>
-        <span className="font-medium text-sm">{AGENT_ROLE_LABELS[currentRole]}</span>
+        <span className="shrink-0 text-base">{AGENT_ROLE_ICONS[currentRole]}</span>
+        <span className="truncate font-medium text-sm">{AGENT_ROLE_LABELS[currentRole]}</span>
         {!readOnly && (
-          <ChevronDownIcon className="h-4 w-4 dark:text-claude-darkTextSecondary text-claude-textSecondary" />
+          <ChevronDownIcon className="h-4 w-4 shrink-0 dark:text-claude-darkTextSecondary text-claude-textSecondary" />
         )}
       </button>
 
@@ -161,7 +161,7 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
       )}
 
       {isOpen && !readOnly && !isMobileViewport && (
-        <div className={`absolute ${dropdownPositionClass} w-64 dark:bg-claude-darkSurface bg-claude-surface rounded-xl popover-enter shadow-popover z-50 dark:border-claude-darkBorder border-claude-border border overflow-hidden`}>
+        <div className={`absolute ${dropdownPositionClass} w-64 max-w-[min(16rem,calc(100vw-2rem))] dark:bg-claude-darkSurface bg-claude-surface rounded-xl popover-enter shadow-popover z-50 dark:border-claude-darkBorder border-claude-border border overflow-hidden`}>
           <div className="max-h-80 overflow-y-auto">
             {AGENT_ROLE_ORDER.map((roleKey) => {
               const roleModels = modelsByRole[roleKey];

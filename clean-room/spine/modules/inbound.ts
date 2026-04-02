@@ -22,6 +22,7 @@ export interface InboundRequest {
   agentRoleKey: AgentRoleKey;
   modelId?: string;
   scopeKey?: string;
+  zenMode?: boolean;
   confirmationMode?: 'modal' | 'text';
   autoApprove?: boolean;
   trace: RequestTrace;
@@ -37,6 +38,7 @@ export interface WebInboundInput {
   sessionId?: string;
   agentRoleKey: AgentRoleKey;
   modelId?: string;
+  zenMode?: boolean;
   confirmationMode?: 'modal' | 'text';
   autoApprove?: boolean;
   trace: RequestTrace;
@@ -66,6 +68,7 @@ export function createWebInboundRequest(input: WebInboundInput): InboundRequest 
     sessionId: input.sessionId,
     agentRoleKey: input.agentRoleKey,
     modelId: input.modelId,
+    zenMode: input.zenMode,
     confirmationMode: input.confirmationMode,
     autoApprove: input.autoApprove,
     trace: input.trace,

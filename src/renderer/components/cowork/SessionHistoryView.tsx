@@ -15,9 +15,6 @@ import {
   type AgentRoleKey,
 } from '../../../shared/agentRoleConfig';
 import type { CoworkSessionSummary } from '../../types/cowork';
-import WindowTitleBar from '../window/WindowTitleBar';
-import SidebarToggleIcon from '../icons/SidebarToggleIcon';
-import ComposeIcon from '../icons/ComposeIcon';
 import CoworkSessionItem from './CoworkSessionItem';
 import {
   buildSessionPreviewText,
@@ -25,8 +22,8 @@ import {
   normalizeSessionSourceFilter,
   type SessionSourceFilter,
 } from './sessionRecordUtils';
+import PageHeaderShell from '../ui/PageHeaderShell';
 
-const isMac = navigator.platform?.toLowerCase().includes('mac');
 const SESSION_COLUMN_SCROLL_HEIGHT_CLASS = 'max-h-[24.75rem]';
 
 const ROLE_COLUMN_META: Record<
@@ -222,26 +219,14 @@ export default function SessionHistoryView({
 
   return (
     <div className="flex h-full flex-col dark:bg-claude-darkBg bg-transparent">
-      {/* Header */}
-      <div className="draggable flex h-12 items-center justify-between px-4 border-b dark:border-claude-darkBorder/50 border-claude-border/30 shrink-0 backdrop-blur-xl bg-gradient-pearl-header">
-        <div className="flex items-center space-x-3 h-8">
-          {isSidebarCollapsed && (
-            <div className={`non-draggable flex items-center gap-1 ${isMac ? 'pl-[68px]' : ''}`}>
-              <button type="button" onClick={onToggleSidebar}
-                className="h-8 w-8 inline-flex items-center justify-center rounded-lg dark:text-claude-darkTextSecondary text-claude-textSecondary hover:bg-claude-surfaceHover dark:hover:bg-claude-darkSurfaceHover transition-colors">
-                <SidebarToggleIcon className="h-4 w-4" isCollapsed={true} />
-              </button>
-              <button type="button" onClick={onNewChat}
-                className="h-8 w-8 inline-flex items-center justify-center rounded-lg dark:text-claude-darkTextSecondary text-claude-textSecondary hover:bg-claude-surfaceHover dark:hover:bg-claude-darkSurfaceHover transition-colors">
-                <ComposeIcon className="h-4 w-4" />
-              </button>
-              {updateBadge}
-            </div>
-          )}
-          <h1 className="text-lg font-semibold dark:text-claude-darkText text-claude-text">对话记录</h1>
-        </div>
-        <WindowTitleBar inline />
-      </div>
+      <PageHeaderShell
+        title="对话记录"
+        isSidebarCollapsed={isSidebarCollapsed}
+        onToggleSidebar={onToggleSidebar}
+        onNewChat={onNewChat}
+        updateBadge={updateBadge}
+        headerClassName="draggable flex h-12 items-center justify-between px-4 border-b dark:border-claude-darkBorder/50 border-claude-border/30 shrink-0 backdrop-blur-xl bg-gradient-pearl-header"
+      />
 
       {/* Search bar */}
       <div className="px-4 py-4 shrink-0">
