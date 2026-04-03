@@ -8,6 +8,7 @@ import { coworkService } from '../../services/cowork';
 import { getCompactFolderName } from '../../utils/path';
 import { useIsMobileViewport } from '../../hooks/useIsMobileViewport';
 import ModalWrapper from '../ui/ModalWrapper';
+import { UI_LABEL_TEXT_CLASS, UI_MENU_ICON_CLASS, UI_META_TEXT_CLASS } from '../../../shared/mobileUi';
 
 // Custom tooltip for folder paths
 interface PathTooltipProps {
@@ -331,11 +332,11 @@ const FolderSelectorPopover: React.FC<FolderSelectorPopoverProps> = ({
           onClick={handleAddFolder}
           className="w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-xl border dark:border-claude-darkBorder border-claude-border dark:text-claude-darkText text-claude-text dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover transition-colors"
         >
-          <FolderPlusIcon className="h-4 w-4 dark:text-claude-darkTextSecondary text-claude-textSecondary" />
+          <FolderPlusIcon className={`${UI_MENU_ICON_CLASS} dark:text-claude-darkTextSecondary text-claude-textSecondary`} />
           <span>添加文件夹</span>
         </button>
         <div className="rounded-xl border dark:border-claude-darkBorder border-claude-border overflow-hidden">
-          <div className="px-3 py-2 text-xs font-semibold dark:text-claude-darkTextSecondary text-claude-textSecondary">
+          <div className={`px-3 py-2 dark:text-claude-darkTextSecondary text-claude-textSecondary ${UI_META_TEXT_CLASS}`}>
             最近使用
           </div>
           {isLoading ? (
@@ -350,8 +351,8 @@ const FolderSelectorPopover: React.FC<FolderSelectorPopoverProps> = ({
                   onClick={() => handleSelectRecentFolder(folder)}
                   className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-lg dark:text-claude-darkText text-claude-text dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover transition-colors text-left"
                 >
-                  <FolderIcon className="h-4 w-4 flex-shrink-0 dark:text-claude-darkTextSecondary text-claude-textSecondary" />
-                  <span className="truncate">{truncatePath(folder)}</span>
+                  <FolderIcon className={`${UI_MENU_ICON_CLASS} flex-shrink-0 dark:text-claude-darkTextSecondary text-claude-textSecondary`} />
+                  <span className={`truncate ${UI_LABEL_TEXT_CLASS}`}>{truncatePath(folder)}</span>
                 </button>
               ))}
             </div>
@@ -377,14 +378,14 @@ const FolderSelectorPopover: React.FC<FolderSelectorPopoverProps> = ({
     <>
       <div ref={popoverRef} className="absolute bottom-full left-0 mb-2 w-56 rounded-lg border dark:border-claude-darkBorder border-claude-border dark:bg-claude-darkSurface bg-claude-surface shadow-lg z-50">
         <button onClick={handleAddFolder} className="w-full flex items-center gap-3 px-3 py-2.5 text-sm dark:text-claude-darkText text-claude-text dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover transition-colors rounded-t-lg">
-          <FolderPlusIcon className="h-4 w-4 dark:text-claude-darkTextSecondary text-claude-textSecondary" />
+          <FolderPlusIcon className={`${UI_MENU_ICON_CLASS} dark:text-claude-darkTextSecondary text-claude-textSecondary`} />
           <span>添加文件夹</span>
         </button>
         <div ref={recentFoldersRef} className="relative" onMouseEnter={() => setShowRecentSubmenu(true)} onMouseLeave={() => setShowRecentSubmenu(false)}>
           <button className="w-full flex items-center justify-between gap-3 px-3 py-2.5 text-sm dark:text-claude-darkText text-claude-text dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover transition-colors rounded-b-lg">
             <div className="flex items-center gap-3">
-              <ClockIcon className="h-4 w-4 dark:text-claude-darkTextSecondary text-claude-textSecondary" />
-              <span>最近使用</span>
+              <ClockIcon className={`${UI_MENU_ICON_CLASS} dark:text-claude-darkTextSecondary text-claude-textSecondary`} />
+              <span className={UI_LABEL_TEXT_CLASS}>最近使用</span>
             </div>
             <ChevronRightIcon className="h-3 w-3 dark:text-claude-darkTextSecondary text-claude-textSecondary" />
           </button>
@@ -404,8 +405,8 @@ const FolderSelectorPopover: React.FC<FolderSelectorPopoverProps> = ({
               <button key={index} onClick={() => handleSelectRecentFolder(folder)}
                 onMouseEnter={(e) => handleFolderMouseEnter(folder, e)} onMouseLeave={handleFolderMouseLeave}
                 className="w-full flex items-center gap-2 px-3 py-2 text-sm dark:text-claude-darkText text-claude-text dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover transition-colors text-left first:rounded-t-lg last:rounded-b-lg">
-                <FolderIcon className="h-4 w-4 flex-shrink-0 dark:text-claude-darkTextSecondary text-claude-textSecondary" />
-                <span className="truncate">{truncatePath(folder)}</span>
+                <FolderIcon className={`${UI_MENU_ICON_CLASS} flex-shrink-0 dark:text-claude-darkTextSecondary text-claude-textSecondary`} />
+                <span className={`truncate ${UI_LABEL_TEXT_CLASS}`}>{truncatePath(folder)}</span>
               </button>
             ))
           )}

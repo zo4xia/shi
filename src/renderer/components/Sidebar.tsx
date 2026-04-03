@@ -12,8 +12,21 @@ import SidebarToggleIcon from './icons/SidebarToggleIcon';
 import TrashIcon from './icons/TrashIcon';
 import { ExclamationTriangleIcon, ShoppingBagIcon, PhotoIcon, LinkIcon, ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
 import { StarIcon } from '@heroicons/react/24/solid';
-import { getTouchButtonClass } from '../../shared/mobileUi';
+import {
+  getTouchButtonClass,
+  UI_BADGE_ICON_CLASS,
+  UI_BADGE_TEXT_CLASS,
+  UI_LABEL_TEXT_CLASS,
+  UI_MARK_ICON_CLASS,
+  UI_MENU_ICON_CLASS,
+  UI_META_TEXT_CLASS,
+  UI_SECTION_PADDING_CLASS,
+  UI_SURFACE_COMPACT_GAP_CLASS,
+  UI_SURFACE_GAP_CLASS,
+} from '../../shared/mobileUi';
 import ConfirmDialog from './ui/ConfirmDialog';
+import { useIsMediumViewport } from '../hooks/useIsMediumViewport';
+import { useIsMobileViewport } from '../hooks/useIsMobileViewport';
 
 interface SidebarProps {
   onShowSettings: () => void;
@@ -74,6 +87,9 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showBatchDeleteConfirm, setShowBatchDeleteConfirm] = useState(false);
   const isMac = getPlatform() === 'darwin';
+  const isMediumViewport = useIsMediumViewport();
+  const isMobileViewport = useIsMobileViewport();
+  const isCompactSidebar = !isCollapsed && (isMediumViewport || isMobileViewport);
 
   const handlerMap: Record<string, () => void> = {
     onShowResourceShare,
@@ -153,6 +169,154 @@ const Sidebar: React.FC<SidebarProps> = ({
     }`;
 
   const sectionShellClass = 'rounded-[22px] border border-white/60 bg-white/45 p-2 shadow-[0_10px_24px_rgba(203,174,150,0.08)] dark:border-white/10 dark:bg-white/[0.03]';
+  const compactQuickItems: Array<{
+    key: string;
+    active: boolean;
+    label: string;
+    icon: React.ReactNode;
+    onClick: () => void;
+    shellClass: string;
+    iconWrapClass: string;
+  }> = [
+    {
+      key: 'cowork-compact',
+      active: activeView === 'cowork',
+      label: '新话题',
+      icon: <ComposeIcon className="h-4 w-4" />,
+      onClick: onNewChat,
+      shellClass: 'border-[#ffd7d7] bg-[#fff0ef] text-[#8a5751] hover:bg-[#ffe8e5]',
+      iconWrapClass: 'bg-[#ffdede] text-[#d9786c]',
+    },
+    {
+      key: 'sessionHistory-compact',
+      active: activeView === 'sessionHistory',
+      label: '频道',
+      icon: <SearchIcon className="h-4 w-4" />,
+      onClick: onShowSessionHistory,
+      shellClass: 'border-[#dbe5ff] bg-[#f3f6ff] text-[#56607f] hover:bg-[#ebf0ff]',
+      iconWrapClass: 'bg-[#dfe8ff] text-[#6f81d8]',
+    },
+    {
+      key: 'room-compact',
+      active: activeView === 'room',
+      label: 'Room',
+      icon: <ChatBubbleLeftRightIcon className={UI_MENU_ICON_CLASS} />,
+      onClick: onShowRoom,
+      shellClass: 'border-[#dff1ff] bg-[#f1f9ff] text-[#4f738a] hover:bg-[#e7f4ff]',
+      iconWrapClass: 'bg-[#dff1ff] text-[#74a8d6]',
+    },
+    {
+      key: 'scheduledTasks-compact',
+      active: activeView === 'scheduledTasks',
+      label: '定时',
+      icon: <ClockIcon className="h-4 w-4" />,
+      onClick: onShowScheduledTasks,
+      shellClass: 'border-[#ffe4b8] bg-[#fff5df] text-[#846542] hover:bg-[#fff0cf]',
+      iconWrapClass: 'bg-[#ffe8c8] text-[#d09a4e]',
+    },
+    {
+      key: 'skills-compact',
+      active: activeView === 'skills',
+      label: '技能',
+      icon: <PuzzleIcon className="h-4 w-4" />,
+      onClick: onShowSkills,
+      shellClass: 'border-[#d8f0e0] bg-[#eefaf2] text-[#4e7a61] hover:bg-[#e4f6ea]',
+      iconWrapClass: 'bg-[#d8f4e1] text-[#4fb47b]',
+    },
+    {
+      key: 'mcp-compact',
+      active: activeView === 'mcp',
+      label: '插件',
+      icon: <ConnectorIcon className="h-4 w-4" />,
+      onClick: onShowMcp,
+      shellClass: 'border-[#e7ddff] bg-[#f7f2ff] text-[#6d5a88] hover:bg-[#f1e9ff]',
+      iconWrapClass: 'bg-[#e8deff] text-[#9c7be6]',
+    },
+    {
+      key: 'employeeStore-compact',
+      active: activeView === 'employeeStore',
+      label: '商店',
+      icon: <ShoppingBagIcon className={UI_MENU_ICON_CLASS} />,
+      onClick: onShowEmployeeStore,
+      shellClass: 'border-[#ffd8ee] bg-[#fff0f8] text-[#8b5e77] hover:bg-[#ffe7f3]',
+      iconWrapClass: 'bg-[#ffdff0] text-[#db7fb0]',
+    },
+  ];
+
+  if (isCompactSidebar) {
+    return (
+      <aside
+        className={`sidebar-pearl dark:bg-claude-darkSurfaceMuted flex flex-col overflow-hidden shrink-0 ${isMobileViewport ? 'w-[228px] min-w-[228px] max-w-[228px]' : 'w-[248px] min-w-[248px] max-w-[248px]'}`}
+      >
+        <div className={UI_SECTION_PADDING_CLASS}>
+          <div className="draggable sidebar-header-drag flex items-center justify-between gap-3">
+            <div className={`min-w-0 ${isMac ? 'pl-[68px]' : ''}`}>
+              <div className="inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/82 px-3 py-1.5 text-[12px] font-semibold tracking-[0.14em] text-[#4f453d] shadow-[0_10px_28px_rgba(194,170,145,0.14)] backdrop-blur-md dark:border-white/10 dark:bg-white/[0.06] dark:text-claude-darkText">
+                <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br from-amber-300 via-violet-300 to-violet-400 text-[#5b4338] shadow-[inset_0_1px_0_rgba(255,255,255,0.6)] dark:text-[#2d211b]">
+                  <StarIcon className={UI_MARK_ICON_CLASS} />
+                </span>
+                <span className="truncate">UCLAW</span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onToggleCollapse}
+              className={getTouchButtonClass('non-draggable inline-flex items-center justify-center rounded-lg dark:text-claude-darkTextSecondary text-claude-textSecondary hover:bg-claude-surfaceHover dark:hover:bg-claude-darkSurfaceHover transition-colors')}
+              aria-label="收起"
+            >
+              <SidebarToggleIcon className="h-4 w-4" isCollapsed={false} />
+            </button>
+          </div>
+          {updateBadge ? <div className="mt-2">{updateBadge}</div> : null}
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-3 pb-3">
+          <div className={`space-y-3 ${UI_SURFACE_GAP_CLASS}`}>
+            <div>
+              <div className={`mb-2 px-1 ${UI_META_TEXT_CLASS} dark:text-claude-darkTextSecondary/85 text-claude-textSecondary/85`}>
+                {'快捷入口'}
+              </div>
+              <div className={`grid grid-cols-2 ${UI_SURFACE_COMPACT_GAP_CLASS}`}>
+                {compactQuickItems.map((item) => (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={item.onClick}
+                    className={`group min-h-[92px] rounded-[24px] border px-3 py-3 text-center transition-all duration-200 ${
+                      item.active
+                        ? `${item.shellClass} ring-2 ring-white/70 shadow-[0_10px_22px_rgba(203,174,150,0.16)] dark:ring-white/10`
+                        : `${item.shellClass} shadow-[0_6px_18px_rgba(203,174,150,0.10)]`
+                    }`}
+                  >
+                    <div className="flex h-full flex-col items-center justify-between gap-3">
+                      <span className={`inline-flex h-10 w-10 items-center justify-center rounded-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] ${item.iconWrapClass}`}>
+                        {item.icon}
+                      </span>
+                      <span className={`block ${UI_LABEL_TEXT_CLASS}`}>
+                        {item.label}
+                      </span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="px-3 pb-3">
+          <button
+            type="button"
+            onClick={onShowSettings}
+            className="w-full min-h-11 min-w-11 inline-flex items-center gap-2 rounded-2xl border border-white/60 bg-white/45 px-3 py-2.5 text-sm font-medium dark:border-white/10 dark:bg-white/[0.03] dark:text-claude-darkTextSecondary text-claude-textSecondary hover:text-claude-text dark:hover:text-claude-darkText hover:bg-white/55 dark:hover:bg-white/[0.06] transition-colors"
+            aria-label="设置"
+          >
+            <ConnectorIcon className={UI_MENU_ICON_CLASS} />
+            设置
+          </button>
+        </div>
+      </aside>
+    );
+  }
 
   return (
     <aside

@@ -72,7 +72,8 @@ export class SessionTurnFinalizer {
           role: message.type === 'user' ? 'user' : 'assistant',
           content: message.content,
         },
-        channelHint
+        channelHint,
+        sessionId
       );
     }
 

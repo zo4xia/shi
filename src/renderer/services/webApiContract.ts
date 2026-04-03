@@ -31,6 +31,7 @@ export const routes = {
     session: (sessionId: string) => `/cowork/sessions/${encodeURIComponent(sessionId)}`,
     continueSession: (sessionId: string) => `/cowork/sessions/${encodeURIComponent(sessionId)}/continue`,
     stopSession: (sessionId: string) => `/cowork/sessions/${encodeURIComponent(sessionId)}/stop`,
+    compressContext: (sessionId: string) => `/cowork/sessions/${encodeURIComponent(sessionId)}/compress-context`,
     renameSession: (sessionId: string) => `/cowork/sessions/${encodeURIComponent(sessionId)}`,
     pinSession: (sessionId: string) => `/cowork/sessions/${encodeURIComponent(sessionId)}/pin`,
     deleteSessions: () => '/cowork/sessions',

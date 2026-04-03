@@ -243,7 +243,7 @@ export const AgentRoleApiConfigCard: React.FC<AgentRoleApiConfigCardProps> = ({
               value={roleConfig.modelId}
               onChange={(event) => onModelIdChange(event.target.value)}
               className="block w-full rounded-xl border dark:border-claude-darkBorder border-claude-border bg-claude-surfaceInset dark:bg-claude-darkSurfaceInset px-3 py-2 text-xs text-claude-text dark:text-claude-darkText focus:border-claude-accent focus:ring-1 focus:ring-claude-accent/30"
-              placeholder="gpt-4.1-mini"
+              placeholder="国产 MiniMax-M2.7"
             />
           </div>
         </div>

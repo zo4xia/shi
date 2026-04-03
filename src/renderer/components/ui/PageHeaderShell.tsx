@@ -3,7 +3,8 @@ import { getPlatform } from '../../utils/platform';
 import SidebarToggleIcon from '../icons/SidebarToggleIcon';
 import ComposeIcon from '../icons/ComposeIcon';
 import WindowTitleBar from '../window/WindowTitleBar';
-import { getResponsivePageTitleClass, getTouchButtonClass } from '../../../shared/mobileUi';
+import { getResponsivePageTitleClass, getTouchButtonClass, UI_MENU_ICON_CLASS } from '../../../shared/mobileUi';
+import { useIsMobileViewport } from '../../hooks/useIsMobileViewport';
 
 interface PageHeaderShellProps {
   title: string;
@@ -25,11 +26,13 @@ const PageHeaderShell: React.FC<PageHeaderShellProps> = ({
   headerClassName = 'draggable flex h-12 items-center justify-between px-3 sm:px-4 border-b dark:border-claude-darkBorder border-claude-border shrink-0',
 }) => {
   const isMac = getPlatform() === 'darwin';
+  const isMobileViewport = useIsMobileViewport();
+  const shouldShowCollapsedTools = Boolean(isSidebarCollapsed && (onToggleSidebar || onNewChat || updateBadge));
 
   return (
     <div className={headerClassName}>
-      <div className="flex min-w-0 items-center space-x-3 h-11">
-        {isSidebarCollapsed && (onToggleSidebar || onNewChat || updateBadge) && (
+      <div className="flex min-w-0 flex-1 items-center space-x-3 h-11">
+        {shouldShowCollapsedTools && (
           <div className={`non-draggable flex items-center gap-1 ${isMac ? 'pl-[68px]' : ''}`}>
             {onToggleSidebar && (
               <button
@@ -37,19 +40,19 @@ const PageHeaderShell: React.FC<PageHeaderShellProps> = ({
                 onClick={onToggleSidebar}
                 className={getTouchButtonClass('inline-flex items-center justify-center rounded-lg dark:text-claude-darkTextSecondary text-claude-textSecondary hover:bg-claude-surfaceHover dark:hover:bg-claude-darkSurfaceHover transition-colors')}
               >
-                <SidebarToggleIcon className="h-4 w-4" isCollapsed={true} />
+                <SidebarToggleIcon className={UI_MENU_ICON_CLASS} isCollapsed={true} />
               </button>
             )}
-            {onNewChat && (
+            {!isMobileViewport && onNewChat && (
               <button
                 type="button"
                 onClick={onNewChat}
                 className={getTouchButtonClass('inline-flex items-center justify-center rounded-lg dark:text-claude-darkTextSecondary text-claude-textSecondary hover:bg-claude-surfaceHover dark:hover:bg-claude-darkSurfaceHover transition-colors')}
               >
-                <ComposeIcon className="h-4 w-4" />
+                <ComposeIcon className={UI_MENU_ICON_CLASS} />
               </button>
             )}
-            {updateBadge}
+            {!isMobileViewport ? updateBadge : null}
           </div>
         )}
         {leading}

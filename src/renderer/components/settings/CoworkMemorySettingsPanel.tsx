@@ -314,6 +314,7 @@ const CoworkMemorySettingsPanel: React.FC<CoworkMemorySettingsPanelProps> = ({
                               <span>{entry.channelLabel}</span>
                               <span>{entry.timeLabel}</span>
                               {entry.channelSeq ? <span>{`#${entry.channelSeq}`}</span> : null}
+                              {entry.sessionId ? <span className="font-mono">{entry.sessionId}</span> : null}
                               <span>{getBroadcastEntryRoleLabel(entry.role)}</span>
                             </div>
                             <div className="mt-1 text-xs leading-5 dark:text-claude-darkText text-claude-text break-words">

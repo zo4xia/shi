@@ -138,6 +138,7 @@ export interface CoworkMemoryStats {
 export interface CoworkBroadcastBoardEntry {
   role: string;
   content: string;
+  sessionId?: string;
   channelHint?: string;
   channelLabel: string;
   timestamp: number;
@@ -152,6 +153,14 @@ export interface CoworkBroadcastBoardSnapshot {
   expiresAt: number;
   summaryText: string;
   entries: CoworkBroadcastBoardEntry[];
+}
+
+export interface CoworkManualCompressionResult {
+  conversationSummary: string;
+  broadcastSummary: string;
+  combinedSummary: string;
+  source: string;
+  modelId: string;
 }
 
 // Cowork pending permission request

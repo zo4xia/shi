@@ -375,6 +375,7 @@ interface IElectronAPI {
     getMemoryStats: (input?: { agentRoleKey?: string }) => Promise<{ success: boolean; stats?: CoworkMemoryStats; error?: string }>;
     listBroadcastBoards: (input?: { agentRoleKey?: string; limit?: number }) => Promise<{ success: boolean; boards?: CoworkBroadcastBoardSnapshot[]; error?: string }>;
     clearBroadcastBoard: (input: { agentRoleKey: string }) => Promise<{ success: boolean; cleared?: number; error?: string }>;
+    compressContext: (input: { sessionId: string }) => Promise<{ success: boolean; compression?: CoworkManualCompressionResult; error?: string }>;
     onStreamMessage: (callback: (data: { sessionId: string; message: CoworkMessage }) => void) => () => void;
     onStreamMessageUpdate: (callback: (data: { sessionId: string; messageId: string; content: string }) => void) => () => void;
     onStreamPermission: (callback: (data: { sessionId: string; request: CoworkPermissionRequest }) => void) => () => void;

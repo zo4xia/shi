@@ -19,13 +19,15 @@ import {
 } from '../../../shared/agentRoleConfig';
 import SidebarToggleIcon from '../icons/SidebarToggleIcon';
 import ComposeIcon from '../icons/ComposeIcon';
-import WindowTitleBar from '../window/WindowTitleBar';
 import type { SettingsOpenOptions } from '../Settings';
 import type { CoworkImageAttachment } from '../../types/cowork';
 import { configService } from '../../services/config';
 import HomePromptPanel from './HomePromptPanel';
 import { setSelectedModel } from '../../store/slices/modelSlice';
 import { renderAgentRoleAvatar } from '../../utils/agentRoleDisplay';
+import type { CoworkRightDockAction } from './rightDock';
+import { useIsMediumViewport } from '../../hooks/useIsMediumViewport';
+import { useIsMobileViewport } from '../../hooks/useIsMobileViewport';
 
 export interface CoworkViewProps {
   onRequestAppSettings?: (options?: SettingsOpenOptions) => void;
@@ -35,9 +37,19 @@ export interface CoworkViewProps {
   onToggleSidebar?: () => void;
   onNewChat?: () => void;
   updateBadge?: React.ReactNode;
+  onSetRightDockActions?: (actions: CoworkRightDockAction[]) => void;
 }
 
-const CoworkView: React.FC<CoworkViewProps> = ({ onRequestAppSettings, onShowSkills, onShowSessionHistory, isSidebarCollapsed, onToggleSidebar, onNewChat, updateBadge }) => {
+const CoworkView: React.FC<CoworkViewProps> = ({
+  onRequestAppSettings,
+  onShowSkills,
+  onShowSessionHistory,
+  isSidebarCollapsed,
+  onToggleSidebar,
+  onNewChat,
+  updateBadge,
+  onSetRightDockActions,
+}) => {
   const dispatch = useDispatch();
   const isMac = getPlatform() === 'darwin';
   const [isInitialized, setIsInitialized] = useState(false);
@@ -60,6 +72,8 @@ const CoworkView: React.FC<CoworkViewProps> = ({ onRequestAppSettings, onShowSki
   const activeSkillIds = useSelector((state: RootState) => state.skill.activeSkillIds);
   const selectedModel = useSelector((state: RootState) => state.model.selectedModel);
   const availableModels = useSelector((state: RootState) => state.model.availableModels);
+  const isMediumViewport = useIsMediumViewport();
+  const isMobileViewport = useIsMobileViewport();
   const selectedModelRef = useRef(selectedModel);
   const availableModelsRef = useRef(availableModels);
   selectedModelRef.current = selectedModel;
@@ -272,9 +286,6 @@ const CoworkView: React.FC<CoworkViewProps> = ({ onRequestAppSettings, onShowSki
   if (!isInitialized) {
     return (
       <div className="flex-1 h-full flex flex-col dark:bg-claude-darkBg bg-claude-bg">
-        <div className="draggable flex h-12 items-center justify-end px-4 border-b dark:border-claude-darkBorder border-claude-border shrink-0">
-          <WindowTitleBar inline />
-        </div>
         <div className="flex-1 flex items-center justify-center">
           <div className="dark:text-claude-darkTextSecondary text-claude-textSecondary">
             {'加载中...'}
@@ -297,6 +308,7 @@ const CoworkView: React.FC<CoworkViewProps> = ({ onRequestAppSettings, onShowSki
           onToggleSidebar={onToggleSidebar}
           onNewChat={onNewChat}
           updateBadge={updateBadge}
+          onSetRightDockActions={onSetRightDockActions}
         />
       </>
     );
@@ -305,9 +317,6 @@ const CoworkView: React.FC<CoworkViewProps> = ({ onRequestAppSettings, onShowSki
   if (loadingSessionId) {
     return (
       <div className="flex-1 h-full flex flex-col dark:bg-claude-darkBg bg-claude-bg">
-        <div className="draggable flex h-12 items-center justify-end px-4 border-b dark:border-claude-darkBorder border-claude-border shrink-0">
-          <WindowTitleBar inline />
-        </div>
         <div className="flex-1 flex items-center justify-center">
           <div className="flex flex-col items-center gap-3 text-center px-6">
             <div className="w-10 h-10 rounded-full border-2 border-claude-accent/30 border-t-claude-accent animate-spin" />
@@ -326,59 +335,48 @@ const CoworkView: React.FC<CoworkViewProps> = ({ onRequestAppSettings, onShowSki
   // Home view - no current session
   return (
     <div className="flex-1 flex flex-col dark:bg-claude-darkBg bg-transparent h-full">
-      {/* Header */}
-        <div className="draggable flex h-12 items-center justify-between px-6 border-b dark:border-claude-darkBorder/50 border-claude-border/30 shrink-0 backdrop-blur-xl bg-gradient-pearl-header">
-        {isSidebarCollapsed ? (
-          <div className={`non-draggable flex items-center gap-1 mr-2 ${isMac ? 'pl-[68px]' : ''}`}>
-            <button
-              type="button"
-              onClick={onToggleSidebar}
-              className="h-8 w-8 inline-flex items-center justify-center rounded-xl dark:text-claude-darkTextSecondary text-claude-textSecondary hover:bg-claude-surfaceHover/50 dark:hover:bg-claude-darkSurfaceHover/50 transition-colors duration-200"
-            >
-              <SidebarToggleIcon className="h-4 w-4" isCollapsed={true} />
-            </button>
-            <button
-              type="button"
-              onClick={onNewChat}
-              className="h-8 w-8 inline-flex items-center justify-center rounded-xl dark:text-claude-darkTextSecondary text-claude-textSecondary hover:bg-claude-surfaceHover/50 dark:hover:bg-claude-darkSurfaceHover/50 transition-colors duration-200"
-            >
-              <ComposeIcon className="h-4 w-4" />
-            </button>
-            {updateBadge}
-          </div>
-        ) : null}
-        <WindowTitleBar inline />
-      </div>
-
       {/* Main Content - 欢迎页自适应高度，不产生滚动 */}
       <div className="flex-1 overflow-y-auto min-h-0">
-        <div className="mx-auto flex w-full max-w-[var(--uclaw-home-max-width,1080px)] flex-col px-4 py-8 sm:px-6 sm:py-[50px]">
-          <div className="relative mb-10 text-center sm:mb-14">
+        <div className={`mx-auto flex w-full flex-col px-4 py-8 sm:px-6 ${isMediumViewport ? 'max-w-[920px] min-h-[760px] justify-center py-10' : 'max-w-[var(--uclaw-home-max-width,1080px)] sm:py-[50px]'}`}>
+          <div className={`relative text-center ${isMediumViewport ? 'mb-8' : 'mb-10 sm:mb-14'}`}>
             <div className="absolute inset-x-0 top-3 -z-10 mx-auto h-36 w-36 rounded-full bg-gradient-radial from-claude-accent/6 to-transparent blur-3xl" />
             <div className="mx-auto inline-flex flex-col items-center">
               <div className="relative inline-block">
                 <div className="absolute -inset-1 rounded-[36px] bg-gradient-to-r from-violet-300/38 via-claude-accent/46 to-violet-300/34 blur-md" />
                 <div className="absolute inset-0 rounded-[34px] bg-gradient-to-br from-claude-accent/30 via-violet-200/20 to-clay-soft/16 blur-sm" />
                 <div className="relative rounded-[32px] bg-gradient-to-br from-claude-accent/28 via-violet-100/42 to-clay-soft/20 p-1">
-                  <div className="rounded-[28px] bg-gradient-to-br from-white via-pearl-50 to-pearl-100 p-3 shadow-md dark:from-gray-800 dark:via-gray-900 dark:to-gray-950 sm:p-4">
-                    <img src="logo.png" alt="logo" className="h-12 w-12 sm:h-16 sm:w-16" />
+                  <div className={`rounded-[28px] bg-gradient-to-br from-white via-pearl-50 to-pearl-100 shadow-md dark:from-gray-800 dark:via-gray-900 dark:to-gray-950 ${isMediumViewport ? 'p-3.5' : 'p-3 sm:p-4'}`}>
+                    <img src="logo.png" alt="logo" className={isMediumViewport ? 'h-14 w-14' : 'h-12 w-12 sm:h-16 sm:w-16'} />
                   </div>
                 </div>
               </div>
-              <h1 className="mt-4 text-[28px] font-semibold tracking-[0.04em] text-claude-text dark:text-claude-darkText sm:text-[38px]">
+              <h1 className={`uclaw-ui-display font-semibold text-claude-text dark:text-claude-darkText ${isMediumViewport ? 'mt-5 text-[34px]' : 'mt-4 text-[28px] sm:text-[38px]'}`}>
                 Uclaw
               </h1>
-              <div className="mt-2 max-w-[760px] px-2 text-[12px] font-medium leading-6 text-claude-textSecondary dark:text-claude-darkTextSecondary sm:px-0 sm:text-[13px] sm:whitespace-nowrap sm:overflow-hidden sm:text-ellipsis">
-                <span>🧠 自带跨多端记忆，一个对话框就够了</span>
-                <span className="mx-3 text-claude-accent/55">·</span>
-                <span>💬 飞书与多消息频道支持</span>
-                <span className="mx-3 text-claude-accent/55">·</span>
-                <span>🧩 兼容 OpenClaw Skills</span>
-              </div>
+              {isMobileViewport || isMediumViewport ? (
+                <div className={`mt-3 flex flex-col items-center px-2 font-medium text-claude-textSecondary dark:text-claude-darkTextSecondary ${isMediumViewport ? 'max-w-[620px] text-[13px] leading-7' : 'max-w-[320px] text-[12px] leading-6'}`}>
+                  <div className="flex flex-wrap items-center justify-center">
+                    <span>🧠 自带跨多端记忆，一个对话框就够了</span>
+                    <span className="mx-3 text-claude-accent/55">·</span>
+                    <span>💬 飞书与多消息频道支持</span>
+                  </div>
+                  <div className="mt-0.5 flex items-center justify-center text-center">
+                    <span>🧩 兼容 OpenClaw Skills</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-2 max-w-[760px] px-2 text-[13px] font-medium leading-6 text-claude-textSecondary dark:text-claude-darkTextSecondary sm:px-0 sm:whitespace-nowrap sm:overflow-hidden sm:text-ellipsis">
+                  <span>🧠 自带跨多端记忆，一个对话框就够了</span>
+                  <span className="mx-3 text-claude-accent/55">·</span>
+                  <span>💬 飞书与多消息频道支持</span>
+                  <span className="mx-3 text-claude-accent/55">·</span>
+                  <span>🧩 兼容 OpenClaw Skills</span>
+                </div>
+              )}
             </div>
           </div>
 
-          <div className="uclaw-home-chip-row mb-5 flex flex-wrap items-center justify-start gap-3 px-2">
+          <div className={`uclaw-home-chip-row mb-4 flex flex-wrap items-center gap-3 px-2 ${isMediumViewport ? 'justify-center' : 'justify-start'}`}>
               {(() => {
                 const resolvedRoles = resolveAgentRolesFromConfig(configService.getConfig());
                 const roleCards: { key: AgentRoleKey; label: string; icon: string; color: string; bg: string; border: string; activeTone: string; activeShadow: string }[] = [
@@ -420,25 +418,32 @@ const CoworkView: React.FC<CoworkViewProps> = ({ onRequestAppSettings, onShowSki
               })()}
           </div>
 
-          <HomePromptPanel
-            latestVisibleSession={latestVisibleSession}
-            promptInputRef={promptInputRef}
-            onStartSession={handleStartSession}
-            onStopSession={handleStopSession}
-            isStreaming={isStreaming}
-            workingDirectory={config.workingDirectory}
-            onWorkingDirectoryChange={async (dir: string) => {
-              await coworkService.updateConfig({ workingDirectory: dir });
-            }}
-            onShowSessionHistory={onShowSessionHistory}
-            onShowSkills={onShowSkills}
-          />
+          <div
+            className={`relative overflow-hidden rounded-[36px] border border-white/75 bg-[linear-gradient(180deg,rgba(255,252,248,0.96),rgba(251,245,239,0.92))] shadow-[0_20px_46px_rgba(203,174,150,0.18),0_6px_18px_rgba(203,174,150,0.10),inset_0_1px_0_rgba(255,255,255,0.86),inset_0_-14px_28px_rgba(229,214,201,0.24)] dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.04))] dark:shadow-[0_20px_48px_rgba(0,0,0,0.26),inset_0_1px_0_rgba(255,255,255,0.06)] ${isMobileViewport ? 'px-3 py-3' : isMediumViewport ? 'px-5 py-5' : 'px-4 py-4'} ${!isMobileViewport ? 'mt-1' : ''}`}
+          >
+            <div className="pointer-events-none absolute inset-x-10 top-0 h-10 rounded-b-[40px] bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.72),transparent_72%)] opacity-80" />
+            <div className="pointer-events-none absolute inset-x-6 bottom-0 h-10 rounded-t-[40px] bg-[linear-gradient(180deg,transparent,rgba(227,208,194,0.18))] dark:bg-[linear-gradient(180deg,transparent,rgba(255,255,255,0.03))]" />
+            <HomePromptPanel
+              latestVisibleSession={latestVisibleSession}
+              promptInputRef={promptInputRef}
+              onStartSession={handleStartSession}
+              onStopSession={handleStopSession}
+              isStreaming={isStreaming}
+              workingDirectory={config.workingDirectory}
+              onWorkingDirectoryChange={async (dir: string) => {
+                await coworkService.updateConfig({ workingDirectory: dir });
+              }}
+              onShowSessionHistory={onShowSessionHistory}
+              onShowSkills={onShowSkills}
+            />
+          </div>
 
-          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+          {!isMobileViewport && (
+            <div className={`mt-6 flex flex-wrap items-center justify-center ${isMediumViewport ? 'gap-2.5 pb-8' : 'gap-3'}`}>
             <button
               type="button"
               onClick={() => onRequestAppSettings?.({ initialTab: 'clawApi' })}
-              className="relative inline-flex items-center gap-2 rounded-full border border-amber-200/70 bg-gradient-to-r from-amber-50 to-orange-50 px-4 py-2 text-sm font-medium text-amber-700 shadow-sm transition-transform duration-200 hover:scale-[1.02] dark:border-amber-400/20 dark:from-amber-400/[0.10] dark:to-orange-400/[0.08] dark:text-amber-200"
+              className={`relative inline-flex items-center gap-2 rounded-full border border-amber-200/70 bg-gradient-to-r from-amber-50 to-orange-50 text-sm font-medium text-amber-700 shadow-sm transition-transform duration-200 hover:scale-[1.02] dark:border-amber-400/20 dark:from-amber-400/[0.10] dark:to-orange-400/[0.08] dark:text-amber-200 ${isMediumViewport ? 'px-3.5 py-1.5' : 'px-4 py-2'}`}
             >
               <span className="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-semibold leading-none text-white shadow-sm">
                 热
@@ -449,7 +454,7 @@ const CoworkView: React.FC<CoworkViewProps> = ({ onRequestAppSettings, onShowSki
             <button
               type="button"
               onClick={() => onShowSkills?.()}
-              className="inline-flex items-center gap-2 rounded-full border border-violet-200/70 bg-gradient-to-r from-violet-50 to-fuchsia-50 px-4 py-2 text-sm font-medium text-violet-700 shadow-sm transition-transform duration-200 hover:scale-[1.02] dark:border-violet-400/20 dark:from-violet-400/[0.10] dark:to-fuchsia-400/[0.08] dark:text-violet-200"
+              className={`inline-flex items-center gap-2 rounded-full border border-violet-200/70 bg-gradient-to-r from-violet-50 to-fuchsia-50 text-sm font-medium text-violet-700 shadow-sm transition-transform duration-200 hover:scale-[1.02] dark:border-violet-400/20 dark:from-violet-400/[0.10] dark:to-fuchsia-400/[0.08] dark:text-violet-200 ${isMediumViewport ? 'px-3.5 py-1.5' : 'px-4 py-2'}`}
             >
               <span>💡</span>
               <span>使用技巧与指南</span>
@@ -457,12 +462,13 @@ const CoworkView: React.FC<CoworkViewProps> = ({ onRequestAppSettings, onShowSki
             <button
               type="button"
               onClick={() => onRequestAppSettings?.({ initialTab: 'resources' })}
-              className="inline-flex items-center gap-2 rounded-full border border-sky-200/70 bg-gradient-to-r from-sky-50 to-cyan-50 px-4 py-2 text-sm font-medium text-sky-700 shadow-sm transition-transform duration-200 hover:scale-[1.02] dark:border-sky-400/20 dark:from-sky-400/[0.10] dark:to-cyan-400/[0.08] dark:text-sky-200"
+              className={`inline-flex items-center gap-2 rounded-full border border-sky-200/70 bg-gradient-to-r from-sky-50 to-cyan-50 text-sm font-medium text-sky-700 shadow-sm transition-transform duration-200 hover:scale-[1.02] dark:border-sky-400/20 dark:from-sky-400/[0.10] dark:to-cyan-400/[0.08] dark:text-sky-200 ${isMediumViewport ? 'px-3.5 py-1.5' : 'px-4 py-2'}`}
             >
               <span>⬇️</span>
               <span>资源下载</span>
             </button>
-          </div>
+            </div>
+          )}
 
         </div>
       </div>

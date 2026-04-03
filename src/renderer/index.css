@@ -68,6 +68,18 @@ blockquote {
   font-weight: 400;
   font-size: 14px;
   letter-spacing: -0.01em;
+  --uclaw-font-family-ui: 'PingFang SC', 'Microsoft YaHei', -apple-system, BlinkMacSystemFont, 'Inter', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --uclaw-font-size-display: clamp(2rem, 3vw, 2.375rem);
+  --uclaw-font-size-title: 1rem;
+  --uclaw-font-size-label: 0.75rem;
+  --uclaw-font-size-meta: 0.625rem;
+  --uclaw-space-2: 0.5rem;
+  --uclaw-space-3: 0.75rem;
+  --uclaw-space-4: 1rem;
+  --uclaw-space-5: 1.25rem;
+  --uclaw-icon-menu: 1rem;
+  --uclaw-icon-mark: 0.875rem;
+  --uclaw-icon-badge: 0.75rem;
   --uclaw-shell-radius: 1.75rem;
   --uclaw-shell-aspect-ratio: 16 / 10;
   --uclaw-shell-min-width: 1040px;
@@ -180,6 +192,7 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  font-family: var(--uclaw-font-family-ui);
   /* 防止滚动条出现/消失时页面宽度跳动 */
   overflow-y: scroll;
   scrollbar-gutter: stable;
@@ -258,6 +271,32 @@ select::-ms-expand {
 .sidebar-nav-label {
   letter-spacing: -0.01em;
   font-feature-settings: 'kern' 1;
+}
+
+.uclaw-ui-display {
+  font-size: var(--uclaw-font-size-display);
+  letter-spacing: 0.03em;
+  line-height: 1;
+}
+
+.uclaw-ui-title {
+  font-size: var(--uclaw-font-size-title);
+  line-height: 1.3;
+  font-weight: 600;
+}
+
+.uclaw-ui-label {
+  font-size: var(--uclaw-font-size-label);
+  line-height: 1.35;
+  font-weight: 600;
+}
+
+.uclaw-ui-meta {
+  font-size: var(--uclaw-font-size-meta);
+  line-height: 1.4;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-weight: 600;
 }
 
 /* 输入框聚焦时不产生布局偏移 */

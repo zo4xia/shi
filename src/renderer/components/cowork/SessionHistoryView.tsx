@@ -23,6 +23,8 @@ import {
   type SessionSourceFilter,
 } from './sessionRecordUtils';
 import PageHeaderShell from '../ui/PageHeaderShell';
+import { useIsMobileViewport } from '../../hooks/useIsMobileViewport';
+import { useIsMediumViewport } from '../../hooks/useIsMediumViewport';
 
 const SESSION_COLUMN_SCROLL_HEIGHT_CLASS = 'max-h-[24.75rem]';
 
@@ -113,6 +115,9 @@ export default function SessionHistoryView({
   sourceFilter = 'all',
   updateBadge,
 }: SessionHistoryViewProps) {
+  const isMobileViewport = useIsMobileViewport();
+  const isMediumViewport = useIsMediumViewport();
+  const shouldHideHeaderSearch = isMobileViewport || isMediumViewport;
   const sessions = useSelector((s: RootState) => s.cowork.sessions);
   const currentSessionId = useSelector((s: RootState) => s.cowork.currentSessionId);
   const unreadSessionIds = useSelector((s: RootState) => s.cowork.unreadSessionIds);
@@ -228,19 +233,20 @@ export default function SessionHistoryView({
         headerClassName="draggable flex h-12 items-center justify-between px-4 border-b dark:border-claude-darkBorder/50 border-claude-border/30 shrink-0 backdrop-blur-xl bg-gradient-pearl-header"
       />
 
-      {/* Search bar */}
-      <div className="px-4 py-4 shrink-0">
-        <div className="mx-auto w-full max-w-[1680px]">
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            placeholder="搜索对话..."
-            aria-label="搜索对话记录"
-            className="w-full rounded-[20px] border border-white/55 bg-gradient-to-br from-white/92 via-pearl-50/88 to-[#f6ece3]/92 px-4 py-3 text-sm text-claude-text shadow-sm placeholder:text-claude-textSecondary focus:outline-none focus:ring-2 focus:ring-claude-accent/30 dark:border-white/10 dark:bg-claude-darkSurface/85 dark:text-claude-darkText dark:placeholder:text-claude-darkTextSecondary"
-          />
+      {!shouldHideHeaderSearch && (
+        <div className="px-4 py-4 shrink-0">
+          <div className="mx-auto w-full max-w-[1680px]">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="搜索对话..."
+              aria-label="搜索对话记录"
+              className="w-full rounded-[20px] border border-white/55 bg-gradient-to-br from-white/92 via-pearl-50/88 to-[#f6ece3]/92 px-4 py-3 text-sm text-claude-text shadow-sm placeholder:text-claude-textSecondary focus:outline-none focus:ring-2 focus:ring-claude-accent/30 dark:border-white/10 dark:bg-claude-darkSurface/85 dark:text-claude-darkText dark:placeholder:text-claude-darkTextSecondary"
+            />
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Session list */}
       <div className="history-scroll-soft flex-1 overflow-y-auto px-4 py-3">

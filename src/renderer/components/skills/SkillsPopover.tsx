@@ -20,6 +20,14 @@ import {
 } from '../../../shared/nativeCapabilities/config';
 import { useIsMobileViewport } from '../../hooks/useIsMobileViewport';
 import ModalWrapper from '../ui/ModalWrapper';
+import {
+  UI_BADGE_ICON_CLASS,
+  UI_BADGE_TEXT_CLASS,
+  UI_LABEL_TEXT_CLASS,
+  UI_MENU_ICON_CLASS,
+  UI_META_TEXT_CLASS,
+  UI_MARK_ICON_CLASS,
+} from '../../../shared/mobileUi';
 
 interface SkillsPopoverProps {
   isOpen: boolean;
@@ -39,14 +47,14 @@ const NATIVE_CAPABILITY_UI_META: Partial<Record<NativeCapabilityId, {
 }>> = {
   'browser-eyes-native-addon': {
     buttonLabel: '打开',
-    icon: <ComputerDesktopIcon className="h-4 w-4" />,
+    icon: <ComputerDesktopIcon className={UI_MENU_ICON_CLASS} />,
     helperText: '一起看看当前页面，再决定要不要上重浏览器。',
     statusText: '当前角色可直接看',
     dotClassName: 'bg-emerald-500',
   },
   'ima-native-addon': {
     buttonLabel: '用法',
-    icon: <DocumentTextIcon className="h-4 w-4" />,
+    icon: <DocumentTextIcon className={UI_MENU_ICON_CLASS} />,
     helperText: '会帮你搜索、读取、保存到 IMA 笔记。',
     statusText: '当前角色可直接记',
     dotClassName: 'bg-sky-500',
@@ -223,7 +231,7 @@ const SkillsPopover: React.FC<SkillsPopoverProps> = ({
         className="w-full flex items-center justify-between px-4 py-3 text-sm dark:text-claude-darkText text-claude-text dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover transition-colors rounded-xl border dark:border-claude-darkBorder border-claude-border"
       >
         <span>{'管理技能'}</span>
-        <Cog6ToothIcon className="h-4 w-4 dark:text-claude-darkTextSecondary text-claude-textSecondary" />
+        <Cog6ToothIcon className={`${UI_MENU_ICON_CLASS} dark:text-claude-darkTextSecondary text-claude-textSecondary`} />
       </button>
     );
 
@@ -237,13 +245,13 @@ const SkillsPopover: React.FC<SkillsPopoverProps> = ({
         footer={mobileFooter}
       >
         <div className="space-y-4">
-          <div className="rounded-lg border border-sky-200/70 bg-sky-50/80 px-2.5 py-2 text-[11px] leading-5 text-sky-700 dark:border-sky-800/60 dark:bg-sky-950/20 dark:text-sky-200">
+          <div className={`rounded-lg border border-sky-200/70 bg-sky-50/80 px-2.5 py-2 leading-5 text-sky-700 dark:border-sky-800/60 dark:bg-sky-950/20 dark:text-sky-200 ${UI_LABEL_TEXT_CLASS}`}>
             {roleSkillIndex
               ? `当前会同时显示 ${currentRoleKey} 角色在 skills.json 里可见的技能，以及当前角色已启用的外挂能力。`
               : '正在读取当前角色的 skills.json 与外挂能力视图。'}
           </div>
           <div className="relative">
-            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 dark:text-claude-darkTextSecondary text-claude-textSecondary" />
+            <SearchIcon className={`absolute left-3 top-1/2 -translate-y-1/2 ${UI_MENU_ICON_CLASS} dark:text-claude-darkTextSecondary text-claude-textSecondary`} />
             <input
               ref={searchInputRef}
               type="text"
@@ -266,14 +274,14 @@ const SkillsPopover: React.FC<SkillsPopoverProps> = ({
                       className="flex items-start gap-3 rounded-xl border border-white/60 bg-white/70 px-3 py-2.5 dark:border-white/10 dark:bg-white/[0.05]"
                     >
                       <div className="mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-violet-500/10 text-violet-600 dark:text-violet-300">
-                        {uiMeta?.icon ?? <ComputerDesktopIcon className="h-4 w-4" />}
+                        {uiMeta?.icon ?? <ComputerDesktopIcon className={UI_MENU_ICON_CLASS} />}
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           <span className="truncate text-sm font-medium text-claude-text dark:text-claude-darkText">
                             {capability.title}
                           </span>
-                          <span className="rounded-full bg-violet-500/10 px-1.5 py-0.5 text-[10px] font-medium text-violet-700 dark:text-violet-200">
+                          <span className={`rounded-full bg-violet-500/10 px-1.5 py-0.5 text-violet-700 dark:text-violet-200 ${UI_BADGE_TEXT_CLASS}`}>
                             {'外挂'}
                           </span>
                         </div>
@@ -284,7 +292,7 @@ const SkillsPopover: React.FC<SkillsPopoverProps> = ({
                       <button
                         type="button"
                         onClick={() => { void handleNativeCapabilityAction(capability.id); }}
-                        className="shrink-0 rounded-lg border border-violet-200/80 bg-violet-50/80 px-2.5 py-1 text-[11px] font-medium text-violet-700 transition-colors hover:bg-violet-100 dark:border-violet-400/20 dark:bg-violet-400/[0.10] dark:text-violet-200 dark:hover:bg-violet-400/[0.14]"
+                        className={`shrink-0 rounded-lg border border-violet-200/80 bg-violet-50/80 px-2.5 py-1 text-violet-700 transition-colors hover:bg-violet-100 dark:border-violet-400/20 dark:bg-violet-400/[0.10] dark:text-violet-200 dark:hover:bg-violet-400/[0.14] ${UI_LABEL_TEXT_CLASS}`}
                       >
                         {uiMeta?.buttonLabel ?? (isBrowserEyes ? '打开' : '查看')}
                       </button>
@@ -318,9 +326,9 @@ const SkillsPopover: React.FC<SkillsPopoverProps> = ({
                           : 'dark:bg-claude-darkSurfaceHover bg-claude-surfaceHover'
                       }`}>
                         {isActive ? (
-                          <CheckIcon className="h-4 w-4" />
+                          <CheckIcon className={UI_MENU_ICON_CLASS} />
                         ) : (
-                          <PuzzleIcon className="h-4 w-4 dark:text-claude-darkTextSecondary text-claude-textSecondary" />
+                          <PuzzleIcon className={`${UI_MENU_ICON_CLASS} dark:text-claude-darkTextSecondary text-claude-textSecondary`} />
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
@@ -353,13 +361,13 @@ const SkillsPopover: React.FC<SkillsPopoverProps> = ({
     >
       {/* Search input */}
       <div className="p-3 border-b dark:border-claude-darkBorder border-claude-border">
-        <div className="mb-2 rounded-lg border border-sky-200/70 bg-sky-50/80 px-2.5 py-2 text-[11px] leading-5 text-sky-700 dark:border-sky-800/60 dark:bg-sky-950/20 dark:text-sky-200">
+        <div className={`mb-2 rounded-lg border border-sky-200/70 bg-sky-50/80 px-2.5 py-2 leading-5 text-sky-700 dark:border-sky-800/60 dark:bg-sky-950/20 dark:text-sky-200 ${UI_LABEL_TEXT_CLASS}`}>
           {roleSkillIndex
             ? `当前会同时显示 ${currentRoleKey} 角色在 skills.json 里可见的技能，以及当前角色已启用的外挂能力。`
             : '正在读取当前角色的 skills.json 与外挂能力视图。'}
         </div>
         <div className="relative">
-          <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 dark:text-claude-darkTextSecondary text-claude-textSecondary" />
+          <SearchIcon className={`absolute left-3 top-1/2 -translate-y-1/2 ${UI_MENU_ICON_CLASS} dark:text-claude-darkTextSecondary text-claude-textSecondary`} />
           <input
             ref={searchInputRef}
             type="text"
@@ -375,10 +383,10 @@ const SkillsPopover: React.FC<SkillsPopoverProps> = ({
       <div className="overflow-y-auto py-1" style={{ maxHeight: `${maxListHeight}px` }}>
         {filteredNativeCapabilities.length > 0 && (
           <div className="px-3 pb-2">
-            <div className="px-1 pb-1 pt-1 text-[11px] font-semibold tracking-[0.12em] text-claude-textSecondary uppercase dark:text-claude-darkTextSecondary">
+            <div className={`px-1 pb-1 pt-1 text-claude-textSecondary uppercase dark:text-claude-darkTextSecondary ${UI_META_TEXT_CLASS}`}>
               {'外挂能力'}
             </div>
-            <p className="px-1 pb-2 text-[11px] leading-5 text-claude-textSecondary/90 dark:text-claude-darkTextSecondary/90">
+            <p className={`px-1 pb-2 leading-5 text-claude-textSecondary/90 dark:text-claude-darkTextSecondary/90 ${UI_LABEL_TEXT_CLASS}`}>
               {'这些不是普通 skill，而是当前角色已经接上的底层小伙伴。'}
             </p>
             <div className="space-y-1">
@@ -391,19 +399,19 @@ const SkillsPopover: React.FC<SkillsPopoverProps> = ({
                     key={capability.id}
                     className="flex items-start gap-3 rounded-xl border border-white/60 bg-white/70 px-3 py-2.5 dark:border-white/10 dark:bg-white/[0.05]"
                   >
-                    <div className="mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-violet-500/10 text-violet-600 dark:text-violet-300">
-                      {uiMeta?.icon ?? <ComputerDesktopIcon className="h-4 w-4" />}
+                  <div className="mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-violet-500/10 text-violet-600 dark:text-violet-300">
+                      {uiMeta?.icon ?? <ComputerDesktopIcon className={UI_MENU_ICON_CLASS} />}
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <span className="truncate text-sm font-medium text-claude-text dark:text-claude-darkText">
                           {capability.title}
                         </span>
-                        <span className="rounded-full bg-violet-500/10 px-1.5 py-0.5 text-[10px] font-medium text-violet-700 dark:text-violet-200">
+                        <span className={`rounded-full bg-violet-500/10 px-1.5 py-0.5 text-violet-700 dark:text-violet-200 ${UI_BADGE_TEXT_CLASS}`}>
                           {'外挂'}
                         </span>
                       </div>
-                      <div className="mt-1 flex items-center gap-1.5 text-[11px] text-claude-textSecondary/90 dark:text-claude-darkTextSecondary/90">
+                      <div className={`mt-1 flex items-center gap-1.5 text-claude-textSecondary/90 dark:text-claude-darkTextSecondary/90 ${UI_LABEL_TEXT_CLASS}`}>
                         <span className={`h-1.5 w-1.5 rounded-full ${uiMeta?.dotClassName ?? 'bg-violet-500'}`} />
                         <span>{uiMeta?.statusText ?? '当前角色已启用'}</span>
                       </div>
@@ -414,7 +422,7 @@ const SkillsPopover: React.FC<SkillsPopoverProps> = ({
                     <button
                       type="button"
                       onClick={() => { void handleNativeCapabilityAction(capability.id); }}
-                      className="shrink-0 rounded-lg border border-violet-200/80 bg-violet-50/80 px-2.5 py-1 text-[11px] font-medium text-violet-700 transition-colors hover:bg-violet-100 dark:border-violet-400/20 dark:bg-violet-400/[0.10] dark:text-violet-200 dark:hover:bg-violet-400/[0.14]"
+                      className={`shrink-0 rounded-lg border border-violet-200/80 bg-violet-50/80 px-2.5 py-1 text-violet-700 transition-colors hover:bg-violet-100 dark:border-violet-400/20 dark:bg-violet-400/[0.10] dark:text-violet-200 dark:hover:bg-violet-400/[0.14] ${UI_LABEL_TEXT_CLASS}`}
                     >
                       {uiMeta?.buttonLabel ?? (isBrowserEyes ? '打开' : '查看')}
                     </button>
@@ -452,9 +460,9 @@ const SkillsPopover: React.FC<SkillsPopoverProps> = ({
                     : 'dark:bg-claude-darkSurfaceHover bg-claude-surfaceHover'
                 }`}>
                   {isActive ? (
-                    <CheckIcon className="h-4 w-4" />
+                    <CheckIcon className={UI_MENU_ICON_CLASS} />
                   ) : (
-                    <PuzzleIcon className="h-4 w-4 dark:text-claude-darkTextSecondary text-claude-textSecondary" />
+                    <PuzzleIcon className={`${UI_MENU_ICON_CLASS} dark:text-claude-darkTextSecondary text-claude-textSecondary`} />
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -467,7 +475,7 @@ const SkillsPopover: React.FC<SkillsPopoverProps> = ({
                       {getSkillDisplayName(skill)}
                     </span>
                     {skill.isOfficial && (
-                      <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-claude-accent/10 text-claude-accent flex-shrink-0">
+                      <span className={`px-1.5 py-0.5 rounded bg-claude-accent/10 text-claude-accent flex-shrink-0 ${UI_BADGE_TEXT_CLASS}`}>
                         {'官方'}
                       </span>
                     )}
@@ -489,7 +497,7 @@ const SkillsPopover: React.FC<SkillsPopoverProps> = ({
           className="w-full flex items-center justify-between px-4 py-3 text-sm dark:text-claude-darkText text-claude-text dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover transition-colors rounded-b-xl"
         >
           <span>{'管理技能'}</span>
-          <Cog6ToothIcon className="h-4 w-4 dark:text-claude-darkTextSecondary text-claude-textSecondary" />
+          <Cog6ToothIcon className={`${UI_MENU_ICON_CLASS} dark:text-claude-darkTextSecondary text-claude-textSecondary`} />
         </button>
       </div>
     </div>

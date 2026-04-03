@@ -1788,7 +1788,8 @@ export class HttpSessionExecutor implements SessionExecutor {
         role: 'assistant',
         content,
       },
-      channelHint
+      channelHint,
+      sessionId
     );
     this.store.getSaveFunction()();
 

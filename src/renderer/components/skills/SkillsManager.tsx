@@ -26,6 +26,9 @@ import ImportDialog from '../ui/ImportDialog';
 import SkillDetailOverlay, { type RoleOptionKey } from './SkillDetailOverlay';
 import { AGENT_ROLE_ORDER, AGENT_ROLE_SHORT_LABELS } from '../../../shared/agentRoleConfig';
 import { RUNTIME_FLOW_TAGS } from '../../../shared/runtimeFlowTags';
+import { UI_BADGE_TEXT_CLASS, UI_MARK_ICON_CLASS, UI_MENU_ICON_CLASS, UI_META_TEXT_CLASS } from '../../../shared/mobileUi';
+import { useIsMobileViewport } from '../../hooks/useIsMobileViewport';
+import { useIsMediumViewport } from '../../hooks/useIsMediumViewport';
 
 const HIDDEN_SKILL_IDS = new Set(['daily-memory-extraction']);
 const SKILL_GROUP_LABELS: Record<string, string> = {
@@ -39,6 +42,9 @@ const SKILL_GROUP_LABELS: Record<string, string> = {
 };
 
 const SkillsManager: React.FC = () => {
+  const isMobileViewport = useIsMobileViewport();
+  const isMediumViewport = useIsMediumViewport();
+  const shouldHideHeaderSearch = isMobileViewport || isMediumViewport;
   const dispatch = useDispatch();
   const skills = useSelector((state: RootState) => state.skill.skills);
   const importSuccessMessage = '技能已导入并完成安装对象绑定。';
@@ -770,15 +776,15 @@ const SkillsManager: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowRuntimeHint((value) => !value)}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-sky-100/80 dark:border-sky-800/70 bg-sky-50/80 dark:bg-sky-950/20 px-2.5 py-1 text-[11px] font-medium text-sky-700 dark:text-sky-200 transition-colors"
+                  className={`inline-flex items-center gap-1.5 rounded-full border border-sky-100/80 dark:border-sky-800/70 bg-sky-50/80 dark:bg-sky-950/20 px-2.5 py-1 text-sky-700 dark:text-sky-200 transition-colors ${UI_BADGE_TEXT_CLASS}`}
                 >
-                  <InformationCircleIcon className="h-3.5 w-3.5" />
+                  <InformationCircleIcon className={UI_MARK_ICON_CLASS} />
                   {'说明'}
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowCompatHint((value) => !value)}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-amber-100/80 dark:border-amber-800/70 bg-amber-50/70 dark:bg-amber-950/20 px-2.5 py-1 text-[11px] font-medium text-amber-700 dark:text-amber-200 transition-colors"
+                  className={`inline-flex items-center gap-1.5 rounded-full border border-amber-100/80 dark:border-amber-800/70 bg-amber-50/70 dark:bg-amber-950/20 px-2.5 py-1 text-amber-700 dark:text-amber-200 transition-colors ${UI_BADGE_TEXT_CLASS}`}
                 >
                   <span className="inline-block h-2 w-2 rounded-full bg-amber-500" />
                   {'兼容'}
@@ -786,16 +792,18 @@ const SkillsManager: React.FC = () => {
               </div>
             </div>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              <div className="relative flex-1">
-                <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 dark:text-claude-darkTextSecondary text-claude-textSecondary" />
-                <input
-                  type="text"
-                  placeholder={'搜索技能'}
-                  value={skillSearchQuery}
-                  onChange={(e) => setSkillSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 text-sm rounded-xl dark:bg-claude-darkSurface bg-claude-surface dark:text-claude-darkText text-claude-text dark:placeholder-claude-darkTextSecondary placeholder-claude-textSecondary border dark:border-claude-darkBorder border-claude-border focus:outline-none focus:ring-2 focus:ring-claude-accent"
-                />
-              </div>
+              {!shouldHideHeaderSearch && (
+                <div className="relative flex-1">
+                  <SearchIcon className={`absolute left-3 top-1/2 -translate-y-1/2 ${UI_MENU_ICON_CLASS} dark:text-claude-darkTextSecondary text-claude-textSecondary`} />
+                  <input
+                    type="text"
+                    placeholder={'搜索技能'}
+                    value={skillSearchQuery}
+                    onChange={(e) => setSkillSearchQuery(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 text-sm rounded-xl dark:bg-claude-darkSurface bg-claude-surface dark:text-claude-darkText text-claude-text dark:placeholder-claude-darkTextSecondary placeholder-claude-textSecondary border dark:border-claude-darkBorder border-claude-border focus:outline-none focus:ring-2 focus:ring-claude-accent"
+                  />
+                </div>
+              )}
               <div className="flex flex-wrap gap-2 justify-end w-full sm:w-auto">
                 {invalidSkills.length > 0 && (
                   <button
@@ -804,7 +812,7 @@ const SkillsManager: React.FC = () => {
                     disabled={isCleaningInvalid}
                     className="flex items-center gap-2 rounded-full border border-red-300/70 dark:border-red-800 text-xs px-3 py-1 text-red-600 dark:text-red-300 bg-red-50/60 dark:bg-red-900/30 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <TrashIcon className="h-4 w-4" />
+                    <TrashIcon className={UI_MENU_ICON_CLASS} />
                     <span>{isCleaningInvalid ? '清理中...' : `清理无效 (${invalidSkills.length})`}</span>
                   </button>
                 )}
@@ -815,7 +823,7 @@ const SkillsManager: React.FC = () => {
                     disabled={isCleaningDuplicates}
                     className="flex items-center gap-2 rounded-full border border-amber-300/70 dark:border-amber-800 text-xs px-3 py-1 text-amber-700 dark:text-amber-200 bg-amber-50/60 dark:bg-amber-900/30 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <TrashIcon className="h-4 w-4" />
+                    <TrashIcon className={UI_MENU_ICON_CLASS} />
                     <span>{isCleaningDuplicates ? '清理中...' : `清理重复 (${duplicateSkillCount})`}</span>
                   </button>
                 )}
@@ -826,7 +834,7 @@ const SkillsManager: React.FC = () => {
                     onClick={() => setIsAddSkillMenuOpen(prev => !prev)}
                     className="inline-flex items-center gap-2 rounded-full border bg-claude-surface/80 dark:bg-claude-darkSurface border-claude-border dark:border-claude-darkBorder px-3 py-1 text-sm dark:text-claude-text text-claude-text"
                   >
-                    <PlusCircleIcon className="h-4 w-4" />
+                    <PlusCircleIcon className={UI_MENU_ICON_CLASS} />
                     <span>{'添加'}</span>
                   </button>
 
@@ -856,7 +864,7 @@ const SkillsManager: React.FC = () => {
                         disabled={isDownloadingSkill}
                         className="w-full flex items-center gap-3 px-3 py-2.5 text-sm dark:text-claude-darkText text-claude-text hover:bg-claude-surfaceHover dark:hover:bg-claude-darkSurfaceHover transition-colors disabled:opacity-50"
                       >
-                        <UploadIcon className="h-4 w-4 dark:text-claude-darkTextSecondary text-claude-textSecondary" />
+                        <UploadIcon className={`${UI_MENU_ICON_CLASS} dark:text-claude-darkTextSecondary text-claude-textSecondary`} />
                         <span>{'上传 .zip'}</span>
                       </button>
                       <button
@@ -865,7 +873,7 @@ const SkillsManager: React.FC = () => {
                         disabled={isDownloadingSkill}
                         className="w-full flex items-center gap-3 px-3 py-2.5 text-sm dark:text-claude-darkText text-claude-text hover:bg-claude-surfaceHover dark:hover:bg-claude-darkSurfaceHover transition-colors disabled:opacity-50"
                       >
-                        <FolderOpenIcon className="h-4 w-4 dark:text-claude-darkTextSecondary text-claude-textSecondary" />
+                        <FolderOpenIcon className={`${UI_MENU_ICON_CLASS} dark:text-claude-darkTextSecondary text-claude-textSecondary`} />
                         <span>{'上传文件夹'}</span>
                       </button>
                       <button
@@ -873,7 +881,7 @@ const SkillsManager: React.FC = () => {
                         onClick={handleOpenGithubImport}
                         className="w-full flex items-center gap-3 px-3 py-2.5 text-sm dark:text-claude-darkText text-claude-text hover:bg-claude-surfaceHover dark:hover:bg-claude-darkSurfaceHover transition-colors"
                       >
-                        <LinkIcon className="h-4 w-4 dark:text-claude-darkTextSecondary text-claude-textSecondary" />
+                        <LinkIcon className={`${UI_MENU_ICON_CLASS} dark:text-claude-darkTextSecondary text-claude-textSecondary`} />
                         <span>{'从 GitHub 导入'}</span>
                       </button>
                     </div>
@@ -984,7 +992,7 @@ const SkillsManager: React.FC = () => {
                   className="flex w-full items-center justify-between rounded-lg px-2 py-2 text-left text-sm font-medium dark:text-claude-darkText text-claude-text transition-colors hover:bg-claude-surfaceHover dark:hover:bg-claude-darkSurfaceHover"
                 >
                   <div className="flex items-center gap-2">
-                    <span className="rounded-full bg-claude-accent/10 px-2 py-0.5 text-[11px] font-medium text-claude-accent">
+                    <span className={`rounded-full bg-claude-accent/10 px-2 py-0.5 text-claude-accent ${UI_BADGE_TEXT_CLASS}`}>
                       {group.entries.length}
                     </span>
                     <span>{group.title}</span>
@@ -1022,9 +1030,9 @@ const SkillsManager: React.FC = () => {
                               <p className="text-[12px] leading-5 text-claude-textSecondary dark:text-claude-darkTextSecondary line-clamp-1">
                                 {description}
                               </p>
-                              <span className="text-[11px] font-medium text-claude-accent">
-                                {'查看更多'}
-                              </span>
+                                <span className={`font-medium text-claude-accent ${UI_BADGE_TEXT_CLASS}`}>
+                                  {'查看更多'}
+                                </span>
                             </div>
                             <div className="flex flex-col items-end gap-2 flex-shrink-0">
                               {!skill.isBuiltIn && (
@@ -1034,7 +1042,7 @@ const SkillsManager: React.FC = () => {
                                   className="p-1 rounded-lg text-claude-textSecondary dark:text-claude-darkTextSecondary hover:text-red-500 dark:hover:text-red-400 transition-colors"
                                   title={'删除技能'}
                                 >
-                                  <TrashIcon className="h-4 w-4" />
+                                  <TrashIcon className={UI_MENU_ICON_CLASS} />
                                 </button>
                               )}
                               <div

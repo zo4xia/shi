@@ -1,6 +1,7 @@
 import React, { Suspense, useRef, useState } from 'react';
 import PuzzleIcon from '../icons/PuzzleIcon';
 import { Skill } from '../../types/skill';
+import { UI_MENU_ICON_CLASS } from '../../../shared/mobileUi';
 
 const SkillsPopover = React.lazy(() => import('./SkillsPopover'));
 
@@ -42,7 +43,7 @@ const SkillsButton: React.FC<SkillsButtonProps> = ({
         className={`p-2 rounded-xl dark:bg-claude-darkSurface bg-claude-surface dark:text-claude-darkTextSecondary text-claude-textSecondary hover:text-claude-accent dark:hover:text-claude-accent hover:bg-claude-surfaceHover dark:hover:bg-claude-darkSurfaceHover transition-colors ${className}`}
         title="Skills"
       >
-        <PuzzleIcon className="h-5 w-5" />
+        <PuzzleIcon className={UI_MENU_ICON_CLASS} />
       </button>
       {isPopoverOpen && (
         <Suspense fallback={null}>

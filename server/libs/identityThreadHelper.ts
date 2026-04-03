@@ -17,6 +17,7 @@ export interface IdentityThreadContext {
 export interface IdentityThreadBoardEntry {
   role: string;
   content: string;
+  sessionId?: string;
   channelHint?: string;
   channelLabel: string;
   timestamp: number;
@@ -36,6 +37,7 @@ export interface IdentityThreadBoardSnapshot {
 type IdentityThreadMessage = {
   role: string;
   content: string;
+  session_id?: string;
   channel_hint?: string;
   timestamp?: number;
   channel_seq?: number;
@@ -572,6 +574,7 @@ export function listIdentityThreadBoardSnapshots(
         entries: mergedThread.messages.slice(-normalizedLimit).map((message) => ({
           role: message.role,
           content: String(message.content || '').trim(),
+          sessionId: typeof message.session_id === 'string' ? message.session_id : undefined,
           channelHint: message.channel_hint,
           channelLabel: normalizeSharedThreadChannel(message.channel_hint),
           timestamp: normalizeThreadTimestampMs(message.timestamp),
@@ -596,9 +599,10 @@ export function appendToIdentityThread(
   db: Database,
   agentRoleKey: string,
   message: { role: 'user' | 'assistant'; content: string },
-  channelHint?: string
+  channelHint?: string,
+  sessionId?: string
 ): void {
-  appendIdentityThreadMessage(db, agentRoleKey, message.role, message.content, channelHint);
+  appendIdentityThreadMessage(db, agentRoleKey, message.role, message.content, channelHint, sessionId);
 }
 
 export function seedIdentityThreadBootstrap(
@@ -615,7 +619,8 @@ function appendIdentityThreadMessage(
   agentRoleKey: string,
   role: 'user' | 'assistant' | 'bootstrap',
   content: string,
-  channelHint?: string
+  channelHint?: string,
+  sessionId?: string
 ): void {
   try {
     // {FLOW} CONTINUITY-TRUNK-THREAD-SUMMARIZE
@@ -634,6 +639,7 @@ function appendIdentityThreadMessage(
     const messageWithChannel = {
       role,
       content: summarizedContent,
+      session_id: sessionId || undefined,
       channel_hint: channelHint || undefined,
       timestamp: now,
       channel_seq: channelSeq,

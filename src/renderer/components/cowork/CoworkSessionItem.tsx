@@ -297,6 +297,7 @@ const CoworkSessionItem: React.FC<CoworkSessionItemProps> = ({
 
   return (
     <div
+      data-session-id={session.id}
       onClick={() => {
         if (isRenaming) return;
         closeMenu();

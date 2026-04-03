@@ -11,6 +11,7 @@ import {
   getRoleSkillConfigPath,
   getRoleSkillSecretPath,
 } from '../libs/roleSkillFiles';
+import { compressSessionContext } from '../libs/manualContextCompression';
 import { createWebInboundRequest } from '../../clean-room/spine/modules/inbound';
 import { createRequestTrace } from '../../clean-room/spine/modules/requestTrace';
 import { orchestrateWebTurn } from '../../clean-room/spine/modules/sessionOrchestrator';
@@ -419,6 +420,45 @@ export function setupCoworkRoutes(app: Router) {
       res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : 'Failed to get session',
+      });
+    }
+  });
+
+  // POST /api/cowork/sessions/:sessionId/compress-context - Manual context compression
+  router.post('/sessions/:sessionId/compress-context', async (req: Request, res: Response) => {
+    try {
+      const { coworkStore, store } = req.context as RequestContext;
+      const session = coworkStore.getSession(req.params.sessionId as CoworkSessionId);
+      if (!session) {
+        return res.status(404).json({
+          success: false,
+          error: 'Session not found',
+        });
+      }
+
+      const appConfig = (store.get('app_config') as Record<string, any>) || {};
+      const compression = await compressSessionContext({
+        db: coworkStore.getDatabase(),
+        appConfig,
+        session: {
+          id: session.id,
+          title: session.title,
+          agentRoleKey: session.agentRoleKey,
+          modelId: session.modelId,
+          messages: session.messages.map((message) => ({
+            type: message.type,
+            content: message.content,
+            timestamp: message.timestamp,
+            metadata: message.metadata as Record<string, unknown> | undefined,
+          })),
+        },
+      });
+
+      res.json({ success: true, compression });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to compress context',
       });
     }
   });

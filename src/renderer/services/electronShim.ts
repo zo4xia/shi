@@ -548,6 +548,12 @@ const cowork = {
     return unwrap(await apiClient.post(routes.cowork.clearBroadcastBoard(), input));
   },
 
+  async compressContext(input: {
+    sessionId: string;
+  }): Promise<{ success: boolean; compression?: CoworkManualCompressionResult; error?: string }> {
+    return unwrap(await apiClient.post(routes.cowork.compressContext(input.sessionId), {}));
+  },
+
   // Stream event listeners
   onStreamMessage(callback: (data: { sessionId: string; message: CoworkMessage }) => void): () => void {
     return webSocketClient.on(WS_EVENTS.COWORK_MESSAGE, callback);

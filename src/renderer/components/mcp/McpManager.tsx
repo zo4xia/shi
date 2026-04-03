@@ -22,6 +22,8 @@ import { getResponsiveTabBarClass, getResponsiveTabButtonClass } from '../../../
 import { RUNTIME_FLOW_TAGS } from '../../../shared/runtimeFlowTags';
 import { webSocketClient, WS_EVENTS } from '../../services/webSocketClient';
 import { skillService } from '../../services/skill';
+import { useIsMobileViewport } from '../../hooks/useIsMobileViewport';
+import { useIsMediumViewport } from '../../hooks/useIsMediumViewport';
 
 const mcpDescMap: Record<string, string> = {
   mcpDesc_tavily: '实时网页搜索、智能数据提取和网站爬取',
@@ -56,6 +58,9 @@ const formatMcpScopeLabel = (scope: string): string => {
 type McpTab = 'supported' | 'templates';
 
 const McpManager: React.FC = () => {
+  const isMobileViewport = useIsMobileViewport();
+  const isMediumViewport = useIsMediumViewport();
+  const shouldHideHeaderSearch = isMobileViewport || isMediumViewport;
   const dispatch = useDispatch();
   const servers = useSelector((state: RootState) => state.mcp.servers);
 
@@ -406,19 +411,20 @@ const McpManager: React.FC = () => {
           />
         )}
 
-        {/* Search */}
-        <div className="flex items-center gap-3">
-          <div className="relative flex-1">
-            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 dark:text-claude-darkTextSecondary text-claude-textSecondary" />
-            <input
-              type="text"
-              placeholder={'搜索 MCP 服务'}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 text-sm rounded-xl dark:bg-claude-darkSurface bg-claude-surface dark:text-claude-darkText text-claude-text dark:placeholder-claude-darkTextSecondary placeholder-claude-textSecondary border dark:border-claude-darkBorder border-claude-border focus:outline-none focus:ring-2 focus:ring-claude-accent"
-            />
+        {!shouldHideHeaderSearch && (
+          <div className="flex items-center gap-3">
+            <div className="relative flex-1">
+              <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 dark:text-claude-darkTextSecondary text-claude-textSecondary" />
+              <input
+                type="text"
+                placeholder={'搜索 MCP 服务'}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 text-sm rounded-xl dark:bg-claude-darkSurface bg-claude-surface dark:text-claude-darkText text-claude-text dark:placeholder-claude-darkTextSecondary placeholder-claude-textSecondary border dark:border-claude-darkBorder border-claude-border focus:outline-none focus:ring-2 focus:ring-claude-accent"
+              />
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Tabs */}
         <div className={getResponsiveTabBarClass('dark:border-claude-darkBorder border-claude-border')}>

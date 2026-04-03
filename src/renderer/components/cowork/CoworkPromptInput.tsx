@@ -11,12 +11,14 @@ import { requestEmbeddedBrowserOpen } from '../../services/embeddedBrowser';
 import { skillService } from '../../services/skill';
 import { localStore } from '../../services/store';
 import { showGlobalToast } from '../../services/toast';
+import { coworkService } from '../../services/cowork';
 import { RootState } from '../../store';
 import { setDraftPrompt } from '../../store/slices/coworkSlice';
 import { setSkills, toggleActiveSkill } from '../../store/slices/skillSlice';
 import { Skill } from '../../types/skill';
 import { CoworkImageAttachment } from '../../types/cowork';
 import { getCompactFolderName } from '../../utils/path';
+import { useIsMobileViewport } from '../../hooks/useIsMobileViewport';
 import {
   chunkTextForAttachment,
   parseGeneratedTextChunkName,
@@ -29,6 +31,7 @@ import {
   BROWSER_EYES_CURRENT_PAGE_STORE_KEY,
   type BrowserEyesCurrentPageState,
 } from '../../../shared/browserEyesState';
+import { UI_LABEL_TEXT_CLASS, UI_MENU_ICON_CLASS } from '../../../shared/mobileUi';
 
 type CoworkAttachment = {
   path: string;
@@ -896,9 +899,20 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
   const enhancedContainerClass = isDraggingFiles
     ? `${containerClass} ring-2 ring-claude-accent/50 border-claude-accent/60`
     : containerClass;
+  const isMobileViewport = useIsMobileViewport();
   const zenButtonClass = zenModeEnabled
     ? 'inline-flex items-center gap-1.5 rounded-full border border-emerald-300/60 bg-emerald-50/85 px-3 py-1.5 text-[11px] font-medium text-emerald-700 shadow-sm transition-colors hover:bg-emerald-100 dark:border-emerald-400/30 dark:bg-emerald-400/10 dark:text-emerald-200 dark:hover:bg-emerald-400/16'
     : 'inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-white/60 px-3 py-1.5 text-[11px] font-medium text-[#7A7065] transition-colors hover:bg-white/80 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/60 dark:hover:bg-white/[0.08]';
+  const clearBoardButtonClass = 'inline-flex items-center gap-1.5 rounded-full border border-rose-200/70 bg-rose-50/85 px-3 py-1.5 text-[11px] font-medium text-rose-700 shadow-sm transition-colors hover:bg-rose-100 dark:border-rose-400/30 dark:bg-rose-400/10 dark:text-rose-200 dark:hover:bg-rose-400/16';
+
+  const handleClearBroadcastBoard = useCallback(async () => {
+    const roleKey = String(sessionRoleKey || '').trim();
+    if (!roleKey) return;
+    const confirmed = window.confirm('清空当前角色的广播板？这会移除 24h 接力摘要。');
+    if (!confirmed) return;
+    const success = await coworkService.clearBroadcastBoard({ agentRoleKey: roleKey });
+    showGlobalToast(success ? '广播板已清空' : '清空广播板失败');
+  }, [sessionRoleKey]);
 
   return (
     <div className="relative">
@@ -909,20 +923,33 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
         className="hidden"
         onChange={handleFileInputChange}
       />
-      <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex justify-end">
-        <div className="pointer-events-auto">
-          <button
-            type="button"
-            onClick={() => setZenModeEnabled((current) => !current)}
-            className={`${zenButtonClass} ${isLarge ? 'shadow-[0_8px_20px_rgba(90,82,72,0.08)]' : 'scale-[0.95] origin-top-right'} translate-y-[-55%]`}
-            title={zenModeEnabled ? '禅模式已开启：关闭广播板读写' : '开启禅模式：关闭广播板读写'}
-            aria-pressed={zenModeEnabled}
-          >
-            <span className="font-semibold">{zenModeEnabled ? '禅' : '常'}</span>
-            <span>{zenModeEnabled ? '禅模式开' : '禅模式关'}</span>
-          </button>
+      {!isMobileViewport && (
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex justify-end">
+          <div className="pointer-events-auto">
+            <button
+              type="button"
+              onClick={() => setZenModeEnabled((current) => !current)}
+              className={`${zenButtonClass} ${isLarge ? 'shadow-[0_8px_20px_rgba(90,82,72,0.08)]' : 'scale-[0.95] origin-top-right'} translate-y-[-55%]`}
+              title={zenModeEnabled ? '禅模式已开启：关闭广播板读写' : '开启禅模式：关闭广播板读写'}
+              aria-pressed={zenModeEnabled}
+            >
+              <span className="font-semibold">{zenModeEnabled ? '禅' : '常'}</span>
+              <span>{zenModeEnabled ? '禅模式开' : '禅模式关'}</span>
+            </button>
+            {sessionRoleKey && (
+              <button
+                type="button"
+                onClick={() => { void handleClearBroadcastBoard(); }}
+                className={`${clearBoardButtonClass} ml-2 ${isLarge ? 'shadow-[0_8px_20px_rgba(90,82,72,0.08)]' : 'scale-[0.95] origin-top-right'} translate-y-[-55%]`}
+                title="清空当前角色的广播板"
+              >
+                <span className="font-semibold">清</span>
+                <span>清空广播板</span>
+              </button>
+            )}
+          </div>
         </div>
-      </div>
+      )}
       {attachments.length > 0 && (
         <div className="mb-2 flex flex-wrap gap-2">
           {attachments.map((attachment) => {
@@ -998,7 +1025,7 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
                         className="flex max-w-full items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm text-[#9A9085] transition-colors hover:bg-[#9A9085]/10 hover:text-[#7A7065] dark:text-white/50 dark:hover:bg-white/10 dark:hover:text-white/70"
                       >
                         <FolderIcon className="h-4 w-4 shrink-0" />
-                        <span className="max-w-[120px] truncate text-xs sm:max-w-[180px]">
+                        <span className={`max-w-[120px] truncate sm:max-w-[180px] ${UI_LABEL_TEXT_CLASS}`}>
                           {truncatePath(workingDirectory)}
                         </span>
                       </button>
@@ -1033,7 +1060,7 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
                   aria-label={'添加文件'}
                   disabled={disabled || isStreaming}
                 >
-                  <PaperClipIcon className="h-4 w-4" />
+                  <PaperClipIcon className={UI_MENU_ICON_CLASS} />
                 </button>
                 <button
                   type="button"
@@ -1043,7 +1070,7 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
                   aria-label={'打开小眼睛小电视'}
                   disabled={disabled}
                 >
-                  <ComputerDesktopIcon className="h-4 w-4" />
+                  <ComputerDesktopIcon className={UI_MENU_ICON_CLASS} />
                 </button>
                 <SkillsButton
                   onSelectSkill={handleSelectSkill}
@@ -1051,6 +1078,31 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
                   roleKey={sessionRoleKey}
                   onOpen={ensureSkillsLoaded}
                 />
+                {isMobileViewport && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setZenModeEnabled((current) => !current)}
+                      className={zenButtonClass}
+                      title={zenModeEnabled ? '禅模式已开启：关闭广播板读写' : '开启禅模式：关闭广播板读写'}
+                      aria-pressed={zenModeEnabled}
+                    >
+                      <span className="font-semibold">{zenModeEnabled ? '禅' : '常'}</span>
+                      <span>{zenModeEnabled ? '禅模式开' : '禅模式关'}</span>
+                    </button>
+                    {sessionRoleKey && (
+                      <button
+                        type="button"
+                        onClick={() => { void handleClearBroadcastBoard(); }}
+                        className={clearBoardButtonClass}
+                        title="清空当前角色的广播板"
+                      >
+                        <span className="font-semibold">清</span>
+                        <span>清空广播板</span>
+                      </button>
+                    )}
+                  </>
+                )}
                 <ActiveSkillBadge />
               </div>
               <div className="ml-auto flex shrink-0 items-center gap-2">

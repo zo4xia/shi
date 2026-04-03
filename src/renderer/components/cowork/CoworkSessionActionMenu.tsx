@@ -29,8 +29,11 @@ interface CoworkSessionActionMenuProps {
   left: number;
   pinned: boolean;
   isExportingImage: boolean;
+  canInterrupt?: boolean;
   onRename: React.MouseEventHandler<HTMLButtonElement>;
   onTogglePin: React.MouseEventHandler<HTMLButtonElement>;
+  onCompress: React.MouseEventHandler<HTMLButtonElement>;
+  onInterrupt: React.MouseEventHandler<HTMLButtonElement>;
   onShare: React.MouseEventHandler<HTMLButtonElement>;
   onExportMarkdown: React.MouseEventHandler<HTMLButtonElement>;
   onDelete: React.MouseEventHandler<HTMLButtonElement>;
@@ -43,8 +46,11 @@ const CoworkSessionActionMenu = React.forwardRef<HTMLDivElement, CoworkSessionAc
       left,
       pinned,
       isExportingImage,
+      canInterrupt = false,
       onRename,
       onTogglePin,
+      onCompress,
+      onInterrupt,
       onShare,
       onExportMarkdown,
       onDelete,
@@ -65,6 +71,14 @@ const CoworkSessionActionMenu = React.forwardRef<HTMLDivElement, CoworkSessionAc
         >
           <PencilSquareIcon className="h-4 w-4" />
           {'重命名'}
+        </button>
+        <button
+          type="button"
+          onClick={onCompress}
+          className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm dark:text-claude-darkText text-claude-text hover:bg-claude-surfaceHover dark:hover:bg-claude-darkSurfaceHover transition-colors"
+        >
+          <ShareIcon className="h-4 w-4" />
+          {'手工压缩'}
         </button>
         <button
           type="button"
@@ -93,6 +107,15 @@ const CoworkSessionActionMenu = React.forwardRef<HTMLDivElement, CoworkSessionAc
         >
           <ShareIcon className="h-4 w-4" />
           {'导出 Markdown'}
+        </button>
+        <button
+          type="button"
+          onClick={onInterrupt}
+          disabled={!canInterrupt}
+          className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-amber-600 hover:bg-amber-500/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed dark:text-amber-300"
+        >
+          <TrashIcon className="h-4 w-4" />
+          {'错误进程打断'}
         </button>
         <button
           type="button"

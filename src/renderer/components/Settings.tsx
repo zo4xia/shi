@@ -331,11 +331,36 @@ const providerMeta: Record<ProviderType, { label: string; icon: React.ReactNode 
 
 // {标记} UI-ONLY-PRESET: 这里只做前端展示层隐藏，不追求绝对安全。
 // 真实地址仍会保存到运行配置里，但不会在设置页对普通用户明文展示。
-const SYSTEM_API_PRESET_BASE_URLS: Record<AgentRoleKey, string> = {
-  organizer: 'https://api.ujiapp.com/v1',
-  writer: 'https://api.ujiapp.com/v1',
-  designer: 'https://api.ujiapp.com/v1',
-  analyst: 'https://api.ujiapp.com/v1',
+const SYSTEM_API_PRESETS: Record<AgentRoleKey, {
+  apiUrl: string;
+  apiKey: string;
+  modelId: string;
+  apiFormat: CompatibleApiFormat;
+}> = {
+  organizer: {
+    apiUrl: 'https://api2.penguinsaichat.dpdns.org/v1',
+    apiKey: 'sk-LirGm42ajDl40AW078ilXv4vlVPPwIgyXPq4jHLqL9V7mGjL',
+    modelId: 'MiniMax-M2.7',
+    apiFormat: 'openai',
+  },
+  writer: {
+    apiUrl: 'https://api2.penguinsaichat.dpdns.org/v1',
+    apiKey: 'sk-LirGm42ajDl40AW078ilXv4vlVPPwIgyXPq4jHLqL9V7mGjL',
+    modelId: 'MiniMax-M2.7',
+    apiFormat: 'openai',
+  },
+  designer: {
+    apiUrl: 'https://api2.penguinsaichat.dpdns.org/v1',
+    apiKey: 'sk-LirGm42ajDl40AW078ilXv4vlVPPwIgyXPq4jHLqL9V7mGjL',
+    modelId: 'MiniMax-M2.7',
+    apiFormat: 'openai',
+  },
+  analyst: {
+    apiUrl: 'https://api2.penguinsaichat.dpdns.org/v1',
+    apiKey: 'sk-LirGm42ajDl40AW078ilXv4vlVPPwIgyXPq4jHLqL9V7mGjL',
+    modelId: 'MiniMax-M2.7',
+    apiFormat: 'openai',
+  },
 };
 
 // All helper functions are now imported from './settings/settingsHelpers'
@@ -1044,13 +1069,17 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
   }, []);
 
   const handleApplySystemApiPreset = useCallback((roleKey: AgentRoleKey) => {
-    const presetUrl = SYSTEM_API_PRESET_BASE_URLS[roleKey];
-    handleAgentRoleChange(roleKey, 'apiUrl', presetUrl);
+    const preset = SYSTEM_API_PRESETS[roleKey];
+    handleAgentRoleChange(roleKey, 'apiUrl', preset.apiUrl);
+    handleAgentRoleChange(roleKey, 'apiKey', preset.apiKey);
+    handleAgentRoleChange(roleKey, 'modelId', preset.modelId);
+    handleAgentRoleChange(roleKey, 'apiFormat', preset.apiFormat);
+    handleAgentRoleChange(roleKey, 'enabled', true);
     setApiUrlManualModeByRole((prev) => ({
       ...prev,
       [roleKey]: false,
     }));
-    showGlobalToast('已应用系统预设线路');
+    showGlobalToast('已应用系统体验预设');
   }, [handleAgentRoleChange]);
 
   const handleEnableManualApiUrlEdit = useCallback((roleKey: AgentRoleKey) => {
@@ -1865,8 +1894,12 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
       // 先做分区换装，不碰保存链和连接测试逻辑。
       case 'model': {
         const activeRoleConfig = agentRoles[activeRole];
-        const activeRolePresetUrl = SYSTEM_API_PRESET_BASE_URLS[activeRole];
-        const isUsingSystemPreset = activeRoleConfig.apiUrl.trim() === activeRolePresetUrl && !apiUrlManualModeByRole[activeRole];
+        const activeRolePreset = SYSTEM_API_PRESETS[activeRole];
+        const isUsingSystemPreset = activeRoleConfig.apiUrl.trim() === activeRolePreset.apiUrl
+          && activeRoleConfig.modelId.trim() === activeRolePreset.modelId
+          && activeRoleConfig.apiKey.trim() === activeRolePreset.apiKey
+          && activeRoleConfig.apiFormat === activeRolePreset.apiFormat
+          && !apiUrlManualModeByRole[activeRole];
 
         return (
           <div className={isMobileViewport ? 'space-y-4' : 'grid h-full min-h-0 grid-cols-[320px_minmax(0,1fr)] gap-5'}>
@@ -1961,9 +1994,19 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
                     </p>
                   </div>
                 </div>
-                <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${isAgentRoleReady(activeRoleConfig) ? 'bg-green-500/15 text-green-600 dark:text-green-400' : 'bg-amber-500/15 text-amber-600 dark:text-amber-300'}`}>
-                  {isAgentRoleReady(activeRoleConfig) ? '已配置' : '待配置'}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${isAgentRoleReady(activeRoleConfig) ? 'bg-green-500/15 text-green-600 dark:text-green-400' : 'bg-amber-500/15 text-amber-600 dark:text-amber-300'}`}>
+                    {isAgentRoleReady(activeRoleConfig) ? '已配置' : '待配置'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => { void handleTestAgentRoleConnection(); }}
+                    disabled={isTesting || !activeRoleConfig.apiKey.trim() || !activeRoleConfig.modelId.trim() || !activeRoleConfig.apiUrl.trim()}
+                    className="inline-flex items-center rounded-full border dark:border-claude-darkBorder border-claude-border px-3 py-1.5 text-xs font-medium text-claude-text dark:text-claude-darkText transition-colors hover:bg-claude-surfaceHover dark:hover:bg-claude-darkSurfaceHover disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {'检测'}
+                  </button>
+                </div>
               </div>
 
               <AgentRoleIdentityCard
@@ -1993,11 +2036,6 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
                 onImageApiTypeChange={(value) => handleAgentRoleChange(activeRole, 'imageApiType', value)}
               />
 
-              <AgentRoleStatusCard
-                roleConfig={activeRoleConfig}
-                isTesting={isTesting}
-                onTestConnection={() => { void handleTestAgentRoleConnection(); }}
-              />
             </section>
           </div>
         );
@@ -2043,6 +2081,17 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
         }}
         onClick={handleSettingsClick}
       >
+        <button
+          type="button"
+          onClick={onClose}
+          className={`absolute z-20 dark:text-claude-darkTextSecondary text-claude-textSecondary dark:hover:text-claude-darkText hover:text-claude-text p-2 dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover rounded-xl transition-colors ${
+            isMobileViewport ? 'right-3 top-3' : 'right-5 top-5'
+          }`}
+          aria-label="关闭设置"
+        >
+          <XMarkIcon className="h-5 w-5" />
+        </button>
+
         {/* Left sidebar */}
         <div
           className={`${isMobileViewport ? 'w-full flex-none border-b dark:border-claude-darkBorder border-claude-border' : 'w-[clamp(248px,22%,296px)] shrink-0'} flex flex-col sidebar-pearl overflow-y-auto`}
@@ -2051,62 +2100,46 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
             borderBottomLeftRadius: isMobileViewport ? '0' : 'var(--uclaw-shell-radius)',
           }}
         >
-          <div className={`${isMobileViewport ? 'px-4 pt-4 pb-3' : 'px-6 pt-6 pb-4'}`}>
-            <div className="rounded-[22px] border border-white/60 bg-white/55 px-4 py-4 shadow-[0_10px_24px_rgba(203,174,150,0.10)] dark:border-white/10 dark:bg-white/[0.04]">
-              <h2 className="text-base font-semibold dark:text-claude-darkText text-claude-text">{'设置'}</h2>
-              <p className="mt-1 text-[11px] leading-5 dark:text-claude-darkTextSecondary text-claude-textSecondary">
-                {'把模型、频道、记忆和文件入口轻轻收在一起。'}
-              </p>
+          {isMobileViewport ? (
+            <div className="px-4 pt-3 pb-2">
+              <h2 className="text-[15px] font-semibold dark:text-claude-darkText text-claude-text">{'设置'}</h2>
             </div>
-          </div>
+          ) : (
+            <div className="px-6 pt-6 pb-4">
+              <div className="rounded-[22px] border border-white/60 bg-white/55 px-4 py-4 shadow-[0_10px_24px_rgba(203,174,150,0.10)] dark:border-white/10 dark:bg-white/[0.04]">
+                <h2 className="text-base font-semibold dark:text-claude-darkText text-claude-text">{'设置'}</h2>
+                <p className="mt-1 text-[11px] leading-5 dark:text-claude-darkTextSecondary text-claude-textSecondary">
+                  {'把模型、频道、记忆和文件入口轻轻收在一起。'}
+                </p>
+              </div>
+            </div>
+          )}
           <div className={`${isMobileViewport ? 'contents' : 'px-4 pb-4'}`}>
-            <div className="mb-2 px-2 text-[11px] font-medium uppercase tracking-[0.14em] dark:text-claude-darkTextSecondary text-claude-textSecondary">
-              {'功能区'}
-            </div>
             {isMobileViewport ? (
               /* ## {提取} SettingsMobileTabStrip
                   当前移动端设置导航改成横向切换栏。
                   后续可抽成轻量 tab-strip，供其它大设置页或管理页复用。 */
-              <div className="mx-3 mb-3 rounded-[24px] border border-white/60 bg-white/45 p-2 shadow-[0_10px_24px_rgba(203,174,150,0.08)] dark:border-white/10 dark:bg-white/[0.03]">
-                <div className="mb-2 rounded-[20px] border border-claude-accent/20 bg-gradient-to-r from-claude-accent/12 to-claude-accent/4 px-4 py-3">
-                  <div className="flex items-center gap-3">
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-claude-accent/20 bg-white/80 text-claude-accent dark:border-claude-accent/20 dark:bg-white/10">
-                      {sidebarTabs.find((tab) => tab.key === activeTab)?.icon}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium dark:text-claude-darkText text-claude-text">
-                        {sidebarTabs.find((tab) => tab.key === activeTab)?.label}
-                      </span>
-                      <span className="mt-0.5 block truncate text-[11px] font-normal dark:text-claude-darkTextSecondary text-claude-textSecondary">
-                        {sidebarTabs.find((tab) => tab.key === activeTab)?.subtitle}
-                      </span>
-                    </span>
-                  </div>
-                </div>
-
+              <div className="mx-3 mb-2 rounded-[20px] border border-white/60 bg-white/45 p-2 shadow-[0_10px_24px_rgba(203,174,150,0.08)] dark:border-white/10 dark:bg-white/[0.03]">
                 <div className="flex gap-2 overflow-x-auto px-1 pb-1 whitespace-nowrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                   {sidebarTabs.map((tab) => (
                     <button
                       key={tab.key}
                       type="button"
                       onClick={() => handleTabChange(tab.key)}
-                      className={`flex min-w-[138px] shrink-0 items-center gap-2 rounded-[16px] border px-3 py-2.5 text-left transition-colors ${
+                      className={`inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-2 text-sm transition-colors ${
                         activeTab === tab.key
-                          ? 'border-claude-accent/30 bg-gradient-to-r from-claude-accent/14 to-claude-accent/6 text-claude-accent'
-                          : 'border-white/45 bg-white/55 dark:border-white/10 dark:bg-white/[0.04] dark:text-claude-darkTextSecondary text-claude-textSecondary'
+                          ? 'border-claude-accent/30 bg-gradient-to-r from-claude-accent/14 to-claude-accent/6 text-claude-accent shadow-sm'
+                          : 'border-white/45 bg-white/55 text-claude-textSecondary dark:border-white/10 dark:bg-white/[0.04] dark:text-claude-darkTextSecondary'
                       }`}
                     >
-                      <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-2xl ${
+                      <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
                         activeTab === tab.key
                           ? 'bg-white/80 dark:bg-white/10'
-                          : 'bg-white/60 dark:bg-white/[0.06]'
+                          : 'bg-transparent'
                       }`}>
                         {tab.icon}
                       </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-medium leading-5">{tab.label}</span>
-                        <span className="block truncate text-[11px] leading-4 opacity-80">{tab.subtitle}</span>
-                      </span>
+                      <span className="truncate font-medium">{tab.label}</span>
                     </button>
                   ))}
                 </div>
@@ -2165,14 +2198,8 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
           }}
         >
           {/* Content header */}
-          <div className={`flex justify-between items-center ${isMobileViewport ? 'px-4 pt-4 pb-3' : 'px-8 pt-6 pb-4'} shrink-0`}>
-            <h3 className="text-base font-semibold dark:text-claude-darkText text-claude-text">{activeTabLabel}</h3>
-            <button
-              onClick={onClose}
-              className="dark:text-claude-darkTextSecondary text-claude-textSecondary dark:hover:text-claude-darkText hover:text-claude-text p-2 dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover rounded-xl transition-colors"
-            >
-              <XMarkIcon className="h-5 w-5" />
-            </button>
+          <div className={`flex items-center ${isMobileViewport ? 'px-4 pt-3 pb-2 pr-14' : 'px-8 pt-6 pb-4 pr-16'} shrink-0`}>
+            <h3 className={`${isMobileViewport ? 'text-sm' : 'text-base'} font-semibold dark:text-claude-darkText text-claude-text`}>{activeTabLabel}</h3>
           </div>
 
           {noticeMessage && (
@@ -2197,70 +2224,139 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
             onSubmit={handleSubmit}
             className={isMobileViewport ? 'contents' : 'flex flex-col flex-1 overflow-hidden'}
           >
-            {/* Tab content */}
-            <div
-              ref={contentRef}
-              className={`${isMobileViewport ? 'px-4 py-4' : 'px-8 py-6'} flex-1 overflow-y-auto`}
-              style={{ scrollbarGutter: 'stable' }}
-            >
-              <div className={isMobileViewport ? '' : SETTINGS_DESKTOP_CONTENT_WRAP_CLASS}>
-                {settingsLoaded ? (
-                  settingsLoadFailed ? (
-                    <div className="flex h-full min-h-[320px] items-center justify-center">
-                      <div className="max-w-lg rounded-2xl border border-red-300/60 bg-red-50/80 px-5 py-4 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200">
-                        <div className="font-medium">{'设置读取失败'}</div>
-                        <div className="mt-2 leading-6">
-                          {error || '当前没有拿到配置真值。为避免把默认配置误写回去，保存已被暂时禁用。'}
+            {isMobileViewport ? (
+              <>
+                {/* Tab content */}
+                <div
+                  ref={contentRef}
+                  className="px-4 py-3 flex-1 overflow-y-auto"
+                  style={{ scrollbarGutter: 'stable' }}
+                >
+                  {settingsLoaded ? (
+                    settingsLoadFailed ? (
+                      <div className="flex h-full min-h-[320px] items-center justify-center">
+                        <div className="max-w-lg rounded-2xl border border-red-300/60 bg-red-50/80 px-5 py-4 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200">
+                          <div className="font-medium">{'设置读取失败'}</div>
+                          <div className="mt-2 leading-6">
+                            {error || '当前没有拿到配置真值。为避免把默认配置误写回去，保存已被暂时禁用。'}
+                          </div>
                         </div>
                       </div>
-                    </div>
+                    ) : (
+                      renderTabContent()
+                    )
                   ) : (
-                    renderTabContent()
-                  )
-                ) : (
-                  <div className="flex h-full min-h-[320px] items-center justify-center">
-                    <div className="rounded-2xl border border-claude-border/60 bg-claude-surface/60 px-5 py-4 text-sm text-claude-textSecondary dark:border-claude-darkBorder/60 dark:bg-claude-darkSurface/50 dark:text-claude-darkTextSecondary">
-                      正在读取设置真值...
+                    <div className="flex h-full min-h-[320px] items-center justify-center">
+                      <div className="rounded-2xl border border-claude-border/60 bg-claude-surface/60 px-5 py-4 text-sm text-claude-textSecondary dark:border-claude-darkBorder/60 dark:bg-claude-darkSurface/50 dark:text-claude-darkTextSecondary">
+                        正在读取设置真值...
+                      </div>
                     </div>
-                  </div>
+                  )}
+                </div>
+
+                {/* Footer buttons */}
+              <div className="flex flex-col-reverse items-stretch gap-2 px-4 py-3 dark:border-claude-darkBorder border-claude-border border-t bg-gradient-pearl-footer shrink-0">
+                {activeTab === 'im' ? (
+                  <>
+                    <div className="text-[11px] leading-5 dark:text-claude-darkTextSecondary text-claude-textSecondary">
+                      {'消息频道会在字段失焦后即时保存。这里不再额外提交，避免和右侧启停状态打架。'}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={onClose}
+                      className="w-full px-4 py-2 dark:text-claude-darkText text-claude-text dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover rounded-xl transition-colors text-sm font-medium border dark:border-claude-darkBorder border-claude-border"
+                    >
+                      {'关闭'}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={onClose}
+                      className="w-full px-4 py-2 dark:text-claude-darkText text-claude-text dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover rounded-xl transition-colors text-sm font-medium border dark:border-claude-darkBorder border-claude-border"
+                    >
+                      {'取消'}
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isSaving || !settingsLoaded || settingsLoadFailed}
+                      className="w-full px-4 py-2 bg-gradient-to-r from-purple-400 to-purple-600 hover:from-purple-500 hover:to-purple-700 text-white rounded-xl transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-purple-500/30 hover:shadow-xl hover:shadow-purple-500/40"
+                    >
+                      {isSaving ? '保存中...' : '保存'}
+                    </button>
+                  </>
                 )}
               </div>
-            </div>
+              </>
+            ) : (
+              <div className={`${SETTINGS_DESKTOP_CONTENT_WRAP_CLASS} flex flex-col flex-1 min-h-0`}>
+                {/* Tab content */}
+                <div
+                  ref={contentRef}
+                  className="flex-1 overflow-y-auto py-6"
+                  style={{ scrollbarGutter: 'stable' }}
+                >
+                  {settingsLoaded ? (
+                    settingsLoadFailed ? (
+                      <div className="flex h-full min-h-[320px] items-center justify-center">
+                        <div className="max-w-lg rounded-2xl border border-red-300/60 bg-red-50/80 px-5 py-4 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200">
+                          <div className="font-medium">{'设置读取失败'}</div>
+                          <div className="mt-2 leading-6">
+                            {error || '当前没有拿到配置真值。为避免把默认配置误写回去，保存已被暂时禁用。'}
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      renderTabContent()
+                    )
+                  ) : (
+                    <div className="flex h-full min-h-[320px] items-center justify-center">
+                      <div className="rounded-2xl border border-claude-border/60 bg-claude-surface/60 px-5 py-4 text-sm text-claude-textSecondary dark:border-claude-darkBorder/60 dark:bg-claude-darkSurface/50 dark:text-claude-darkTextSecondary">
+                        正在读取设置真值...
+                      </div>
+                    </div>
+                  )}
+                </div>
 
-            {/* Footer buttons */}
-            <div className={`flex ${isMobileViewport ? 'flex-col-reverse items-stretch gap-3' : 'items-center justify-end gap-4'} ${isMobileViewport ? 'px-4 py-4' : 'px-8 py-5'} dark:border-claude-darkBorder border-claude-border border-t bg-gradient-pearl-footer shrink-0`}>
-              {activeTab === 'im' ? (
-                <>
-                  <div className={`${isMobileViewport ? '' : 'mr-auto'} text-xs leading-5 dark:text-claude-darkTextSecondary text-claude-textSecondary`}>
-                    {'消息频道会在字段失焦后即时保存。这里不再额外提交，避免和右侧启停状态打架。'}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={onClose}
-                    className={`px-5 py-2.5 dark:text-claude-darkText text-claude-text dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover rounded-xl transition-colors text-sm font-medium border dark:border-claude-darkBorder border-claude-border ${isMobileViewport ? 'w-full' : ''}`}
-                  >
-                    {'关闭'}
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    onClick={onClose}
-                    className={`px-5 py-2.5 dark:text-claude-darkText text-claude-text dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover rounded-xl transition-colors text-sm font-medium border dark:border-claude-darkBorder border-claude-border ${isMobileViewport ? 'w-full' : ''}`}
-                  >
-                    {'取消'}
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSaving || !settingsLoaded || settingsLoadFailed}
-                    className={`px-5 py-2.5 bg-gradient-to-r from-purple-400 to-purple-600 hover:from-purple-500 hover:to-purple-700 text-white rounded-xl transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-purple-500/30 hover:shadow-xl hover:shadow-purple-500/40 ${isMobileViewport ? 'w-full' : ''}`}
-                  >
-                    {isSaving ? '保存中...' : '保存'}
-                  </button>
-                </>
-              )}
-            </div>
+                {/* Footer buttons */}
+                <div className="bg-gradient-pearl-footer py-5 shrink-0">
+                  <div className="flex items-center justify-end gap-4 border-t dark:border-claude-darkBorder border-claude-border pt-4">
+                  {activeTab === 'im' ? (
+                    <>
+                      <div className="mr-auto text-xs leading-5 dark:text-claude-darkTextSecondary text-claude-textSecondary">
+                        {'消息频道会在字段失焦后即时保存。这里不再额外提交，避免和右侧启停状态打架。'}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={onClose}
+                        className="px-5 py-2.5 dark:text-claude-darkText text-claude-text dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover rounded-xl transition-colors text-sm font-medium border dark:border-claude-darkBorder border-claude-border"
+                      >
+                        {'关闭'}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={onClose}
+                        className="px-5 py-2.5 dark:text-claude-darkText text-claude-text dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover rounded-xl transition-colors text-sm font-medium border dark:border-claude-darkBorder border-claude-border"
+                      >
+                        {'取消'}
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={isSaving || !settingsLoaded || settingsLoadFailed}
+                        className="px-5 py-2.5 bg-gradient-to-r from-purple-400 to-purple-600 hover:from-purple-500 hover:to-purple-700 text-white rounded-xl transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-purple-500/30 hover:shadow-xl hover:shadow-purple-500/40"
+                      >
+                        {isSaving ? '保存中...' : '保存'}
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+              </div>
+            )}
           </form>
 
         </div>

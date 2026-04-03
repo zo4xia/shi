@@ -12,9 +12,6 @@ import {
   SignalIcon,
   ExclamationTriangleIcon,
   ChevronRightIcon,
-  ChevronUpIcon,
-  ChevronDoubleUpIcon,
-  ChevronDoubleDownIcon,
   PhotoIcon,
 } from '@heroicons/react/24/outline';
 import { FolderIcon } from '@heroicons/react/24/solid';
@@ -24,13 +21,30 @@ import ComposeIcon from '../icons/ComposeIcon';
 import PuzzleIcon from '../icons/PuzzleIcon';
 import EllipsisHorizontalIcon from '../icons/EllipsisHorizontalIcon';
 import WindowTitleBar from '../window/WindowTitleBar';
-import Tooltip from '../ui/Tooltip';
 import { getCompactFolderName } from '../../utils/path';
 import { WebFileOperations } from '../../utils/fileOperations';
 import { isWebBuild } from '../../utils/platform';
+import { configService } from '../../services/config';
+import { renderAgentRoleAvatar } from '../../utils/agentRoleDisplay';
+import {
+  getAgentRoleDisplayAvatar,
+  getAgentRoleDisplayLabel,
+  resolveAgentRolesFromConfig,
+  type AgentRoleKey,
+} from '../../../shared/agentRoleConfig';
 import * as SessionDetailHelpers from './sessionDetailHelpers';
 import CoworkImagePreviewModal from './CoworkImagePreviewModal';
 import CoworkSessionActionMenu from './CoworkSessionActionMenu';
+import { inferSessionSource } from './sessionRecordUtils';
+import {
+  UI_LABEL_TEXT_CLASS,
+  UI_MENU_ICON_CLASS,
+  UI_META_TEXT_CLASS,
+  getTouchButtonClass,
+} from '../../../shared/mobileUi';
+import type { CoworkRightDockAction } from './rightDock';
+import { useIsMobileViewport } from '../../hooks/useIsMobileViewport';
+import { useIsMediumViewport } from '../../hooks/useIsMediumViewport';
 
 
 interface CoworkSessionDetailProps {
@@ -42,6 +56,7 @@ interface CoworkSessionDetailProps {
   onToggleSidebar?: () => void;
   onNewChat?: () => void;
   updateBadge?: React.ReactNode;
+  onSetRightDockActions?: (actions: CoworkRightDockAction[]) => void;
 }
 
 // Local functions that are not in helpers
@@ -129,7 +144,8 @@ const getRenderableImageSrc = (image: CoworkRenderableImage): string | null => {
 const MessageImageGallery: React.FC<{
   images: CoworkRenderableImage[];
   compact?: boolean;
-}> = React.memo(({ images, compact = false }) => {
+  generated?: boolean;
+}> = React.memo(({ images, compact = false, generated = false }) => {
   const [expandedImage, setExpandedImage] = useState<{ src: string; name: string } | null>(null);
   const renderableImages = useMemo(
     () => images
@@ -147,22 +163,37 @@ const MessageImageGallery: React.FC<{
 
   return (
     <>
-      <div className={`flex flex-wrap gap-2 ${compact ? '' : 'mt-2'}`}>
+      <div className={`${compact ? '' : 'mt-2'} space-y-3`}>
+        {generated ? (
+          <div className="inline-flex items-center gap-2 rounded-full border border-amber-200/70 bg-amber-50/80 px-3 py-1 text-[11px] font-medium text-amber-700 dark:border-amber-300/20 dark:bg-amber-300/10 dark:text-amber-200">
+            <PhotoIcon className="h-3.5 w-3.5" />
+            {'生成结果'}
+          </div>
+        ) : null}
+        <div className="flex flex-wrap gap-3">
         {renderableImages.map(({ image, src }, idx) => (
-          <div key={`${image.name}-${idx}`} className="relative group">
+          <button
+            key={`${image.name}-${idx}`}
+            type="button"
+            className="relative group overflow-hidden rounded-[20px] border border-claude-border/60 bg-white/80 shadow-sm transition-all hover:-translate-y-0.5 hover:border-claude-accent/40 hover:shadow-md dark:border-claude-darkBorder/60 dark:bg-white/[0.04]"
+            onClick={() => setExpandedImage({ src, name: image.name })}
+            title={image.name}
+          >
+            <div className="flex h-[220px] w-[220px] items-center justify-center bg-gradient-to-br from-[#f7f4ef] to-[#f2ede7] p-3 dark:from-white/[0.04] dark:to-white/[0.02] sm:h-[240px] sm:w-[240px]">
             <img
               src={src}
               alt={image.name}
-              className="max-h-48 max-w-[16rem] rounded-lg object-contain cursor-pointer border dark:border-claude-darkBorder/50 border-claude-border/50 hover:border-claude-accent/50 transition-colors"
-              title={image.name}
-              onClick={() => setExpandedImage({ src, name: image.name })}
+              className="max-h-full max-w-full rounded-xl object-contain"
             />
-            <div className="absolute bottom-1 left-1 right-1 flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-black/50 text-white text-[10px] opacity-0 group-hover:opacity-100 transition-opacity truncate pointer-events-none">
-              <PhotoIcon className="h-3 w-3 flex-shrink-0" />
-              <span className="truncate">{image.name}</span>
             </div>
-          </div>
+            <div className="absolute inset-x-2 bottom-2 flex items-center gap-1 rounded-xl bg-black/58 px-2.5 py-1.5 text-[11px] text-white opacity-0 transition-opacity group-hover:opacity-100 pointer-events-none">
+              <PhotoIcon className="h-3.5 w-3.5 flex-shrink-0" />
+              <span className="truncate">{image.name}</span>
+              <span className="ml-auto shrink-0 text-white/80">{'点击查看'}</span>
+            </div>
+          </button>
         ))}
+        </div>
       </div>
       {expandedImage && (
         <CoworkImagePreviewModal
@@ -302,6 +333,51 @@ const buildMarkdownExport = (
       lines.push(`## Tool Result · ${toolName} · ${timestamp}`, '', '```text', toolOutput || '', '```', '');
     }
   }
+
+  return `${lines.join('\n').trim()}\n`;
+};
+
+const buildManualCompressionSummary = (
+  session: RootState['cowork']['currentSession'],
+  turns: ConversationTurn[],
+  options?: { turnLimit?: number }
+): string => {
+  if (!session) return '';
+
+  const scopedTurns = options?.turnLimit && options.turnLimit > 0
+    ? turns.slice(-options.turnLimit)
+    : turns.slice(-8);
+
+  const lines: string[] = [
+    `# ${session.title || '当前对话压缩摘要'}`,
+    '',
+    '## 压缩摘要',
+  ];
+
+  if (scopedTurns.length === 0) {
+    lines.push('- 当前没有可压缩的对话内容。');
+    return `${lines.join('\n').trim()}\n`;
+  }
+
+  scopedTurns.forEach((turn, index) => {
+    const userText = (turn.userMessage?.content || '').trim().replace(/\s+/g, ' ').slice(0, 120);
+    const assistantText = turn.assistantItems
+      .filter((item) => item.type === 'assistant')
+      .map((item) => (item.message.content || '').trim().replace(/\s+/g, ' '))
+      .join(' ')
+      .slice(0, 180);
+
+    lines.push(`### 回合 ${index + 1}`);
+    if (userText) lines.push(`- 用户：${userText}`);
+    if (assistantText) lines.push(`- 助手：${assistantText}`);
+    if (turn.assistantItems.some((item) => item.type === 'tool_group')) {
+      lines.push('- 工具：本回合发生过工具调用。');
+    }
+    lines.push('');
+  });
+
+  lines.push('## 使用建议');
+  lines.push('- 这是一份手工压缩摘要，可复制后作为下一轮上下文继续使用。');
 
   return `${lines.join('\n').trim()}\n`;
 };
@@ -736,7 +812,12 @@ const CopyButton: React.FC<{
   );
 };
 
-const UserMessageItem: React.FC<{ message: CoworkMessage; skills: Skill[] }> = React.memo(({ message, skills }) => {
+const UserMessageItem: React.FC<{
+  message: CoworkMessage;
+  skills: Skill[];
+  userLabel?: string;
+  userAvatar?: string;
+}> = React.memo(({ message, skills, userLabel = '用户', userAvatar = '🙂' }) => {
   const [isHovered, setIsHovered] = useState(false);
 
   // Get skills used for this message
@@ -757,7 +838,17 @@ const UserMessageItem: React.FC<{ message: CoworkMessage; skills: Skill[] }> = R
       <div className="max-w-3xl mx-auto">
         <div className="pl-4 sm:pl-8 md:pl-12">
           <div className="flex items-start gap-3 flex-row-reverse">
+            <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/60 bg-white/80 text-base shadow-sm dark:border-white/10 dark:bg-white/[0.08]">
+              {renderAgentRoleAvatar(userAvatar, {
+                alt: userLabel,
+                fallback: '🙂',
+                className: 'h-full w-full object-cover text-[16px] leading-none flex items-center justify-center',
+              })}
+            </div>
             <div className="w-full min-w-0 flex flex-col items-end">
+              <div className="mb-1 text-[11px] font-medium text-claude-textSecondary dark:text-claude-darkTextSecondary">
+                {userLabel}
+              </div>
               <div className="w-fit max-w-[42rem] rounded-2xl px-4 py-2.5 dark:bg-claude-darkSurface bg-claude-surface dark:text-claude-darkText text-claude-text shadow-subtle">
                 {message.content?.trim() && (
                   <MarkdownContent
@@ -798,11 +889,15 @@ const AssistantMessageItem: React.FC<{
   resolveLocalFilePath?: (href: string, text: string) => string | null;
   mapDisplayText?: (value: string) => string;
   showCopyButton?: boolean;
+  roleLabel?: string;
+  roleAvatar?: string;
 }> = React.memo(({
   message,
   resolveLocalFilePath,
   mapDisplayText,
   showCopyButton = false,
+  roleLabel = '助手',
+  roleAvatar = '🤖',
 }) => {
   const [isHovered, setIsHovered] = useState(false);
   const displayContent = mapDisplayText ? mapDisplayText(message.content) : message.content;
@@ -847,6 +942,18 @@ const AssistantMessageItem: React.FC<{
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
+      <div className="mb-2 flex items-center gap-2">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/60 bg-white/80 text-base shadow-sm dark:border-white/10 dark:bg-white/[0.08]">
+          {renderAgentRoleAvatar(roleAvatar, {
+            alt: roleLabel,
+            fallback: '🤖',
+            className: 'h-full w-full object-cover text-[15px] leading-none flex items-center justify-center',
+          })}
+        </div>
+        <div className="min-w-0 text-[11px] font-medium text-claude-textSecondary dark:text-claude-darkTextSecondary">
+          {roleLabel}
+        </div>
+      </div>
       <AssistantSectionBadge
         label={badgeLabel}
         tone={tone}
@@ -904,7 +1011,7 @@ const AssistantMessageItem: React.FC<{
           )}
         </div>
         {generatedImages.length > 0 && (
-          <MessageImageGallery images={generatedImages} compact={!displayContent?.trim()} />
+          <MessageImageGallery images={generatedImages} compact={!displayContent?.trim()} generated />
         )}
       </div>
       {showCopyButton && (
@@ -1174,12 +1281,16 @@ const AssistantTurnBlock: React.FC<{
   mapDisplayText?: (value: string) => string;
   showTypingIndicator?: boolean;
   showCopyButtons?: boolean;
+  roleLabel?: string;
+  roleAvatar?: string;
 }> = React.memo(({
   turn,
   resolveLocalFilePath,
   mapDisplayText,
   showTypingIndicator = false,
   showCopyButtons = true,
+  roleLabel,
+  roleAvatar,
 }) => {
   const visibleAssistantItems = useMemo(() => getVisibleAssistantItems(turn.assistantItems), [turn.assistantItems]);
 
@@ -1283,6 +1394,8 @@ const AssistantTurnBlock: React.FC<{
                     resolveLocalFilePath={resolveLocalFilePath}
                     mapDisplayText={mapDisplayText}
                     showCopyButton={showCopyButtons && !hasToolGroupAfter}
+                    roleLabel={roleLabel}
+                    roleAvatar={roleAvatar}
                   />
                 );
               }
@@ -1335,8 +1448,11 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
   onToggleSidebar,
   onNewChat,
   updateBadge,
+  onSetRightDockActions,
 }) => {
   const isMac = window.electron.platform === 'darwin';
+  const isMobileViewport = useIsMobileViewport();
+  const isMediumViewport = useIsMediumViewport();
   const currentSession = useSelector((state: RootState) => state.cowork.currentSession);
   const isStreaming = useSelector((state: RootState) => state.cowork.isStreaming);
   const skills = useSelector((state: RootState) => state.skill.skills);
@@ -1526,6 +1642,48 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
     e.stopPropagation();
     setShowConfirmDelete(true);
     setMenuPosition(null);
+  };
+
+  const handleCopyCompressedSummary = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!currentSession) return;
+    closeMenu();
+    try {
+      const compression = await coworkService.compressContext(currentSession.id);
+      if (!compression?.combinedSummary?.trim()) {
+        const fallbackSummary = buildManualCompressionSummary(currentSession, turns);
+        await navigator.clipboard.writeText(fallbackSummary);
+        showGlobalToast('后端压缩暂不可用，已复制本地摘要草稿');
+        return;
+      }
+      const summary = [
+        '# 手工压缩上下文',
+        '',
+        `模型来源: ${compression.source} / ${compression.modelId}`,
+        '',
+        '## 对话压缩',
+        compression.conversationSummary,
+        '',
+        '## 广播板压缩',
+        compression.broadcastSummary,
+        '',
+        '## 二次压缩上下文',
+        compression.combinedSummary,
+      ].join('\n');
+      await navigator.clipboard.writeText(summary);
+      showGlobalToast('上下文压缩结果已复制');
+    } catch (error) {
+      console.error('Failed to copy compressed summary:', error);
+      showGlobalToast('复制压缩摘要失败');
+    }
+  };
+
+  const handleInterruptCurrentProcess = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!currentSession) return;
+    closeMenu();
+    const stopped = await coworkService.stopSession(currentSession.id);
+    showGlobalToast(stopped ? '已请求打断当前进程' : '打断失败');
   };
 
   const promptExportTurnCount = useCallback((defaultTurnCount: number): number | null => {
@@ -2209,6 +2367,51 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
     return null;
   }
 
+  const resolvedRoles = resolveAgentRolesFromConfig(configService.getConfig());
+  const currentRoleKey = (currentSession.agentRoleKey && ['organizer', 'writer', 'designer', 'analyst'].includes(currentSession.agentRoleKey))
+    ? currentSession.agentRoleKey as AgentRoleKey
+    : 'organizer';
+  const assistantRoleLabel = getAgentRoleDisplayLabel(currentRoleKey, resolvedRoles);
+  const assistantRoleAvatar = getAgentRoleDisplayAvatar(currentRoleKey, resolvedRoles);
+  const sessionSourceLabel = inferSessionSource(currentSession) === 'external' ? '外部接入' : '桌面对话';
+  const sessionSourceBadgeClassName = sessionSourceLabel === '外部接入'
+    ? 'border-sky-400/35 bg-sky-400/12 text-sky-700 dark:border-sky-300/20 dark:bg-sky-300/12 dark:text-sky-200'
+    : 'border-amber-400/35 bg-amber-400/12 text-amber-700 dark:border-amber-300/20 dark:bg-amber-300/12 dark:text-amber-200';
+  const rightDockActions = useMemo<CoworkRightDockAction[]>(
+    () => (
+      turns.length > 0
+        ? [
+            {
+              id: 'jump-top',
+              label: '跳到最前',
+              icon: 'jump-top',
+              onClick: scrollToTop,
+            },
+            {
+              id: 'jump-prev',
+              label: '跳到上轮末尾',
+              icon: 'jump-prev',
+              onClick: scrollToPreviousTurnBottom,
+            },
+            {
+              id: 'jump-bottom',
+              label: '跳到最新',
+              icon: 'jump-bottom',
+              onClick: scrollToBottom,
+            },
+          ]
+        : []
+    ),
+    [scrollToBottom, scrollToPreviousTurnBottom, scrollToTop, turns.length]
+  );
+
+  useEffect(() => {
+    onSetRightDockActions?.(rightDockActions);
+    return () => {
+      onSetRightDockActions?.([]);
+    };
+  }, [onSetRightDockActions, rightDockActions]);
+
   const renderConversationTurns = () => {
     if (turns.length === 0) {
       if (!isStreaming) return null;
@@ -2245,7 +2448,12 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
         >
           {turn.userMessage && (
             <div data-export-role="user-message">
-              <UserMessageItem message={turn.userMessage} skills={skills} />
+              <UserMessageItem
+                message={turn.userMessage}
+                skills={skills}
+                userLabel="用户"
+                userAvatar="🙂"
+              />
             </div>
           )}
           {showAssistantBlock && (
@@ -2256,6 +2464,8 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
                 mapDisplayText={IDENTITY_DISPLAY_TEXT}
                 showTypingIndicator={showTypingIndicator}
                 showCopyButtons={!isStreaming}
+                roleLabel={assistantRoleLabel}
+                roleAvatar={assistantRoleAvatar}
               />
             </div>
           )}
@@ -2265,9 +2475,14 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
   };
 
   return (
-    <div ref={detailRootRef} className="relative flex-1 flex flex-col dark:bg-claude-darkBg bg-transparent h-full">
+    <div
+      ref={detailRootRef}
+      data-view="cowork-session-detail"
+      data-session-id={currentSession.id}
+      className="relative flex-1 flex flex-col dark:bg-claude-darkBg bg-transparent h-full"
+    >
       {/* Header */}
-      <div className="draggable flex h-12 items-center justify-between px-4 border-b dark:border-claude-darkBorder/50 border-claude-border/30 backdrop-blur-xl bg-gradient-pearl-header shrink-0">
+      <div className="draggable flex min-h-14 items-center justify-between gap-3 px-4 py-2 border-b dark:border-claude-darkBorder/50 border-claude-border/30 backdrop-blur-xl bg-gradient-pearl-header shrink-0">
         {/* Left side: Toggle buttons (when collapsed) + Title + Sandbox badge */}
         <div className="flex h-full items-center gap-2 min-w-0">
           {isSidebarCollapsed && (
@@ -2275,14 +2490,14 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
               <button
                 type="button"
                 onClick={onToggleSidebar}
-                className="h-8 w-8 inline-flex items-center justify-center rounded-lg dark:text-claude-darkTextSecondary text-claude-textSecondary hover:bg-claude-surfaceHover dark:hover:bg-claude-darkSurfaceHover transition-colors"
+                className={getTouchButtonClass('inline-flex items-center justify-center rounded-lg dark:text-claude-darkTextSecondary text-claude-textSecondary hover:bg-claude-surfaceHover dark:hover:bg-claude-darkSurfaceHover transition-colors')}
               >
                 <SidebarToggleIcon className="h-4 w-4" isCollapsed={true} />
               </button>
               <button
                 type="button"
                 onClick={onNewChat}
-                className="h-8 w-8 inline-flex items-center justify-center rounded-lg dark:text-claude-darkTextSecondary text-claude-textSecondary hover:bg-claude-surfaceHover dark:hover:bg-claude-darkSurfaceHover transition-colors"
+                className={getTouchButtonClass('inline-flex items-center justify-center rounded-lg dark:text-claude-darkTextSecondary text-claude-textSecondary hover:bg-claude-surfaceHover dark:hover:bg-claude-darkSurfaceHover transition-colors')}
               >
                 <ComposeIcon className="h-4 w-4" />
               </button>
@@ -2307,25 +2522,42 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
               className="non-draggable min-w-0 max-w-[300px] rounded-xl border border-white/55 bg-white/88 px-2.5 py-1.5 text-sm font-medium text-claude-text shadow-sm focus:outline-none focus:ring-2 focus:ring-claude-accent/35 dark:border-white/10 dark:bg-claude-darkBg/90 dark:text-claude-darkText"
             />
           ) : (
-            <h1 className="text-sm leading-none font-medium dark:text-claude-darkText text-claude-text truncate max-w-[360px]">
-              {currentSession.title || '新会话'}
-            </h1>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2 leading-none">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-violet-400/25 bg-violet-400/10 px-2 py-1 font-medium text-violet-700 dark:border-violet-300/20 dark:bg-violet-300/12 dark:text-violet-200">
+                  {renderAgentRoleAvatar(assistantRoleAvatar, {
+                    alt: assistantRoleLabel,
+                    className: `${UI_MENU_ICON_CLASS} text-[11px]`,
+                  })}
+                  <span className={`truncate max-w-[120px] sm:max-w-[160px] ${UI_LABEL_TEXT_CLASS}`}>{assistantRoleLabel}</span>
+                </span>
+                <span className={`inline-flex items-center rounded-full border px-2 py-1 font-medium max-[380px]:hidden ${sessionSourceBadgeClassName} ${UI_LABEL_TEXT_CLASS}`}>
+                  {sessionSourceLabel}
+                </span>
+              </div>
+              <h1 className={`mt-1 leading-tight font-medium dark:text-claude-darkText text-claude-text truncate ${isMobileViewport ? 'text-sm max-w-[190px]' : isMediumViewport ? 'text-sm max-w-[320px]' : 'text-sm max-w-[420px]'}`}>
+                {currentSession.title || '新会话'}
+              </h1>
+            </div>
           )}
         </div>
 
         {/* Right side: Folder + Menu */}
-        <div className="non-draggable flex items-center gap-1">
+        <div className="non-draggable flex items-center gap-1 shrink-0">
           {/* Folder button */}
           <button
             type="button"
             onClick={handleOpenFolder}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm dark:text-claude-darkTextSecondary text-claude-textSecondary dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover dark:hover:text-claude-darkText hover:text-claude-text transition-colors"
+            className={`${getTouchButtonClass('inline-flex items-center justify-center rounded-lg text-sm dark:text-claude-darkTextSecondary text-claude-textSecondary dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover dark:hover:text-claude-darkText hover:text-claude-text transition-colors')} ${isMobileViewport ? 'px-0' : 'gap-1.5 px-2.5'}`}
             aria-label={'打开文件夹'}
+            title={truncatePath(currentSession.cwd)}
           >
             <FolderIcon className="h-4 w-4" />
-            <span className="max-w-[120px] truncate text-xs">
-              {truncatePath(currentSession.cwd)}
-            </span>
+            {!isMobileViewport && (
+              <span className={`truncate text-xs ${isMediumViewport ? 'max-w-[84px]' : 'max-w-[120px]'}`}>
+                {truncatePath(currentSession.cwd)}
+              </span>
+            )}
           </button>
 
           {/* Menu button */}
@@ -2333,12 +2565,12 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
             ref={actionButtonRef}
             type="button"
             onClick={openMenu}
-            className="p-1.5 rounded-lg dark:text-claude-darkTextSecondary text-claude-textSecondary dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover transition-colors"
+            className={getTouchButtonClass('inline-flex items-center justify-center rounded-lg dark:text-claude-darkTextSecondary text-claude-textSecondary dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover transition-colors')}
             aria-label={'更多操作'}
           >
-            <EllipsisHorizontalIcon className="h-5 w-5" />
+            <EllipsisHorizontalIcon className={UI_MENU_ICON_CLASS} />
           </button>
-          <WindowTitleBar inline className="ml-1" />
+          {!isMobileViewport && <WindowTitleBar inline className="ml-1" />}
         </div>
       </div>
 
@@ -2350,8 +2582,11 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
           left={menuPosition.x}
           pinned={currentSession.pinned}
           isExportingImage={isExportingImage}
+          canInterrupt={currentSession.status === 'running'}
           onRename={handleRenameClick}
           onTogglePin={handleTogglePin}
+          onCompress={handleCopyCompressedSummary}
+          onInterrupt={handleInterruptCurrentProcess}
           onShare={handleShareClick}
           onExportMarkdown={handleExportMarkdown}
           onDelete={handleDeleteClick}
@@ -2456,43 +2691,6 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
           <div className="h-20" />
         </div>
       </div>
-
-      {turns.length > 0 && (
-        <div className="pointer-events-none absolute right-4 top-36 z-20 xl:top-32">
-          <div className="pointer-events-auto flex flex-col gap-1 rounded-2xl border border-white/55 bg-white/72 p-1.5 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-claude-darkSurface/72">
-          <Tooltip content={'跳到最前'} position="left" delay={120}>
-            <button
-              type="button"
-              onClick={scrollToTop}
-              aria-label={'跳到最前'}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-xl text-claude-textSecondary transition-colors hover:bg-white/80 hover:text-claude-text focus:outline-none focus:ring-2 focus:ring-claude-accent/30 dark:text-claude-darkTextSecondary dark:hover:bg-white/8 dark:hover:text-claude-darkText"
-            >
-              <ChevronDoubleUpIcon className="h-4 w-4" />
-            </button>
-          </Tooltip>
-          <Tooltip content={'跳到上轮末尾'} position="left" delay={120}>
-            <button
-              type="button"
-              onClick={scrollToPreviousTurnBottom}
-              aria-label={'跳到上轮末尾'}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-xl text-claude-textSecondary transition-colors hover:bg-white/80 hover:text-claude-text focus:outline-none focus:ring-2 focus:ring-claude-accent/30 dark:text-claude-darkTextSecondary dark:hover:bg-white/8 dark:hover:text-claude-darkText"
-            >
-              <ChevronUpIcon className="h-4 w-4" />
-            </button>
-          </Tooltip>
-          <Tooltip content={'跳到最新'} position="left" delay={120}>
-            <button
-              type="button"
-              onClick={scrollToBottom}
-              aria-label={'跳到最新'}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-xl text-claude-textSecondary transition-colors hover:bg-white/80 hover:text-claude-text focus:outline-none focus:ring-2 focus:ring-claude-accent/30 dark:text-claude-darkTextSecondary dark:hover:bg-white/8 dark:hover:text-claude-darkText"
-            >
-              <ChevronDoubleDownIcon className="h-4 w-4" />
-            </button>
-          </Tooltip>
-          </div>
-        </div>
-      )}
 
       {/* Streaming Activity Bar */}
       {isStreaming && <StreamingActivityBar messages={currentSession.messages} />}

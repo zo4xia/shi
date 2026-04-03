@@ -29,6 +29,7 @@ import type {
   CoworkUserMemoryEntry,
   CoworkMemoryStats,
   CoworkBroadcastBoardSnapshot,
+  CoworkManualCompressionResult,
   CoworkPermissionResult,
   CoworkStartOptions,
   CoworkContinueOptions,
@@ -822,6 +823,14 @@ class CoworkService {
     if (!api) return false;
     const result = await api(input);
     return Boolean(result?.success);
+  }
+
+  async compressContext(sessionId: string): Promise<CoworkManualCompressionResult | null> {
+    const api = window.electron?.cowork?.compressContext;
+    if (!api) return null;
+    const result = await api({ sessionId });
+    if (!result?.success || !result.compression) return null;
+    return result.compression;
   }
 
   async generateSessionTitle(prompt: string | null): Promise<string | null> {
