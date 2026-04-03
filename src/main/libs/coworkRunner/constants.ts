@@ -30,8 +30,8 @@ export const STDERR_TAIL_MAX_CHARS = 24_000;
 /**
  * SDK 启动超时
  */
-export const SDK_STARTUP_TIMEOUT_MS = 90_000;
-export const SDK_STARTUP_TIMEOUT_WITH_USER_MCP_MS = 120_000;
+export const SDK_STARTUP_TIMEOUT_MS = 600_000;
+export const SDK_STARTUP_TIMEOUT_WITH_USER_MCP_MS = 600_000;
 
 /**
  * 工具输入预览限制

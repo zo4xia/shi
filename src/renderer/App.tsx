@@ -67,6 +67,7 @@ const McpView = React.lazy(() => import('./components/mcp/McpView'));
 const EmployeeStoreView = React.lazy(() => import('./components/employeeStore/EmployeeStoreView'));
 const SessionHistoryView = React.lazy(() => import('./components/cowork/SessionHistoryView'));
 const RoomView = React.lazy(() => import('./components/room/RoomView'));
+const AboutUsView = React.lazy(() => import('./components/about/AboutUsView'));
 
 const App: React.FC = () => {
   const [showSettings, setShowSettings] = useState(false);
@@ -75,7 +76,7 @@ const App: React.FC = () => {
   const [pendingSettingsOptions, setPendingSettingsOptions] = useState<SettingsOpenOptions>({});
   const [settingsPasswordInput, setSettingsPasswordInput] = useState('');
   const [settingsPasswordError, setSettingsPasswordError] = useState<string | null>(null);
-  const [mainView, setMainView] = useState<'cowork' | 'skills' | 'scheduledTasks' | 'mcp' | 'employeeStore' | 'resourceShare' | 'freeImageGen' | 'sessionHistory' | 'room'>('cowork');
+  const [mainView, setMainView] = useState<'cowork' | 'skills' | 'scheduledTasks' | 'mcp' | 'employeeStore' | 'resourceShare' | 'freeImageGen' | 'sessionHistory' | 'room' | 'aboutUs'>('cowork');
   const [sessionHistorySourceFilter, setSessionHistorySourceFilter] = useState<SessionSourceFilter>('all');
   const [isInitialized, setIsInitialized] = useState(false);
   const [initError, setInitError] = useState<string | null>(null);
@@ -412,6 +413,13 @@ const App: React.FC = () => {
       setIsSidebarCollapsed(true);
     }
     setMainView('room');
+  }, [isMobileViewport]);
+
+  const handleShowAboutUs = useCallback(() => {
+    if (isMobileViewport) {
+      setIsSidebarCollapsed(true);
+    }
+    setMainView('aboutUs');
   }, [isMobileViewport]);
 
   const handleToggleSidebar = useCallback(() => {
@@ -923,6 +931,7 @@ const App: React.FC = () => {
             onShowResourceShare={handleShowResourceShare}
             onShowFreeImageGen={handleShowFreeImageGen}
             onShowRoom={handleShowRoom}
+            onShowAboutUs={handleShowAboutUs}
             onNewChat={handleNewChat}
             isCollapsed={isSidebarCollapsed}
             onToggleCollapse={handleToggleSidebar}
@@ -1079,6 +1088,13 @@ const App: React.FC = () => {
                   <RoomView
                     isSidebarCollapsed={isSidebarCollapsed}
                     onToggleSidebar={handleToggleSidebar}
+                    updateBadge={isSidebarCollapsed ? updateBadge : null}
+                  />
+                ) : mainView === 'aboutUs' ? (
+                  <AboutUsView
+                    isSidebarCollapsed={isSidebarCollapsed}
+                    onToggleSidebar={handleToggleSidebar}
+                    onNewChat={handleNewChat}
                     updateBadge={isSidebarCollapsed ? updateBadge : null}
                   />
                 ) : (

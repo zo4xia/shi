@@ -1789,7 +1789,7 @@ export class HttpSessionExecutor implements SessionExecutor {
         content,
       },
       channelHint,
-      sessionId
+      session.id
     );
     this.store.getSaveFunction()();
 

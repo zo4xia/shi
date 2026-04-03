@@ -10,7 +10,7 @@ import ClockIcon from './icons/ClockIcon';
 import PuzzleIcon from './icons/PuzzleIcon';
 import SidebarToggleIcon from './icons/SidebarToggleIcon';
 import TrashIcon from './icons/TrashIcon';
-import { ExclamationTriangleIcon, ShoppingBagIcon, PhotoIcon, LinkIcon, ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
+import { ExclamationTriangleIcon, ShoppingBagIcon, PhotoIcon, LinkIcon, ChatBubbleLeftRightIcon, HeartIcon } from '@heroicons/react/24/outline';
 import { StarIcon } from '@heroicons/react/24/solid';
 import {
   getTouchButtonClass,
@@ -31,7 +31,7 @@ import { useIsMobileViewport } from '../hooks/useIsMobileViewport';
 interface SidebarProps {
   onShowSettings: () => void;
   onShowLogin?: () => void;
-  activeView: 'cowork' | 'skills' | 'scheduledTasks' | 'mcp' | 'employeeStore' | 'resourceShare' | 'freeImageGen' | 'sessionHistory' | 'room';
+  activeView: 'cowork' | 'skills' | 'scheduledTasks' | 'mcp' | 'employeeStore' | 'resourceShare' | 'freeImageGen' | 'sessionHistory' | 'room' | 'aboutUs';
   onShowSkills: () => void;
   onShowCowork: () => void;
   onShowScheduledTasks: () => void;
@@ -41,6 +41,7 @@ interface SidebarProps {
   onShowResourceShare: () => void;
   onShowFreeImageGen: () => void;
   onShowRoom: () => void;
+  onShowAboutUs: () => void;
   onNewChat: () => void;
   isCollapsed: boolean;
   onToggleCollapse: () => void;
@@ -77,6 +78,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   onShowResourceShare,
   onShowFreeImageGen,
   onShowRoom,
+  onShowAboutUs,
   onNewChat,
   isCollapsed,
   onToggleCollapse,
@@ -241,6 +243,15 @@ const Sidebar: React.FC<SidebarProps> = ({
       shellClass: 'border-[#ffd8ee] bg-[#fff0f8] text-[#8b5e77] hover:bg-[#ffe7f3]',
       iconWrapClass: 'bg-[#ffdff0] text-[#db7fb0]',
     },
+    {
+      key: 'aboutUs-compact',
+      active: activeView === 'aboutUs',
+      label: '关于我们',
+      icon: <HeartIcon className={UI_MENU_ICON_CLASS} />,
+      onClick: onShowAboutUs,
+      shellClass: 'border-[#ffe3ef] bg-[#fff5fa] text-[#916275] hover:bg-[#ffedf5]',
+      iconWrapClass: 'bg-[#ffe5f0] text-[#dd7ea7]',
+    },
   ];
 
   if (isCompactSidebar) {
@@ -304,6 +315,19 @@ const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         <div className="px-3 pb-3">
+          <button
+            type="button"
+            onClick={onShowAboutUs}
+            className={`mb-2 w-full min-h-11 min-w-11 inline-flex items-center gap-2 rounded-2xl border px-3 py-2.5 text-sm font-medium transition-colors ${
+              activeView === 'aboutUs'
+                ? 'border-[#ffd7e8] bg-[#fff3f9] text-[#8f6078] dark:border-white/10 dark:bg-white/[0.08] dark:text-claude-darkText'
+                : 'border-white/60 bg-white/45 dark:border-white/10 dark:bg-white/[0.03] dark:text-claude-darkTextSecondary text-claude-textSecondary hover:text-claude-text dark:hover:text-claude-darkText hover:bg-white/55 dark:hover:bg-white/[0.06]'
+            }`}
+            aria-label="关于我们"
+          >
+            <HeartIcon className={UI_MENU_ICON_CLASS} />
+            关于我们
+          </button>
           <button
             type="button"
             onClick={onShowSettings}
@@ -425,6 +449,33 @@ const Sidebar: React.FC<SidebarProps> = ({
                   </div>
                 </button>
               ))}
+            </div>
+          </div>
+
+          <div>
+            <div className="mb-2 px-2 text-[10px] font-semibold uppercase tracking-[0.18em] dark:text-claude-darkTextSecondary/85 text-claude-textSecondary/85">
+              {'关于'}
+            </div>
+            <div className={sectionShellClass}>
+              <button
+                type="button"
+                onClick={onShowAboutUs}
+                className={navBtnClass(activeView === 'aboutUs', 'secondary')}
+              >
+                <div className="flex items-start gap-2.5">
+                  <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white/65 text-current dark:bg-white/[0.06]">
+                    <HeartIcon className="h-4 w-4" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[13px] font-semibold tracking-[-0.01em] dark:text-claude-darkText text-[#51473F]">
+                      {'关于我们'}
+                    </span>
+                    <span className="mt-0.5 block text-[10px] leading-5 dark:text-claude-darkTextSecondary/70 text-[#938678]">
+                      {'看看我们是谁，也看看怎样好好对待小家伙们。'}
+                    </span>
+                  </span>
+                </div>
+              </button>
             </div>
           </div>
         </div>
