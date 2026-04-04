@@ -17,6 +17,8 @@
   - 前端 1.0 维护施工图：页面盘点、地基结构、水电布线、SOP 流程、修缮顺序
 - `docs/2026-04-04_211500_FRONTEND_PROGRESS_STATUS_NOTE.md`
   - 当前前端修缮已完成项、仍在修项与 build 验证状态
+- `docs/2026-04-04_214500_COMPRESSED_PROGRESS_RELAY.md`
+  - 当前阶段压缩接力：代码节点、线上状态、本地未提交现场、后续顺序
 - `docs/2026-03-30_230300_PROJECT_ONE_SENTENCE_PRINCIPLE.md`
   - 项目的一句话总纲：按需调用，异步加载，不要越做越重
 - `docs/2026-03-31_022249_CACHE_HIT_IS_HUMANITY_PROTECTION.md`
