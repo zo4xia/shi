@@ -5,6 +5,18 @@
 
 ## 总入口
 
+- `docs/2026-04-04_172100_HOME_CONTINUITY_ENTRY.md`
+  - 失忆、换线程、重新接手时先回这里，快速找回“项目为什么存在、最近做到哪了、下一步怎么接”
+- `docs/2026-04-04_171200_CONTINUITY_RELAY_BATON.md`
+  - 最新接力棒，记录当前确认事实、组件化进展、验证状态与下一步方向
+- `docs/2026-04-04_193500_TAGGING_AND_ANNOTATION_DISCIPLINE.md`
+  - 重要问题、边界和教训必须留下标签与批注，不只修代码就离开
+- `docs/2026-04-04_201500_SIDEBAR_AND_OUTER_RAIL_REPAIR_LOG.md`
+  - 侧边栏一列 / 容器外吸附问题的现场修缮记录，按布局壳 → 组件边界 → 真实截图顺序继续
+- `docs/2026-04-04_204500_FRONTEND_XRAY_CONSTRUCTION_BLUEPRINT.md`
+  - 前端 1.0 维护施工图：页面盘点、地基结构、水电布线、SOP 流程、修缮顺序
+- `docs/2026-04-04_211500_FRONTEND_PROGRESS_STATUS_NOTE.md`
+  - 当前前端修缮已完成项、仍在修项与 build 验证状态
 - `docs/2026-03-30_230300_PROJECT_ONE_SENTENCE_PRINCIPLE.md`
   - 项目的一句话总纲：按需调用，异步加载，不要越做越重
 - `docs/2026-03-31_022249_CACHE_HIT_IS_HUMANITY_PROTECTION.md`

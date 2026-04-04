@@ -5,8 +5,6 @@ import { ComputerDesktopIcon, PhotoIcon } from '@heroicons/react/24/outline';
 import PaperClipIcon from '../icons/PaperClipIcon';
 import XMarkIcon from '../icons/XMarkIcon';
 import ModelSelector from '../ModelSelector';
-import FolderSelectorPopover from './FolderSelectorPopover';
-import { SkillsButton, ActiveSkillBadge } from '../skills';
 import { requestEmbeddedBrowserOpen } from '../../services/embeddedBrowser';
 import { skillService } from '../../services/skill';
 import { localStore } from '../../services/store';
@@ -31,7 +29,11 @@ import {
   BROWSER_EYES_CURRENT_PAGE_STORE_KEY,
   type BrowserEyesCurrentPageState,
 } from '../../../shared/browserEyesState';
-import { UI_LABEL_TEXT_CLASS, UI_MENU_ICON_CLASS } from '../../../shared/mobileUi';
+import type { ConversationActionStatus } from './conversationActionStatus';
+import ConversationActionBar from './ConversationActionBar';
+import PromptToolRow from './PromptToolRow';
+import { UI_LABEL_TEXT_CLASS } from '../../../shared/mobileUi';
+import { useTimedConversationActionStatus } from '../../hooks/useTimedConversationActionStatus';
 
 type CoworkAttachment = {
   path: string;
@@ -233,6 +235,13 @@ export interface CoworkSubmitOptions {
 interface CoworkPromptInputProps {
   onSubmit: (prompt: string, skillPrompt?: string, imageAttachments?: CoworkImageAttachment[], submitOptions?: CoworkSubmitOptions) => void;
   onStop?: () => void;
+  onManualCompress?: () => void | Promise<void>;
+  isManualCompressing?: boolean;
+  manualCompressStatus?: ConversationActionStatus | null;
+  onInterruptProcess?: () => void | Promise<void>;
+  isInterruptingProcess?: boolean;
+  interruptProcessStatus?: ConversationActionStatus | null;
+  canInterruptProcess?: boolean;
   isStreaming?: boolean;
   placeholder?: string;
   disabled?: boolean;
@@ -252,6 +261,13 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
     const {
       onSubmit,
       onStop,
+      onManualCompress,
+      isManualCompressing = false,
+      manualCompressStatus = null,
+      onInterruptProcess,
+      isInterruptingProcess = false,
+      interruptProcessStatus = null,
+      canInterruptProcess = false,
       isStreaming = false,
       placeholder = '输入你的任务...',
       disabled = false,
@@ -275,6 +291,7 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
     const [inputWasTruncated, setInputWasTruncated] = useState(initialPrompt.wasTruncated);
     const [isDraggingFiles, setIsDraggingFiles] = useState(false);
     const [zenModeEnabled, setZenModeEnabled] = useState(false);
+    const [isClearingBroadcastBoard, setIsClearingBroadcastBoard] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const folderButtonRef = useRef<HTMLButtonElement>(null);
@@ -899,20 +916,64 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
   const enhancedContainerClass = isDraggingFiles
     ? `${containerClass} ring-2 ring-claude-accent/50 border-claude-accent/60`
     : containerClass;
-  const isMobileViewport = useIsMobileViewport();
-  const zenButtonClass = zenModeEnabled
-    ? 'inline-flex items-center gap-1.5 rounded-full border border-emerald-300/60 bg-emerald-50/85 px-3 py-1.5 text-[11px] font-medium text-emerald-700 shadow-sm transition-colors hover:bg-emerald-100 dark:border-emerald-400/30 dark:bg-emerald-400/10 dark:text-emerald-200 dark:hover:bg-emerald-400/16'
-    : 'inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-white/60 px-3 py-1.5 text-[11px] font-medium text-[#7A7065] transition-colors hover:bg-white/80 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/60 dark:hover:bg-white/[0.08]';
-  const clearBoardButtonClass = 'inline-flex items-center gap-1.5 rounded-full border border-rose-200/70 bg-rose-50/85 px-3 py-1.5 text-[11px] font-medium text-rose-700 shadow-sm transition-colors hover:bg-rose-100 dark:border-rose-400/30 dark:bg-rose-400/10 dark:text-rose-200 dark:hover:bg-rose-400/16';
+  const shouldShowActionBar = isLarge && Boolean(sessionRoleKey || onManualCompress || onInterruptProcess);
+  const clearBroadcastBoardStatus = useTimedConversationActionStatus({
+    accent: 'rose',
+    pending: isClearingBroadcastBoard,
+    initialStage: {
+      label: '已发出清空请求',
+      description: '正在请求清理当前角色的 24h 接力摘要，马上回来。',
+    },
+    waitingStage: {
+      label: '正在等待清空返回',
+      description: '广播板正在整理成空白状态，请稍等，不是没有反应。',
+    },
+    slowStage: {
+      label: '广播板还在处理',
+      description: '这次返回有点慢，但系统还在继续，请再等一下。',
+    },
+  });
+  const activeActionStatus = isManualCompressing
+    ? manualCompressStatus
+    : isClearingBroadcastBoard
+      ? clearBroadcastBoardStatus.status
+      : isInterruptingProcess
+        ? interruptProcessStatus
+        : manualCompressStatus ?? clearBroadcastBoardStatus.status ?? interruptProcessStatus ?? null;
 
   const handleClearBroadcastBoard = useCallback(async () => {
     const roleKey = String(sessionRoleKey || '').trim();
-    if (!roleKey) return;
+    if (!roleKey || isManualCompressing || isClearingBroadcastBoard || isInterruptingProcess) return;
     const confirmed = window.confirm('清空当前角色的广播板？这会移除 24h 接力摘要。');
     if (!confirmed) return;
-    const success = await coworkService.clearBroadcastBoard({ agentRoleKey: roleKey });
-    showGlobalToast(success ? '广播板已清空' : '清空广播板失败');
-  }, [sessionRoleKey]);
+    setIsClearingBroadcastBoard(true);
+    try {
+      showGlobalToast('正在清空广播板，请稍等…');
+      const success = await coworkService.clearBroadcastBoard({ agentRoleKey: roleKey });
+      if (success) {
+        clearBroadcastBoardStatus.showSuccess({
+          label: '广播板已清空',
+          description: '当前角色的接力摘要已经清空，后续会从新的痕迹继续写起。',
+        });
+      } else {
+        clearBroadcastBoardStatus.showError({
+          label: '广播板清空失败',
+          description: '这次没有成功清空，原来的接力摘要还在，可以稍后再试。',
+        });
+      }
+      showGlobalToast(success ? '广播板已清空' : '清空广播板失败');
+    } finally {
+      setIsClearingBroadcastBoard(false);
+    }
+  }, [clearBroadcastBoardStatus, isClearingBroadcastBoard, isInterruptingProcess, isManualCompressing, sessionRoleKey]);
+
+  const handleToggleZenMode = useCallback(() => {
+    setZenModeEnabled((current) => {
+      const next = !current;
+      showGlobalToast(next ? '已开启禅模式' : '已关闭禅模式');
+      return next;
+    });
+  }, []);
 
   return (
     <div className="relative">
@@ -923,32 +984,19 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
         className="hidden"
         onChange={handleFileInputChange}
       />
-      {!isMobileViewport && (
-        <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex justify-end">
-          <div className="pointer-events-auto">
-            <button
-              type="button"
-              onClick={() => setZenModeEnabled((current) => !current)}
-              className={`${zenButtonClass} ${isLarge ? 'shadow-[0_8px_20px_rgba(90,82,72,0.08)]' : 'scale-[0.95] origin-top-right'} translate-y-[-55%]`}
-              title={zenModeEnabled ? '禅模式已开启：关闭广播板读写' : '开启禅模式：关闭广播板读写'}
-              aria-pressed={zenModeEnabled}
-            >
-              <span className="font-semibold">{zenModeEnabled ? '禅' : '常'}</span>
-              <span>{zenModeEnabled ? '禅模式开' : '禅模式关'}</span>
-            </button>
-            {sessionRoleKey && (
-              <button
-                type="button"
-                onClick={() => { void handleClearBroadcastBoard(); }}
-                className={`${clearBoardButtonClass} ml-2 ${isLarge ? 'shadow-[0_8px_20px_rgba(90,82,72,0.08)]' : 'scale-[0.95] origin-top-right'} translate-y-[-55%]`}
-                title="清空当前角色的广播板"
-              >
-                <span className="font-semibold">清</span>
-                <span>清空广播板</span>
-              </button>
-            )}
-          </div>
-        </div>
+      {shouldShowActionBar && (
+        <ConversationActionBar
+          zenModeEnabled={zenModeEnabled}
+          onToggleZenMode={handleToggleZenMode}
+          onManualCompress={onManualCompress}
+          isManualCompressing={isManualCompressing}
+          isClearingBroadcastBoard={isClearingBroadcastBoard}
+          onClearBroadcastBoard={sessionRoleKey ? handleClearBroadcastBoard : undefined}
+          onInterruptProcess={onInterruptProcess}
+          isInterruptingProcess={isInterruptingProcess}
+          canInterruptProcess={canInterruptProcess}
+          activeStatus={activeActionStatus}
+        />
       )}
       {attachments.length > 0 && (
         <div className="mb-2 flex flex-wrap gap-2">
@@ -1013,121 +1061,29 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
               className={textareaClass}
               style={{ minHeight: `${minHeight}px`, maxHeight: `${maxHeight}px` }}
             />
-            <div className="flex flex-wrap items-center gap-2 px-4 pb-2 pt-1.5">
-              <div className="relative flex min-w-0 flex-1 flex-wrap items-center gap-2">
-                {showFolderSelector && (
-                  <>
-                    <div className="relative group">
-                      <button
-                        ref={folderButtonRef as React.RefObject<HTMLButtonElement>}
-                        type="button"
-                        onClick={() => setShowFolderMenu(!showFolderMenu)}
-                        className="flex max-w-full items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm text-[#9A9085] transition-colors hover:bg-[#9A9085]/10 hover:text-[#7A7065] dark:text-white/50 dark:hover:bg-white/10 dark:hover:text-white/70"
-                      >
-                        <FolderIcon className="h-4 w-4 shrink-0" />
-                        <span className={`max-w-[120px] truncate sm:max-w-[180px] ${UI_LABEL_TEXT_CLASS}`}>
-                          {truncatePath(workingDirectory)}
-                        </span>
-                      </button>
-                      {/* Tooltip - hidden when folder menu is open */}
-                      {!showFolderMenu && (
-                        <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 max-w-[min(20rem,calc(100vw-2rem))] px-3.5 py-2.5 text-[13px] leading-relaxed rounded-xl shadow-lg dark:bg-white/10 bg-white/80 dark:text-white/90 text-[#5A5248] dark:border-white/10 border border-white/20 backdrop-blur-sm opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-colors duration-200 pointer-events-none z-50 break-all whitespace-nowrap">
-                          {truncatePath(workingDirectory, 120)}
-                        </div>
-                      )}
-                    </div>
-                    <FolderSelectorPopover
-                      isOpen={showFolderMenu}
-                      onClose={() => setShowFolderMenu(false)}
-                      onSelectFolder={handleFolderSelect}
-                      anchorRef={folderButtonRef as React.RefObject<HTMLElement>}
-                    />
-                  </>
-                )}
-                {showModelSelector && (
-                  <ModelSelector
-                    dropdownDirection="up"
-                    forcedRoleKey={sessionRoleKey as AgentRoleKey | undefined}
-                    forcedModelId={sessionModelId}
-                    readOnly={lockModelSelector}
-                  />
-                )}
-                <button
-                  type="button"
-                  onClick={handleAddFile}
-                  className="flex shrink-0 items-center justify-center rounded-lg p-1.5 text-sm text-[#9A9085] transition-colors hover:bg-[#9A9085]/10 hover:text-[#7A7065] dark:text-white/50 dark:hover:bg-white/10 dark:hover:text-white/70"
-                  title={'添加文件'}
-                  aria-label={'添加文件'}
-                  disabled={disabled || isStreaming}
-                >
-                  <PaperClipIcon className={UI_MENU_ICON_CLASS} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { void handleOpenBrowserEyes(); }}
-                  className="flex shrink-0 items-center justify-center rounded-lg p-1.5 text-sm text-[#9A9085] transition-colors hover:bg-[#9A9085]/10 hover:text-[#7A7065] dark:text-white/50 dark:hover:bg-white/10 dark:hover:text-white/70"
-                  title={'打开小眼睛小电视'}
-                  aria-label={'打开小眼睛小电视'}
-                  disabled={disabled}
-                >
-                  <ComputerDesktopIcon className={UI_MENU_ICON_CLASS} />
-                </button>
-                <SkillsButton
-                  onSelectSkill={handleSelectSkill}
-                  onManageSkills={handleManageSkills}
-                  roleKey={sessionRoleKey}
-                  onOpen={ensureSkillsLoaded}
-                />
-                {isMobileViewport && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => setZenModeEnabled((current) => !current)}
-                      className={zenButtonClass}
-                      title={zenModeEnabled ? '禅模式已开启：关闭广播板读写' : '开启禅模式：关闭广播板读写'}
-                      aria-pressed={zenModeEnabled}
-                    >
-                      <span className="font-semibold">{zenModeEnabled ? '禅' : '常'}</span>
-                      <span>{zenModeEnabled ? '禅模式开' : '禅模式关'}</span>
-                    </button>
-                    {sessionRoleKey && (
-                      <button
-                        type="button"
-                        onClick={() => { void handleClearBroadcastBoard(); }}
-                        className={clearBoardButtonClass}
-                        title="清空当前角色的广播板"
-                      >
-                        <span className="font-semibold">清</span>
-                        <span>清空广播板</span>
-                      </button>
-                    )}
-                  </>
-                )}
-                <ActiveSkillBadge />
-              </div>
-              <div className="ml-auto flex shrink-0 items-center gap-2">
-                {isStreaming ? (
-                  <button
-                    type="button"
-                    onClick={handleStopClick}
-                    className="p-2 rounded-xl bg-red-500/90 hover:bg-red-600 text-white transition-colors shadow-sm hover:shadow"
-                    aria-label="停止"
-                  >
-                    <StopIcon className="h-5 w-5" />
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => { void handleSubmit(); }}
-                    disabled={!canSubmit}
-                    className="p-2 rounded-xl bg-gradient-to-br from-violet-400 to-purple-500 hover:from-violet-500 hover:to-purple-600 text-white transition-all duration-200 shadow-[0_2px_8px_rgba(139,92,246,0.35)] hover:shadow-[0_4px_12px_rgba(139,92,246,0.45)] hover:scale-105 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none disabled:hover:scale-100"
-                    aria-label="发送"
-                  >
-                    <PaperAirplaneIcon className="h-5 w-5" />
-                  </button>
-                )}
-              </div>
-            </div>
+            <PromptToolRow
+              showFolderSelector={showFolderSelector}
+              workingDirectory={workingDirectory}
+              truncatePath={truncatePath}
+              folderButtonRef={folderButtonRef as React.RefObject<HTMLButtonElement>}
+              showFolderMenu={showFolderMenu}
+              setShowFolderMenu={setShowFolderMenu}
+              handleFolderSelect={handleFolderSelect}
+              showModelSelector={showModelSelector}
+              sessionRoleKey={sessionRoleKey}
+              sessionModelId={sessionModelId}
+              lockModelSelector={lockModelSelector}
+              disabled={disabled}
+              isStreaming={isStreaming}
+              handleAddFile={handleAddFile}
+              handleOpenBrowserEyes={handleOpenBrowserEyes}
+              handleSelectSkill={handleSelectSkill}
+              handleManageSkills={handleManageSkills}
+              ensureSkillsLoaded={ensureSkillsLoaded}
+              canSubmit={canSubmit}
+              handleStopClick={handleStopClick}
+              handleSubmit={handleSubmit}
+            />
           </>
         ) : (
           <>

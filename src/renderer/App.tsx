@@ -6,10 +6,8 @@ import Sidebar from './components/Sidebar';
 import Toast from './components/Toast';
 import WindowTitleBar from './components/window/WindowTitleBar';
 import { CoworkView } from './components/cowork';
-import FeedbackButton from './components/FeedbackButton';
-import SettingsEntryButton from './components/SettingsEntryButton';
+import { GlobalFloatingActionRail } from './components/app-ui';
 import SidebarToggleIcon from './components/icons/SidebarToggleIcon';
-import ComposeIcon from './components/icons/ComposeIcon';
 import CoworkPermissionModal from './components/cowork/CoworkPermissionModal';
 import CoworkQuestionWizard from './components/cowork/CoworkQuestionWizard';
 import { imService } from './services/im';
@@ -30,9 +28,6 @@ import type { ApiConfig } from './services/api';
 import type { CoworkPermissionResult } from './types/cowork';
 import {
   ChatBubbleLeftRightIcon,
-  ChevronDoubleDownIcon,
-  ChevronDoubleUpIcon,
-  ChevronUpIcon,
 } from '@heroicons/react/24/outline';
 import { StarIcon } from '@heroicons/react/24/solid';
 import { matchesShortcut } from './services/shortcuts';
@@ -53,7 +48,6 @@ import {
   type BrowserEyesCurrentPageState,
 } from '../shared/browserEyesState';
 import type { CoworkRightDockAction } from './components/cowork/rightDock';
-import Tooltip from './components/ui/Tooltip';
 import {
   UI_META_TEXT_CLASS,
   UI_MENU_ICON_CLASS,
@@ -67,6 +61,7 @@ const McpView = React.lazy(() => import('./components/mcp/McpView'));
 const EmployeeStoreView = React.lazy(() => import('./components/employeeStore/EmployeeStoreView'));
 const SessionHistoryView = React.lazy(() => import('./components/cowork/SessionHistoryView'));
 const RoomView = React.lazy(() => import('./components/room/RoomView'));
+const AboutUsView = React.lazy(() => import('./components/about/AboutUsView'));
 
 const App: React.FC = () => {
   const [showSettings, setShowSettings] = useState(false);
@@ -75,7 +70,7 @@ const App: React.FC = () => {
   const [pendingSettingsOptions, setPendingSettingsOptions] = useState<SettingsOpenOptions>({});
   const [settingsPasswordInput, setSettingsPasswordInput] = useState('');
   const [settingsPasswordError, setSettingsPasswordError] = useState<string | null>(null);
-  const [mainView, setMainView] = useState<'cowork' | 'skills' | 'scheduledTasks' | 'mcp' | 'employeeStore' | 'resourceShare' | 'freeImageGen' | 'sessionHistory' | 'room'>('cowork');
+  const [mainView, setMainView] = useState<'cowork' | 'skills' | 'scheduledTasks' | 'mcp' | 'employeeStore' | 'resourceShare' | 'freeImageGen' | 'sessionHistory' | 'room' | 'aboutUs'>('cowork');
   const [sessionHistorySourceFilter, setSessionHistorySourceFilter] = useState<SessionSourceFilter>('all');
   const [isInitialized, setIsInitialized] = useState(false);
   const [initError, setInitError] = useState<string | null>(null);
@@ -113,13 +108,6 @@ const App: React.FC = () => {
     && !shouldUseCompactTopActionButtons
     && mainView === 'cowork'
     && Boolean(currentSessionId);
-  const shouldUseTopRightActionRail = shouldShowGlobalTopActions && !shouldUseCenteredRightActionRail;
-  const shouldReserveTopOverlaySpace = shouldUseLeftSidebarLauncher || shouldUseTopRightActionRail;
-  const rightDockIconMap: Record<CoworkRightDockAction['icon'], React.ReactNode> = {
-    'jump-top': <ChevronDoubleUpIcon className="h-4 w-4" />,
-    'jump-prev': <ChevronUpIcon className="h-4 w-4" />,
-    'jump-bottom': <ChevronDoubleDownIcon className="h-4 w-4" />,
-  };
 
   useEffect(() => {
     if (!lockedFeatureLabel) {
@@ -412,6 +400,13 @@ const App: React.FC = () => {
       setIsSidebarCollapsed(true);
     }
     setMainView('room');
+  }, [isMobileViewport]);
+
+  const handleShowAboutUs = useCallback(() => {
+    if (isMobileViewport) {
+      setIsSidebarCollapsed(true);
+    }
+    setMainView('aboutUs');
   }, [isMobileViewport]);
 
   const handleToggleSidebar = useCallback(() => {
@@ -905,126 +900,35 @@ const App: React.FC = () => {
       {toastMessage && (
         <Toast message={toastMessage} onClose={() => setToastMessage(null)} />
       )}
-      <div className="flex flex-1 min-h-0 overflow-hidden main-content-pearl">
-        <div
-          className="app-shell-frame mx-auto h-full w-full flex min-h-0 overflow-hidden"
-          style={{ maxWidth: 'var(--uclaw-shell-max-width)' }}
-        >
-          <Sidebar
-            onShowLogin={handleShowLogin}
-            onShowSettings={handleShowSettings}
-            activeView={mainView}
-            onShowSkills={handleShowSkills}
-            onShowCowork={handleShowCowork}
-            onShowScheduledTasks={handleShowScheduledTasks}
-            onShowSessionHistory={handleShowSessionHistory}
-            onShowMcp={handleShowMcp}
-            onShowEmployeeStore={handleShowEmployeeStore}
-            onShowResourceShare={handleShowResourceShare}
-            onShowFreeImageGen={handleShowFreeImageGen}
-            onShowRoom={handleShowRoom}
-            onNewChat={handleNewChat}
-            isCollapsed={isSidebarCollapsed}
-            onToggleCollapse={handleToggleSidebar}
-            updateBadge={!isSidebarCollapsed ? updateBadge : null}
-          />
-          <div className={`flex-1 min-w-0 py-1.5 pr-1.5 ${isSidebarCollapsed ? 'pl-1.5' : ''}`}>
+      <div className="relative flex flex-1 min-h-0 overflow-hidden main-content-pearl">
+        <Sidebar
+          onShowLogin={handleShowLogin}
+          onShowSettings={handleShowSettings}
+          activeView={mainView}
+          onShowSkills={handleShowSkills}
+          onShowCowork={handleShowCowork}
+          onShowScheduledTasks={handleShowScheduledTasks}
+          onShowSessionHistory={handleShowSessionHistory}
+          onShowMcp={handleShowMcp}
+          onShowEmployeeStore={handleShowEmployeeStore}
+          onShowResourceShare={handleShowResourceShare}
+          onShowFreeImageGen={handleShowFreeImageGen}
+          onShowRoom={handleShowRoom}
+          onShowAboutUs={handleShowAboutUs}
+          onNewChat={handleNewChat}
+          isCollapsed={isSidebarCollapsed}
+          onToggleCollapse={handleToggleSidebar}
+          updateBadge={!isSidebarCollapsed ? updateBadge : null}
+        />
+        <div className={`flex flex-1 min-w-0 ${isSidebarCollapsed ? 'pl-1.5' : ''}`}>
+          <div
+            className="app-shell-frame mx-auto h-full w-full min-w-0 overflow-hidden py-1.5 pr-1.5"
+            style={{ maxWidth: 'var(--uclaw-shell-max-width)' }}
+          >
             <div
-              className={`h-full min-h-0 dark:bg-claude-darkBg bg-claude-bg overflow-hidden relative ${shouldReserveTopOverlaySpace ? 'pt-[52px] sm:pt-[56px]' : 'pt-0'}`}
+              className="h-full min-h-0 overflow-hidden bg-claude-bg dark:bg-claude-darkBg"
               style={{ borderRadius: 'var(--uclaw-shell-radius)' }}
             >
-              {/* ## {提取} TopActionsOffsetShell
-                  当前全局顶部按钮层统一压在主内容壳上方。
-                  后续适合抽成公共顶部浮层 + 统一偏移变量，不要让各页面自己猜避让高度。 */}
-              {shouldUseLeftSidebarLauncher && (
-                <div className="pointer-events-none absolute inset-y-0 left-0 z-30 flex items-start justify-start px-3 py-4 sm:px-4">
-                  <div className="pointer-events-auto">
-                    <button
-                      type="button"
-                      onClick={handleToggleSidebar}
-                      className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/55 bg-white/78 text-claude-textSecondary shadow-[0_10px_24px_rgba(194,170,145,0.16)] backdrop-blur-md transition-all hover:-translate-y-0.5 hover:bg-white/90 hover:text-claude-text dark:border-white/10 dark:bg-white/[0.06] dark:text-claude-darkTextSecondary dark:hover:bg-white/[0.1] dark:hover:text-claude-darkText"
-                      aria-label="展开侧边栏"
-                    >
-                      <SidebarToggleIcon className={UI_MENU_ICON_CLASS} isCollapsed={true} />
-                    </button>
-                  </div>
-                </div>
-              )}
-              {shouldShowGlobalTopActions && (
-                <div
-                  className={`pointer-events-none absolute z-30 flex justify-end ${
-                    shouldUseCenteredRightActionRail
-                      ? 'right-3 top-1/2 -translate-y-1/2 sm:right-4'
-                      : shouldUseTopRightActionRail
-                      ? 'inset-x-0 top-0 px-3 py-5 sm:px-4'
-                      : 'hidden'
-                  }`}
-                >
-                  <div className={`pointer-events-auto flex flex-col items-end ${UI_SURFACE_COMPACT_GAP_CLASS}`}>
-                    {mainView === 'cowork' && !currentSessionId && isSidebarCollapsed && !shouldUseCompactTopActionButtons ? (
-                      <>
-                        <div className={`flex flex-col items-end ${UI_SURFACE_COMPACT_GAP_CLASS} rounded-[20px] border border-white/55 bg-white/72 p-2 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-white/[0.05]`}>
-                          <button
-                            type="button"
-                            onClick={handleToggleSidebar}
-                            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/55 bg-white/78 text-claude-textSecondary shadow-sm backdrop-blur-md transition-colors hover:bg-white/90 hover:text-claude-text dark:border-white/10 dark:bg-white/[0.06] dark:text-claude-darkTextSecondary dark:hover:bg-white/[0.1] dark:hover:text-claude-darkText"
-                            aria-label="展开侧边栏"
-                          >
-                            <SidebarToggleIcon className={UI_MENU_ICON_CLASS} isCollapsed={true} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={handleNewChat}
-                            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/55 bg-white/78 text-claude-textSecondary shadow-sm backdrop-blur-md transition-colors hover:bg-white/90 hover:text-claude-text dark:border-white/10 dark:bg-white/[0.06] dark:text-claude-darkTextSecondary dark:hover:bg-white/[0.1] dark:hover:text-claude-darkText"
-                            aria-label="新建任务"
-                          >
-                            <ComposeIcon className={UI_MENU_ICON_CLASS} />
-                          </button>
-                        </div>
-                        {updateBadge}
-                      </>
-                    ) : null}
-                    {mainView === 'cowork' && currentSessionId && rightDockActions.length > 0 ? (
-                      <div className={`flex flex-col items-end ${UI_SURFACE_COMPACT_GAP_CLASS} rounded-[22px] border border-white/55 bg-white/72 p-2 shadow-[0_12px_30px_rgba(194,170,145,0.18)] backdrop-blur-md dark:border-white/10 dark:bg-white/[0.06] dark:shadow-[0_10px_24px_rgba(0,0,0,0.22)]`}>
-                        <span className={`px-1 ${UI_META_TEXT_CLASS} text-[#9a7b62] dark:text-claude-darkTextSecondary/75`}>
-                          对话跳转
-                        </span>
-                        {rightDockActions.map((action) => {
-                          const isPrimaryAction = action.icon === 'jump-bottom';
-                          const buttonClassName = isPrimaryAction
-                            ? 'inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/55 bg-gradient-to-br from-[#f0a762] to-[#d97745] text-white shadow-[0_10px_24px_rgba(217,119,69,0.28)] transition-all hover:-translate-y-0.5 hover:from-[#ef9a4d] hover:to-[#cf6837] dark:border-white/10'
-                            : 'inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/55 bg-white/78 text-claude-textSecondary shadow-sm backdrop-blur-md transition-all hover:-translate-y-0.5 hover:bg-white/90 hover:text-claude-text dark:border-white/10 dark:bg-white/[0.06] dark:text-claude-darkTextSecondary dark:hover:bg-white/[0.1] dark:hover:text-claude-darkText';
-
-                          return (
-                            <Tooltip key={action.id} content={action.label} position="left" delay={120}>
-                              <button
-                                type="button"
-                                onClick={action.onClick}
-                                aria-label={action.label}
-                                className={buttonClassName}
-                              >
-                                {rightDockIconMap[action.icon]}
-                              </button>
-                            </Tooltip>
-                          );
-                        })}
-                      </div>
-                    ) : null}
-                    <div className={`flex flex-col items-end ${UI_SURFACE_COMPACT_GAP_CLASS} rounded-[22px] border border-white/55 bg-white/72 p-2 shadow-[0_12px_30px_rgba(194,170,145,0.18)] backdrop-blur-md dark:border-white/10 dark:bg-white/[0.06] dark:shadow-[0_10px_24px_rgba(0,0,0,0.22)]`}>
-                      <SettingsEntryButton
-                        onClick={() => handleShowSettings()}
-                        compact={shouldUseCompactTopActionButtons}
-                        className={shouldUseCompactTopActionButtons ? 'h-10 w-10 rounded-full' : 'h-10 px-3 py-0 rounded-full'}
-                      />
-                      <FeedbackButton
-                        iconOnly={shouldUseCompactTopActionButtons}
-                        buttonClassName={shouldUseCompactTopActionButtons ? 'static top-auto right-auto h-10 w-10 justify-center px-0 py-0 rounded-full' : 'static top-auto right-auto h-10 px-3 py-0 rounded-full'}
-                        panelClassName="right-[calc(100%+0.75rem)] top-1/2 -translate-y-1/2"
-                      />
-                    </div>
-                </div>
-                </div>
-              )}
               <Suspense fallback={deferredViewFallback}>
                 {mainView === 'skills' ? (
                   <SkillsView
@@ -1079,6 +983,13 @@ const App: React.FC = () => {
                   <RoomView
                     isSidebarCollapsed={isSidebarCollapsed}
                     onToggleSidebar={handleToggleSidebar}
+                    updateBadge={isSidebarCollapsed ? updateBadge : null}
+                  />
+                ) : mainView === 'aboutUs' ? (
+                  <AboutUsView
+                    isSidebarCollapsed={isSidebarCollapsed}
+                    onToggleSidebar={handleToggleSidebar}
+                    onNewChat={handleNewChat}
                     updateBadge={isSidebarCollapsed ? updateBadge : null}
                   />
                 ) : (
@@ -1136,8 +1047,20 @@ const App: React.FC = () => {
                 </div>
               )}
             </div>
+          </div>
         </div>
-      </div>
+        <GlobalFloatingActionRail
+          visible={shouldShowGlobalTopActions}
+          showLeftLauncher={shouldUseLeftSidebarLauncher}
+          showCollapsedCoworkTools={mainView === 'cowork' && !currentSessionId && isSidebarCollapsed && !shouldUseCompactTopActionButtons}
+          showJumpRail={shouldUseCenteredRightActionRail}
+          rightDockActions={mainView === 'cowork' && currentSessionId ? rightDockActions : []}
+          compactUtility={shouldUseCompactTopActionButtons}
+          updateBadge={updateBadge}
+          onToggleSidebar={handleToggleSidebar}
+          onNewChat={handleNewChat}
+          onOpenSettings={handleShowSettings}
+        />
       </div>
 
       {/* 设置窗口显示在所有主内容之上，但不影响主界面的交互 */}

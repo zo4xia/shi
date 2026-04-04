@@ -96,15 +96,6 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
     return grouped;
   }, [availableModels]);
 
-  // 如果没有可用模型，显示提示
-  if (availableModels.length === 0) {
-    return (
-      <div className="px-3 py-1.5 rounded-xl dark:bg-claude-darkSurface bg-claude-surface dark:text-claude-darkTextSecondary text-claude-textSecondary text-sm">
-        请先在设置中配置员工
-      </div>
-    );
-  }
-
   const dropdownPositionClass = dropdownDirection === 'up'
     ? 'bottom-full mb-1'
     : 'top-full mt-1';
@@ -124,6 +115,15 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
       }));
     })
   ), [effectiveModel, modelsByRole]);
+
+  // 如果没有可用模型，显示提示
+  if (availableModels.length === 0) {
+    return (
+      <div className="px-3 py-1.5 rounded-xl dark:bg-claude-darkSurface bg-claude-surface dark:text-claude-darkTextSecondary text-claude-textSecondary text-sm">
+        请先在设置中配置员工
+      </div>
+    );
+  }
 
   return (
     <div ref={containerRef} className="relative min-w-0 max-w-full cursor-pointer">

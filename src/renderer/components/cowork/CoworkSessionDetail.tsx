@@ -2,7 +2,7 @@ import { showGlobalToast } from '../../services/toast';
 import React, { useRef, useEffect, useState, useCallback, useMemo, useDeferredValue, startTransition } from 'react';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../store';
-import type { CoworkMessage, CoworkMessageMetadata, CoworkImageAttachment, CoworkRenderableImage } from '../../types/cowork';
+import type { CoworkMessage, CoworkMessageMetadata, CoworkImageAttachment, CoworkRenderableMedia } from '../../types/cowork';
 import { getSkillDisplayName, type Skill } from '../../types/skill';
 import CoworkPromptInput from './CoworkPromptInput';
 import MarkdownContent from '../MarkdownContent';
@@ -12,7 +12,6 @@ import {
   SignalIcon,
   ExclamationTriangleIcon,
   ChevronRightIcon,
-  PhotoIcon,
 } from '@heroicons/react/24/outline';
 import { FolderIcon } from '@heroicons/react/24/solid';
 import { coworkService } from '../../services/cowork';
@@ -33,7 +32,7 @@ import {
   type AgentRoleKey,
 } from '../../../shared/agentRoleConfig';
 import * as SessionDetailHelpers from './sessionDetailHelpers';
-import CoworkImagePreviewModal from './CoworkImagePreviewModal';
+import CoworkMediaGallery from './CoworkMediaGallery';
 import CoworkSessionActionMenu from './CoworkSessionActionMenu';
 import { inferSessionSource } from './sessionRecordUtils';
 import {
@@ -45,6 +44,7 @@ import {
 import type { CoworkRightDockAction } from './rightDock';
 import { useIsMobileViewport } from '../../hooks/useIsMobileViewport';
 import { useIsMediumViewport } from '../../hooks/useIsMediumViewport';
+import { useTimedConversationActionStatus } from '../../hooks/useTimedConversationActionStatus';
 
 
 interface CoworkSessionDetailProps {
@@ -130,82 +130,6 @@ const runWhenIdle = (task: () => void): (() => void) => {
     window.clearTimeout(fallbackHandle);
   };
 };
-
-const getRenderableImageSrc = (image: CoworkRenderableImage): string | null => {
-  if (image.base64Data && image.mimeType) {
-    return `data:${image.mimeType};base64,${image.base64Data}`;
-  }
-  if (typeof image.url === 'string' && image.url.trim()) {
-    return image.url.trim();
-  }
-  return null;
-};
-
-const MessageImageGallery: React.FC<{
-  images: CoworkRenderableImage[];
-  compact?: boolean;
-  generated?: boolean;
-}> = React.memo(({ images, compact = false, generated = false }) => {
-  const [expandedImage, setExpandedImage] = useState<{ src: string; name: string } | null>(null);
-  const renderableImages = useMemo(
-    () => images
-      .map((image) => ({
-        image,
-        src: getRenderableImageSrc(image),
-      }))
-      .filter((entry): entry is { image: CoworkRenderableImage; src: string } => Boolean(entry.src)),
-    [images]
-  );
-
-  if (renderableImages.length === 0) {
-    return null;
-  }
-
-  return (
-    <>
-      <div className={`${compact ? '' : 'mt-2'} space-y-3`}>
-        {generated ? (
-          <div className="inline-flex items-center gap-2 rounded-full border border-amber-200/70 bg-amber-50/80 px-3 py-1 text-[11px] font-medium text-amber-700 dark:border-amber-300/20 dark:bg-amber-300/10 dark:text-amber-200">
-            <PhotoIcon className="h-3.5 w-3.5" />
-            {'生成结果'}
-          </div>
-        ) : null}
-        <div className="flex flex-wrap gap-3">
-        {renderableImages.map(({ image, src }, idx) => (
-          <button
-            key={`${image.name}-${idx}`}
-            type="button"
-            className="relative group overflow-hidden rounded-[20px] border border-claude-border/60 bg-white/80 shadow-sm transition-all hover:-translate-y-0.5 hover:border-claude-accent/40 hover:shadow-md dark:border-claude-darkBorder/60 dark:bg-white/[0.04]"
-            onClick={() => setExpandedImage({ src, name: image.name })}
-            title={image.name}
-          >
-            <div className="flex h-[220px] w-[220px] items-center justify-center bg-gradient-to-br from-[#f7f4ef] to-[#f2ede7] p-3 dark:from-white/[0.04] dark:to-white/[0.02] sm:h-[240px] sm:w-[240px]">
-            <img
-              src={src}
-              alt={image.name}
-              className="max-h-full max-w-full rounded-xl object-contain"
-            />
-            </div>
-            <div className="absolute inset-x-2 bottom-2 flex items-center gap-1 rounded-xl bg-black/58 px-2.5 py-1.5 text-[11px] text-white opacity-0 transition-opacity group-hover:opacity-100 pointer-events-none">
-              <PhotoIcon className="h-3.5 w-3.5 flex-shrink-0" />
-              <span className="truncate">{image.name}</span>
-              <span className="ml-auto shrink-0 text-white/80">{'点击查看'}</span>
-            </div>
-          </button>
-        ))}
-        </div>
-      </div>
-      {expandedImage && (
-        <CoworkImagePreviewModal
-          src={expandedImage.src}
-          alt={expandedImage.name}
-          fileName={expandedImage.name}
-          onClose={() => setExpandedImage(null)}
-        />
-      )}
-    </>
-  );
-});
 
 const formatMarkdownTimestamp = (timestamp: number): string => {
   return new Date(timestamp).toLocaleString('zh-CN', { hour12: false });
@@ -856,7 +780,7 @@ const UserMessageItem: React.FC<{
                     className="max-w-none whitespace-pre-wrap break-words"
                   />
                 )}
-                {imageAttachments.length > 0 && <MessageImageGallery images={imageAttachments} compact={!message.content?.trim()} />}
+                {imageAttachments.length > 0 && <CoworkMediaGallery mediaItems={imageAttachments} compact={!message.content?.trim()} />}
               </div>
               <div className="flex items-center justify-end gap-1.5 mt-1">
                 {messageSkills.map(skill => (
@@ -907,7 +831,7 @@ const AssistantMessageItem: React.FC<{
       ? [{ type: 'markdown', content: displayContent }]
       : SessionDetailHelpers.splitAssistantContentBlocks(displayContent)
   ), [deferMarkdown, displayContent]);
-  const generatedImages = (((message.metadata as CoworkMessageMetadata)?.generatedImages ?? []) as CoworkRenderableImage[]);
+  const generatedImages = (((message.metadata as CoworkMessageMetadata)?.generatedImages ?? []) as CoworkRenderableMedia[]);
   const cacheHit = Boolean(message.metadata?.cacheHit);
   const cacheSource = typeof message.metadata?.cacheSource === 'string' ? message.metadata.cacheSource : null;
   const continuitySource = typeof message.metadata?.continuitySource === 'string' ? message.metadata.continuitySource : null;
@@ -1011,7 +935,7 @@ const AssistantMessageItem: React.FC<{
           )}
         </div>
         {generatedImages.length > 0 && (
-          <MessageImageGallery images={generatedImages} compact={!displayContent?.trim()} generated />
+          <CoworkMediaGallery mediaItems={generatedImages} compact={!displayContent?.trim()} generated />
         )}
       </div>
       {showCopyButton && (
@@ -1473,7 +1397,41 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
   const actionButtonRef = useRef<HTMLButtonElement>(null);
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   const [isExportingImage, setIsExportingImage] = useState(false);
+  const [isManualCompressing, setIsManualCompressing] = useState(false);
+  const [isInterruptingProcess, setIsInterruptingProcess] = useState(false);
   const [isLoadingEarlierHistory, setIsLoadingEarlierHistory] = useState(false);
+  const manualCompressStatus = useTimedConversationActionStatus({
+    accent: 'sky',
+    pending: isManualCompressing,
+    initialStage: {
+      label: '已发出压缩请求',
+      description: '正在请求整理对话、广播板和接力摘要，马上回来。',
+    },
+    waitingStage: {
+      label: '正在等待压缩返回',
+      description: '模型正在整理这段上下文，请稍等，不是卡死。',
+    },
+    slowStage: {
+      label: '压缩还在继续',
+      description: '这次上下文比较长，还在处理，请再稍等一下。',
+    },
+  });
+  const interruptProcessStatus = useTimedConversationActionStatus({
+    accent: 'amber',
+    pending: isInterruptingProcess,
+    initialStage: {
+      label: '已发出打断请求',
+      description: '正在通知当前运行链停下错误或卡住的进程。',
+    },
+    waitingStage: {
+      label: '正在等待进程响应',
+      description: '系统正在确认这次打断请求是否被接住，请稍等。',
+    },
+    slowStage: {
+      label: '进程还在收尾',
+      description: '这条运行链还在退出过程中，请先不要重复点。',
+    },
+  });
 
   // Rename states
   const [isRenaming, setIsRenaming] = useState(false);
@@ -1644,16 +1602,21 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
     setMenuPosition(null);
   };
 
-  const handleCopyCompressedSummary = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!currentSession) return;
+  const handleCopyCompressedSummary = async () => {
+    if (!currentSession || isManualCompressing) return;
     closeMenu();
+    setIsManualCompressing(true);
     try {
-      const compression = await coworkService.compressContext(currentSession.id);
+      showGlobalToast('正在手工压缩上下文，请稍等…');
+      const { compression, error } = await coworkService.compressContext(currentSession.id);
       if (!compression?.combinedSummary?.trim()) {
         const fallbackSummary = buildManualCompressionSummary(currentSession, turns);
         await navigator.clipboard.writeText(fallbackSummary);
-        showGlobalToast('后端压缩暂不可用，已复制本地摘要草稿');
+        manualCompressStatus.showSuccess({
+          label: '已复制接力草稿',
+          description: '后端压缩这次没接住，但已经把本地摘要草稿放进剪贴板了。',
+        }, 'amber');
+        showGlobalToast(error ? `${error}；已复制本地摘要草稿` : '后端压缩暂不可用，已复制本地摘要草稿');
         return;
       }
       const summary = [
@@ -1671,19 +1634,45 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
         compression.combinedSummary,
       ].join('\n');
       await navigator.clipboard.writeText(summary);
+      manualCompressStatus.showSuccess({
+        label: '压缩结果已就绪',
+        description: '接力摘要已经复制到剪贴板，可以直接带去新线程继续。',
+      });
       showGlobalToast('上下文压缩结果已复制');
     } catch (error) {
       console.error('Failed to copy compressed summary:', error);
+      manualCompressStatus.showError({
+        label: '压缩复制失败',
+        description: '这次没能把摘要复制出来，可以稍后再试一次。',
+      });
       showGlobalToast('复制压缩摘要失败');
+    } finally {
+      setIsManualCompressing(false);
     }
   };
 
-  const handleInterruptCurrentProcess = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!currentSession) return;
+  const handleInterruptCurrentProcess = async () => {
+    if (!currentSession || isInterruptingProcess) return;
     closeMenu();
-    const stopped = await coworkService.stopSession(currentSession.id);
-    showGlobalToast(stopped ? '已请求打断当前进程' : '打断失败');
+    setIsInterruptingProcess(true);
+    try {
+      showGlobalToast('正在请求打断当前进程，请稍等…');
+      const stopped = await coworkService.stopSession(currentSession.id);
+      if (stopped) {
+        interruptProcessStatus.showSuccess({
+          label: '已请求打断进程',
+          description: '打断请求已经送出，如果上游接住，很快会停下当前运行链。',
+        });
+      } else {
+        interruptProcessStatus.showError({
+          label: '打断请求失败',
+          description: '这次没有成功把打断请求送出去，可以稍后再试。',
+        });
+      }
+      showGlobalToast(stopped ? '已请求打断当前进程' : '打断失败');
+    } finally {
+      setIsInterruptingProcess(false);
+    }
   };
 
   const promptExportTurnCount = useCallback((defaultTurnCount: number): number | null => {
@@ -2363,20 +2352,6 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
     visibleTurns.length,
   ]);
 
-  if (!currentSession) {
-    return null;
-  }
-
-  const resolvedRoles = resolveAgentRolesFromConfig(configService.getConfig());
-  const currentRoleKey = (currentSession.agentRoleKey && ['organizer', 'writer', 'designer', 'analyst'].includes(currentSession.agentRoleKey))
-    ? currentSession.agentRoleKey as AgentRoleKey
-    : 'organizer';
-  const assistantRoleLabel = getAgentRoleDisplayLabel(currentRoleKey, resolvedRoles);
-  const assistantRoleAvatar = getAgentRoleDisplayAvatar(currentRoleKey, resolvedRoles);
-  const sessionSourceLabel = inferSessionSource(currentSession) === 'external' ? '外部接入' : '桌面对话';
-  const sessionSourceBadgeClassName = sessionSourceLabel === '外部接入'
-    ? 'border-sky-400/35 bg-sky-400/12 text-sky-700 dark:border-sky-300/20 dark:bg-sky-300/12 dark:text-sky-200'
-    : 'border-amber-400/35 bg-amber-400/12 text-amber-700 dark:border-amber-300/20 dark:bg-amber-300/12 dark:text-amber-200';
   const rightDockActions = useMemo<CoworkRightDockAction[]>(
     () => (
       turns.length > 0
@@ -2411,6 +2386,21 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
       onSetRightDockActions?.([]);
     };
   }, [onSetRightDockActions, rightDockActions]);
+
+  if (!currentSession) {
+    return null;
+  }
+
+  const resolvedRoles = resolveAgentRolesFromConfig(configService.getConfig());
+  const currentRoleKey = (currentSession.agentRoleKey && ['organizer', 'writer', 'designer', 'analyst'].includes(currentSession.agentRoleKey))
+    ? currentSession.agentRoleKey as AgentRoleKey
+    : 'organizer';
+  const assistantRoleLabel = getAgentRoleDisplayLabel(currentRoleKey, resolvedRoles);
+  const assistantRoleAvatar = getAgentRoleDisplayAvatar(currentRoleKey, resolvedRoles);
+  const sessionSourceLabel = inferSessionSource(currentSession) === 'external' ? '外部接入' : '桌面对话';
+  const sessionSourceBadgeClassName = sessionSourceLabel === '外部接入'
+    ? 'border-sky-400/35 bg-sky-400/12 text-sky-700 dark:border-sky-300/20 dark:bg-sky-300/12 dark:text-sky-200'
+    : 'border-amber-400/35 bg-amber-400/12 text-amber-700 dark:border-amber-300/20 dark:bg-amber-300/12 dark:text-amber-200';
 
   const renderConversationTurns = () => {
     if (turns.length === 0) {
@@ -2576,17 +2566,18 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
 
       {/* Floating Menu */}
       {menuPosition && (
-        <CoworkSessionActionMenu
-          ref={menuRef}
-          top={menuPosition.y}
+          <CoworkSessionActionMenu
+            ref={menuRef}
+            top={menuPosition.y}
           left={menuPosition.x}
           pinned={currentSession.pinned}
           isExportingImage={isExportingImage}
+          isCompressing={isManualCompressing}
           canInterrupt={currentSession.status === 'running'}
           onRename={handleRenameClick}
           onTogglePin={handleTogglePin}
-          onCompress={handleCopyCompressedSummary}
-          onInterrupt={handleInterruptCurrentProcess}
+          onCompress={() => { void handleCopyCompressedSummary(); }}
+          onInterrupt={() => { void handleInterruptCurrentProcess(); }}
           onShare={handleShareClick}
           onExportMarkdown={handleExportMarkdown}
           onDelete={handleDeleteClick}
@@ -2701,6 +2692,13 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
           <CoworkPromptInput
             onSubmit={onContinue}
             onStop={onStop}
+            onManualCompress={handleCopyCompressedSummary}
+            isManualCompressing={isManualCompressing}
+            manualCompressStatus={manualCompressStatus.status}
+            onInterruptProcess={handleInterruptCurrentProcess}
+            isInterruptingProcess={isInterruptingProcess}
+            interruptProcessStatus={interruptProcessStatus.status}
+            canInterruptProcess={currentSession.status === 'running'}
             isStreaming={isStreaming}
             placeholder={'继续对话...'}
             disabled={false}

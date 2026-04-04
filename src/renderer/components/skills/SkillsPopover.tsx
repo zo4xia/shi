@@ -18,8 +18,6 @@ import {
   NATIVE_CAPABILITY_LABELS,
   type NativeCapabilityId,
 } from '../../../shared/nativeCapabilities/config';
-import { useIsMobileViewport } from '../../hooks/useIsMobileViewport';
-import ModalWrapper from '../ui/ModalWrapper';
 import {
   UI_BADGE_ICON_CLASS,
   UI_BADGE_TEXT_CLASS,
@@ -85,7 +83,6 @@ const SkillsPopover: React.FC<SkillsPopoverProps> = ({
   const coworkConfig = useSelector((state: RootState) => state.cowork.config);
   const currentSessionRoleKey = useSelector((state: RootState) => state.cowork.currentSession?.agentRoleKey);
   const currentRoleKey = roleKey || currentSessionRoleKey || ((coworkConfig as unknown as Record<string, unknown>).agentRoleKey as string) || 'organizer';
-  const isMobileViewport = useIsMobileViewport();
 
   // Load role skill index when popover opens
   useEffect(() => {
@@ -222,142 +219,12 @@ const SkillsPopover: React.FC<SkillsPopoverProps> = ({
   if (!isOpen) return null;
 
   /* ## {提取} SkillsPickerSheet / DesktopPopover
-     当前技能快速选择器仍是桌面 popover。
-     后续移动端适合降级成 SkillsPickerSheet，和 ModelSelector / FolderSelector 保持一致。 */
-  if (isMobileViewport) {
-    const mobileFooter = (
-      <button
-        onClick={handleManageSkills}
-        className="w-full flex items-center justify-between px-4 py-3 text-sm dark:text-claude-darkText text-claude-text dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover transition-colors rounded-xl border dark:border-claude-darkBorder border-claude-border"
-      >
-        <span>{'管理技能'}</span>
-        <Cog6ToothIcon className={`${UI_MENU_ICON_CLASS} dark:text-claude-darkTextSecondary text-claude-textSecondary`} />
-      </button>
-    );
-
-    return (
-      <ModalWrapper
-        isOpen={true}
-        onClose={onClose}
-        title={'选择技能'}
-        maxWidth="md"
-        maxHeight="80vh"
-        footer={mobileFooter}
-      >
-        <div className="space-y-4">
-          <div className={`rounded-lg border border-sky-200/70 bg-sky-50/80 px-2.5 py-2 leading-5 text-sky-700 dark:border-sky-800/60 dark:bg-sky-950/20 dark:text-sky-200 ${UI_LABEL_TEXT_CLASS}`}>
-            {roleSkillIndex
-              ? `当前会同时显示 ${currentRoleKey} 角色在 skills.json 里可见的技能，以及当前角色已启用的外挂能力。`
-              : '正在读取当前角色的 skills.json 与外挂能力视图。'}
-          </div>
-          <div className="relative">
-            <SearchIcon className={`absolute left-3 top-1/2 -translate-y-1/2 ${UI_MENU_ICON_CLASS} dark:text-claude-darkTextSecondary text-claude-textSecondary`} />
-            <input
-              ref={searchInputRef}
-              type="text"
-              placeholder={'搜索技能'}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 text-sm rounded-lg dark:bg-claude-darkSurface bg-claude-surface dark:text-claude-darkText text-claude-text dark:placeholder-claude-darkTextSecondary placeholder-claude-textSecondary border dark:border-claude-darkBorder border-claude-border focus:outline-none focus:ring-2 focus:ring-claude-accent"
-            />
-          </div>
-          <div className="space-y-4 max-h-[55vh] overflow-y-auto pr-1">
-            {filteredNativeCapabilities.length > 0 && (
-              <div className="space-y-1">
-                {filteredNativeCapabilities.map((capability) => {
-                  const nativeId = capability.id as NativeCapabilityId;
-                  const isBrowserEyes = capability.id === 'browser-eyes-native-addon';
-                  const uiMeta = NATIVE_CAPABILITY_UI_META[nativeId];
-                  return (
-                    <div
-                      key={capability.id}
-                      className="flex items-start gap-3 rounded-xl border border-white/60 bg-white/70 px-3 py-2.5 dark:border-white/10 dark:bg-white/[0.05]"
-                    >
-                      <div className="mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-violet-500/10 text-violet-600 dark:text-violet-300">
-                        {uiMeta?.icon ?? <ComputerDesktopIcon className={UI_MENU_ICON_CLASS} />}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="truncate text-sm font-medium text-claude-text dark:text-claude-darkText">
-                            {capability.title}
-                          </span>
-                          <span className={`rounded-full bg-violet-500/10 px-1.5 py-0.5 text-violet-700 dark:text-violet-200 ${UI_BADGE_TEXT_CLASS}`}>
-                            {'外挂'}
-                          </span>
-                        </div>
-                        <p className="mt-1 text-xs leading-5 text-claude-textSecondary dark:text-claude-darkTextSecondary">
-                          {uiMeta?.helperText ?? NATIVE_CAPABILITY_LABELS[nativeId]?.description ?? '当前角色已启用的底层能力。'}
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => { void handleNativeCapabilityAction(capability.id); }}
-                        className={`shrink-0 rounded-lg border border-violet-200/80 bg-violet-50/80 px-2.5 py-1 text-violet-700 transition-colors hover:bg-violet-100 dark:border-violet-400/20 dark:bg-violet-400/[0.10] dark:text-violet-200 dark:hover:bg-violet-400/[0.14] ${UI_LABEL_TEXT_CLASS}`}
-                      >
-                        {uiMeta?.buttonLabel ?? (isBrowserEyes ? '打开' : '查看')}
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {filteredSkills.length === 0 && filteredNativeCapabilities.length === 0 ? (
-              <div className="px-4 py-6 text-center text-sm dark:text-claude-darkTextSecondary text-claude-textSecondary">
-                {roleSkillIndex ? '当前角色暂无可用技能或外挂能力' : '当前角色技能索引未就绪'}
-              </div>
-            ) : (
-              <div className="space-y-1">
-                {filteredSkills.map(({ skill }) => {
-                  const isActive = activeSkillIds.includes(skill.id);
-                  return (
-                    <button
-                      key={skill.id}
-                      onClick={() => handleSelectSkill(skill)}
-                      className={`w-full flex items-start gap-3 rounded-xl px-3 py-2.5 text-left transition-colors ${
-                        isActive
-                          ? 'dark:bg-claude-accent/10 bg-claude-accent/10'
-                          : 'dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover'
-                      }`}
-                    >
-                      <div className={`mt-0.5 w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                        isActive
-                          ? 'bg-claude-accent text-white'
-                          : 'dark:bg-claude-darkSurfaceHover bg-claude-surfaceHover'
-                      }`}>
-                        {isActive ? (
-                          <CheckIcon className={UI_MENU_ICON_CLASS} />
-                        ) : (
-                          <PuzzleIcon className={`${UI_MENU_ICON_CLASS} dark:text-claude-darkTextSecondary text-claude-textSecondary`} />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className={`text-sm font-medium truncate ${
-                            isActive ? 'text-claude-accent' : 'dark:text-claude-darkText text-claude-text'
-                          }`}>
-                            {getSkillDisplayName(skill)}
-                          </span>
-                        </div>
-                        <p className="text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary truncate mt-0.5">
-                          {skillService.getLocalizedSkillDescription(skill.id, skill.name, skill.description)}
-                        </p>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-      </ModalWrapper>
-    );
-  }
+     当前技能快速选择器统一走输入框旁的 popover，不再在中小屏切成底部抽屉。 */
 
   return (
     <div
       ref={popoverRef}
-      className="absolute bottom-full left-0 mb-2 w-72 rounded-xl border dark:border-claude-darkBorder border-claude-border dark:bg-claude-darkSurface bg-claude-surface shadow-xl z-50"
+      className="absolute bottom-full left-0 mb-2 w-[min(18rem,calc(100vw-1.5rem))] max-w-[calc(100vw-1.5rem)] rounded-xl border dark:border-claude-darkBorder border-claude-border dark:bg-claude-darkSurface bg-claude-surface shadow-xl z-50"
     >
       {/* Search input */}
       <div className="p-3 border-b dark:border-claude-darkBorder border-claude-border">

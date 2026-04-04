@@ -825,12 +825,14 @@ class CoworkService {
     return Boolean(result?.success);
   }
 
-  async compressContext(sessionId: string): Promise<CoworkManualCompressionResult | null> {
+  async compressContext(sessionId: string): Promise<{ compression: CoworkManualCompressionResult | null; error?: string }> {
     const api = window.electron?.cowork?.compressContext;
-    if (!api) return null;
+    if (!api) return { compression: null, error: '压缩入口暂不可用' };
     const result = await api({ sessionId });
-    if (!result?.success || !result.compression) return null;
-    return result.compression;
+    if (!result?.success || !result.compression) {
+      return { compression: null, error: result?.error || '后端压缩暂不可用' };
+    }
+    return { compression: result.compression };
   }
 
   async generateSessionTitle(prompt: string | null): Promise<string | null> {

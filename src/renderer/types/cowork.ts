@@ -1,12 +1,14 @@
-export interface CoworkRenderableImage {
+export interface CoworkRenderableMedia {
   name: string;
   mimeType?: string;
   base64Data?: string;
   url?: string;
 }
 
+export type CoworkRenderableImage = CoworkRenderableMedia;
+
 // Cowork image attachment for vision-capable models
-export interface CoworkImageAttachment extends CoworkRenderableImage {
+export interface CoworkImageAttachment extends CoworkRenderableMedia {
   name: string;
   mimeType: string;
   base64Data: string;
@@ -38,7 +40,7 @@ export interface CoworkMessageMetadata {
   isThinking?: boolean;
   skillIds?: string[];  // Skills used for this message
   imageAttachments?: CoworkImageAttachment[];
-  generatedImages?: CoworkRenderableImage[];
+  generatedImages?: CoworkRenderableMedia[];
   zenMode?: boolean;
   [key: string]: unknown;
 }

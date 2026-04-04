@@ -29,6 +29,7 @@ interface CoworkSessionActionMenuProps {
   left: number;
   pinned: boolean;
   isExportingImage: boolean;
+  isCompressing?: boolean;
   canInterrupt?: boolean;
   onRename: React.MouseEventHandler<HTMLButtonElement>;
   onTogglePin: React.MouseEventHandler<HTMLButtonElement>;
@@ -46,6 +47,7 @@ const CoworkSessionActionMenu = React.forwardRef<HTMLDivElement, CoworkSessionAc
       left,
       pinned,
       isExportingImage,
+      isCompressing = false,
       canInterrupt = false,
       onRename,
       onTogglePin,
@@ -75,10 +77,11 @@ const CoworkSessionActionMenu = React.forwardRef<HTMLDivElement, CoworkSessionAc
         <button
           type="button"
           onClick={onCompress}
-          className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm dark:text-claude-darkText text-claude-text hover:bg-claude-surfaceHover dark:hover:bg-claude-darkSurfaceHover transition-colors"
+          disabled={isCompressing}
+          className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm dark:text-claude-darkText text-claude-text hover:bg-claude-surfaceHover dark:hover:bg-claude-darkSurfaceHover transition-colors disabled:cursor-wait disabled:opacity-60"
         >
           <ShareIcon className="h-4 w-4" />
-          {'手工压缩'}
+          {isCompressing ? '正在压缩...' : '手工压缩'}
         </button>
         <button
           type="button"

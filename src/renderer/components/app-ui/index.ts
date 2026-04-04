@@ -21,3 +21,7 @@ export type { AppTooltipProps } from './AppTooltip';
 
 export { AppModal } from './AppModal';
 export type { AppModalProps } from './AppModal';
+
+export { default as UtilityActionStack } from './UtilityActionStack';
+export { default as FloatingWidgetShell } from './FloatingWidgetShell';
+export { default as GlobalFloatingActionRail } from './GlobalFloatingActionRail';

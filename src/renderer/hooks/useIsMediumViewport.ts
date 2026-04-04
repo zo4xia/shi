@@ -7,7 +7,6 @@ function detectMediumViewport(): boolean {
 
   const mediumWidth = window.matchMedia('(min-width: 769px) and (max-width: 1180px)').matches;
   const coarsePointer = window.matchMedia('(pointer: coarse)').matches;
-
   return mediumWidth && !coarsePointer;
 }
 
