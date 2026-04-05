@@ -1,0 +1,109 @@
+{
+  "taskId": "2332",
+  "title": "418-170-118 简算讲解",
+  "savePath": "D:/night-song/output/task-001",
+  "currentMs": 360,
+  "lectureText": "同学们大家好，我们来看一道简算题。四百一十八减一百七十减一百一十八。先把四百一十八减去一百一十八，得到三百。再用三百减去一百七十，最后等于一百三十。",
+  "timelineJson": {
+    "requestId": "team-demo-418-170-118",
+    "audioUrl": "http://127.0.0.1:3000/api/tts-audio?source=demo",
+    "sentences": [
+      {
+        "index": 0,
+        "originalText": "同学们大家好，我们来看一道简算题。四百一十八减一百七十减一百一十八。先把四百一十八减去一百一十八，得到三百。再用三百减去一百七十，最后等于一百三十。",
+        "words": [
+          { "text": "四百一十八", "beginTime": 360, "endTime": 1180 },
+          { "text": "减", "beginTime": 1180, "endTime": 1360 },
+          { "text": "一百七十", "beginTime": 1360, "endTime": 2060 },
+          { "text": "减", "beginTime": 2060, "endTime": 2200 },
+          { "text": "一百一十八", "beginTime": 2200, "endTime": 3680 },
+          { "text": "先把四百一十八减去一百一十八", "beginTime": 14490, "endTime": 17090 },
+          { "text": "得到三百", "beginTime": 17090, "endTime": 18130 },
+          { "text": "再用三百减去一百七十", "beginTime": 18130, "endTime": 20690 },
+          { "text": "最后等于一百三十", "beginTime": 20690, "endTime": 22800 }
+        ]
+      }
+    ]
+  },
+  "seats": {
+    "A": {
+      "provider": "aliyun",
+      "baseUrl": "",
+      "apiKey": "",
+      "modelOrEngine": "cosyvoice-v3-flash",
+      "voice": "longanyang",
+      "format": "wav"
+    },
+    "B": {
+      "provider": "system",
+      "baseUrl": "",
+      "apiKey": "",
+      "modelOrEngine": "planner-default"
+    },
+    "C": {
+      "provider": "system",
+      "baseUrl": "",
+      "apiKey": "",
+      "modelOrEngine": "handwrite-driver"
+    },
+    "D": {
+      "provider": "system",
+      "baseUrl": "",
+      "apiKey": "",
+      "modelOrEngine": "qa-review"
+    }
+  },
+  "audioTimeline": [
+    {
+      "id": "speech-1",
+      "label": "418-170-118",
+      "startTime": 360,
+      "endTime": 3680,
+      "text": "先把四百一十八减一百一十八，剩下三百，再减一百七十。"
+    }
+  ],
+  "boardTimeline": [
+    {
+      "id": "board-1",
+      "label": "418-170-118",
+      "expression": "418-170-118",
+      "startTime": 360,
+      "endTime": 3680,
+      "speed": 2,
+      "imageUrl": "/team-assets/board-418-170-118.png",
+      "imageNaturalWidth": 120,
+      "imageNaturalHeight": 38,
+      "revealMode": "stroke-fade-segments",
+      "revealDurationMs": 2200,
+      "pausePoints": [0.22, 0.58, 0.84]
+    },
+    {
+      "id": "board-2",
+      "label": "418-118-170",
+      "expression": "418-118-170",
+      "startTime": 14490,
+      "endTime": 17090,
+      "speed": 2,
+      "imageUrl": "/team-assets/board-418-118-170.png",
+      "imageNaturalWidth": 182,
+      "imageNaturalHeight": 50,
+      "revealMode": "stroke-fade-segments",
+      "revealDurationMs": 2200,
+      "pausePoints": [0.2, 0.55, 0.82]
+    },
+    {
+      "id": "board-3",
+      "label": "300-170",
+      "expression": "300-170",
+      "startTime": 18130,
+      "endTime": 20690,
+      "speed": 2,
+      "imageUrl": "/team-assets/board-300-170.png",
+      "imageNaturalWidth": 182,
+      "imageNaturalHeight": 41,
+      "revealMode": "stroke-fade-segments",
+      "revealDurationMs": 2200,
+      "pausePoints": [0.18, 0.52, 0.86]
+    }
+  ]
+}
