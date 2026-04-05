@@ -25,6 +25,33 @@
 - 先收真正会影响运行的东西
 - 不把历史垃圾和运行垃圾一起拖进来
 
+## 当前执行状态
+
+这份清单已经不是停留在计划。
+
+当前已正式并进到：
+
+- `D:\Users\Admin\Desktop\3-main\delivery-mainline-1.0-clean\.worktrees\baiban-sandbox`
+
+已并进的第一批包括：
+
+- 根配置文件
+- `src/app`
+- `src/lib`
+- `src/components/ui`
+- `mini-services/handwriting-service`
+- `prisma`
+
+当前已做的轻验证：
+
+- `src/lib/baiban-demo-config.test.ts` 通过
+
+当前还没做完的收口：
+
+- 依赖安装口径统一
+- 从 `baiban-sandbox` 根直接冷启动验证
+- 微服务与前端完全脱离外部真源后的独立启动演练
+
 ---
 
 ## 0. 当前状态

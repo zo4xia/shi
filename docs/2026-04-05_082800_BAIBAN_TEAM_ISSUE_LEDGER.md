@@ -209,3 +209,45 @@
 
 - 已从主家园侧边栏移除 `Team 单页` 快捷入口
 - 已从主家园 `App` 中移除 `team.html` 的外开逻辑
+
+---
+
+## 7. #问题_独立运行环境
+
+现象：
+
+- `baiban-sandbox` 独立运行时，`3010` 前端最初无法稳定连上 `3003`
+- 页面看起来能开，但按钮链不推进
+
+入口：
+
+- `http://127.0.0.1:3010/`
+
+复现：
+
+- 根依赖环境脏时，首页状态停在“等待生成”
+- 重装根依赖后，首页恢复到“已连接到手写服务”
+
+当前判断：
+
+- 主要不是业务代码丢了
+- 更像是根依赖环境损坏/不完整导致的独立运行异常
+
+相关文件：
+
+- `D:\Users\Admin\Desktop\3-main\delivery-mainline-1.0-clean\.worktrees\baiban-sandbox\package.json`
+- `D:\Users\Admin\Desktop\3-main\delivery-mainline-1.0-clean\.worktrees\baiban-sandbox\next.config.ts`
+- `D:\Users\Admin\Desktop\3-main\delivery-mainline-1.0-clean\.worktrees\baiban-sandbox\src\app\page.tsx`
+
+是否已修：
+
+- 是
+
+处理结果：
+
+- 清理 `npm cache`
+- 重装 `baiban-sandbox` 根依赖
+- 重新拉起 `3010`
+- 实测首页已连上 `3003`
+- 实测“生成时间轴”可推进到“音频与时间轴已就绪”
+- 实测“播放同步”后音频时间前进、按钮为真按钮

@@ -1,5 +1,7 @@
 node_modules
 dist
+.next
+.playwright-cli
 .DS_Store
 .env
 
@@ -58,6 +60,8 @@ tmp-*.log
 tmp-*.err.log
 .uclaw-server*.log
 .uclaw-server*.err.log
+baiban-sandbox-next*.log
+sandbox-handwriting-service*.log
 
 # Local upload / attachment runtime data
 uploud/attachments/

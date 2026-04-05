@@ -45,6 +45,20 @@
   - 真运行项目归仓说明：外部 baiban 目录如何镜像进当前 worktree，避免整包带走时丢家当
 - `docs/2026-04-05_090500_BAIBAN_FIRST_BATCH_IMPORT_LIST.md`
   - 第一批正式并进清单：哪些必须先收、哪些可以后收、哪些暂不收
+- `docs/2026-04-06_024500_CLIENT_CANVAS_SPEC.md`
+  - 客户白板标准底板：白底、浅蓝边、`960 × 640`
+- `docs/2026-04-06_030500_FASTLINE_HANDWRITING_TRACK.md`
+  - 快线 / 深线双轨策略：`text-to-handwriting` 先出高仿静态图，`HandwriteCraft` 走深修
+- `docs/2026-04-06_031500_SMALL_WIN_FASTLINE_HANDWRITING.md`
+  - 小胜利记录：快线手写图已经真实接进 Team，描红 reveal 跑起来了
+- `docs/2026-04-06_041500_SMALL_WIN_REVEAL_SEGMENTS_ON_TIMELINE.md`
+  - 小胜利记录：描红分段已从抽象感受推进成时间轴区间思路，适合交给 AgentB 处理
+- `docs/2026-04-06_043500_EMERGENT_TIMELINE_ASSET_TRACK.md`
+  - 重要涌现：圈圈叉叉、手写图、音乐等都可视为时间轴素材，适合统一成“素材展示轴”
+- `docs/2026-04-06_050500_AI_TIMELINE_CONTROL_PROGRESS.md`
+  - AI 控轴进展笔记：当前为什么还不稳、已经完成哪些节点、下一步最该补什么
+- `docs/2026-04-06_052500_STAGE_WRAPUP_AND_REPO_READINESS.md`
+  - 当前阶段小结：为什么现在适合先存储、开新仓前还要补什么、哪些该推哪些先别推
 - `docs/2026-03-30_230300_PROJECT_ONE_SENTENCE_PRINCIPLE.md`
   - 项目的一句话总纲：按需调用，异步加载，不要越做越重
 - `docs/2026-03-31_022249_CACHE_HIT_IS_HUMANITY_PROTECTION.md`

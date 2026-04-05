@@ -338,6 +338,66 @@ type BoardInsertPoint = {
 
 ---
 
+## 6.8 AgentB 负责描红分段
+
+当我们已经有：
+
+- 高仿手写图
+- 时间轴
+- 描红 reveal
+
+那么下一步很自然的推进就是：
+
+```text
+让 AgentB 负责“描红怎么分段”
+```
+
+这件事可以不再停留在抽象感觉里，
+而是直接变成：
+
+- 时间轴上的区间
+- 头尾可拖
+- 区间长短决定快慢
+
+也就是说：
+
+```text
+描红速度
+= 时间轴区间长度
+```
+
+### 最小结构示意
+
+```ts
+type RevealSegment = {
+  id: string;
+  boardId: string;
+  label: string;
+  startTime: number;
+  endTime: number;
+  progressStart?: number;
+  progressEnd?: number;
+};
+```
+
+### 这一步为什么重要
+
+因为这让我们从：
+
+- “这段看起来要慢一点”
+
+走到了：
+
+- “这段从 4200ms 到 6100ms”
+- “这一段 reveal 百分比是 0.32 到 0.61”
+
+这时候它就已经不是抽象意见，
+而是：
+
+**时间轴上可调的确定值。**
+
+---
+
 ## 7. 一句话收束
 
 让小 agent 驱动 HandwriteCraft，
