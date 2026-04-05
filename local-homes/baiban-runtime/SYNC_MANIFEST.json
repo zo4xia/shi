@@ -1,0 +1,26 @@
+{
+  "sourceRoot": "C:\\Users\\Administrator\\Desktop\\baiban",
+  "mirrorRoot": "D:\\Users\\Admin\\Desktop\\3-main\\delivery-mainline-1.0-clean\\.worktrees\\baiban-sandbox\\local-homes\\baiban-runtime",
+  "syncedAt": "2026-04-05 18:14:33",
+  "copiedFiles": [
+    "package.json",
+    "next.config.ts",
+    "tsconfig.json",
+    "next-env.d.ts",
+    "tailwind.config.ts",
+    "postcss.config.mjs",
+    "eslint.config.mjs",
+    "components.json",
+    "README.md",
+    "worklog.md"
+  ],
+  "copiedDirectories": [
+    "src",
+    "public",
+    "docs",
+    ".zscripts",
+    "mini-services\\handwriting-service",
+    "prisma"
+  ],
+  "note": "Mirror excludes node_modules, .next, logs, and transient runtime folders."
+}

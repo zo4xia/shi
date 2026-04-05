@@ -19,6 +19,32 @@
   - 当前前端修缮已完成项、仍在修项与 build 验证状态
 - `docs/2026-04-04_214500_COMPRESSED_PROGRESS_RELAY.md`
   - 当前阶段压缩接力：代码节点、线上状态、本地未提交现场、后续顺序
+- `docs/2026-04-04_235500_BAIBAN_TTS_TIMELINE_SMOKE_SUCCESS.md`
+  - baiban 白板沙箱已完成最小闭环冒烟：`text -> audio_url + word_timeline`
+- `docs/2026-04-05_000800_BAIBAN_TTS_PREVIEW_SHELL_WIRED.md`
+  - baiban 现有前端皮套已接入 TTS 时间轴预览区，并完成构建验证
+- `docs/2026-04-05_001800_TTS_TIMELINE_MINI_ROUTE_READY.md`
+  - 第一小步已独立成 `/tts-timeline` 最小试验台，只做文本输入、音频输出与时序点
+- `docs/2026-04-05_003500_BAIBAN_XRAY_CONSTRUCTION_BLUEPRINT.md`
+  - baiban 项目 X-ray 施工图：地基、页面、Socket 主链、环境口径与真实病灶
+- `docs/2026-04-05_005800_ROOM_AND_TEAM_PLUGIN_BOUNDARY_NOTE.md`
+  - `Room` 保持游乐园外挂，客户工作组改走 `Team` 外挂，避免主线和 Room 被撑胖
+- `docs/2026-04-05_021500_HANDWRITECRAFT_PARAMETER_ATLAS.md`
+  - HandwriteCraft 已拆出参数图谱，哪些适合开放给小 agent、哪些先锁住已经有结论
+- `docs/2026-04-05_022500_BOARD_INSERT_POINT_SCHEMA_V1.md`
+  - `BoardInsertPoint` 已定为小 agent 与手写层之间的最小中间结构
+- `docs/2026-04-05_073500_BAIBAN_HANDWRITE_DEMO_RELAY.md`
+  - 最新接力棒：`/tts-timeline` 已真实跑通，下一步只收最小高仿手写数学示例
+- `docs/2026-04-05_081500_BAIBAN_TEAM_4LAYER_XRAY_AND_TAG_MAP.md`
+  - 4 层 X-Ray、`#路标` 语法、主家园 / Team 外挂边界与当前知识地图
+- `docs/2026-04-05_082800_BAIBAN_TEAM_ISSUE_LEDGER.md`
+  - 问题台账：发现问题先收集，按 `#问题_*` 分类记录，再成批解决
+- `docs/2026-04-05_083800_BAIBAN_LEGACY_HOME_AND_LOCAL_RUNTIME_REGISTER.md`
+  - `3000` 旧版本首页收纳说明 + 本地目录树 / 依赖 / 环境 / 启动门牌总表
+- `docs/2026-04-05_084800_BAIBAN_RUNTIME_HOME_CONSOLIDATION_NOTE.md`
+  - 真运行项目归仓说明：外部 baiban 目录如何镜像进当前 worktree，避免整包带走时丢家当
+- `docs/2026-04-05_090500_BAIBAN_FIRST_BATCH_IMPORT_LIST.md`
+  - 第一批正式并进清单：哪些必须先收、哪些可以后收、哪些暂不收
 - `docs/2026-03-30_230300_PROJECT_ONE_SENTENCE_PRINCIPLE.md`
   - 项目的一句话总纲：按需调用，异步加载，不要越做越重
 - `docs/2026-03-31_022249_CACHE_HIT_IS_HUMANITY_PROTECTION.md`
