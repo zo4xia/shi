@@ -33,7 +33,7 @@ const EmbeddedBrowserModal: React.FC<EmbeddedBrowserModalProps> = ({ title, url,
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-[radial-gradient(circle_at_top,#ffe7f2_0%,#ffd9ea_18%,#d8e8ff_48%,rgba(17,24,39,0.52)_100%)] p-4 backdrop-blur-md dark:bg-[radial-gradient(circle_at_top,#4a2940_0%,#2f2947_24%,#171a27_56%,rgba(3,7,18,0.88)_100%)]"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-md "
       onClick={onClose}
     >
       <div
@@ -41,7 +41,7 @@ const EmbeddedBrowserModal: React.FC<EmbeddedBrowserModalProps> = ({ title, url,
         aria-modal="true"
         aria-label={title}
         onClick={(event) => event.stopPropagation()}
-        className="relative flex w-[min(92vw,1280px)] max-h-[88vh] flex-col overflow-hidden border border-white/60 bg-[linear-gradient(180deg,rgba(255,250,252,0.96),rgba(255,233,244,0.92)_38%,rgba(221,237,255,0.92)_100%)] p-3 shadow-[0_30px_80px_rgba(255,160,192,0.28),0_14px_28px_rgba(91,132,199,0.18),inset_0_2px_0_rgba(255,255,255,0.88),inset_0_-10px_24px_rgba(228,162,194,0.24)] dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(53,40,57,0.96),rgba(46,38,68,0.94)_42%,rgba(29,38,58,0.96)_100%)] dark:shadow-[0_28px_90px_rgba(0,0,0,0.46),0_12px_36px_rgba(129,107,194,0.22),inset_0_1px_0_rgba(255,255,255,0.08),inset_0_-14px_28px_rgba(0,0,0,0.24)]"
+        className="relative flex w-[min(92vw,1280px)] max-h-[88vh] flex-col overflow-hidden border border-claude-border dark:border-claude-darkBorder bg-claude-surface dark:bg-claude-darkSurface p-4 shadow-2xl"
         style={{
           borderRadius: 'calc(var(--uclaw-shell-radius) + 0.5rem)',
           aspectRatio: 'var(--uclaw-shell-aspect-ratio)',
@@ -60,7 +60,7 @@ const EmbeddedBrowserModal: React.FC<EmbeddedBrowserModalProps> = ({ title, url,
           </div>
         </div>
 
-        <div className="relative mt-2 flex flex-1 flex-col overflow-hidden rounded-[1.8rem] border border-white/65 bg-white/55 shadow-[inset_0_1px_0_rgba(255,255,255,0.85),inset_0_-8px_14px_rgba(214,164,194,0.16)] backdrop-blur-sm dark:border-white/10 dark:bg-black/20 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06),inset_0_-8px_14px_rgba(0,0,0,0.22)]">
+        <div className="relative mt-2 flex flex-1 flex-col overflow-hidden rounded-[1.8rem] border border-claude-border dark:border-claude-darkBorder bg-claude-surface dark:bg-claude-darkSurface">
           <div className="flex items-center justify-between gap-3 border-b border-white/55 px-5 py-3 dark:border-white/10">
             <div className="min-w-0">
               <div className="mb-1 inline-flex items-center gap-2 rounded-full bg-white/70 px-3 py-1 text-[11px] font-semibold tracking-[0.18em] text-rose-500 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)] dark:bg-white/8 dark:text-rose-200">
@@ -85,6 +85,8 @@ const EmbeddedBrowserModal: React.FC<EmbeddedBrowserModalProps> = ({ title, url,
               <button
                 type="button"
                 onClick={onClose}
+                aria-label="关闭弹窗"
+                title="关闭弹窗"
                 className="rounded-full border border-white/60 bg-white/70 p-1.5 text-claude-textSecondary shadow-[0_6px_14px_rgba(255,194,214,0.2),inset_0_1px_0_rgba(255,255,255,0.85)] transition-all hover:-translate-y-0.5 hover:bg-white hover:text-claude-text dark:border-white/10 dark:bg-white/8 dark:text-claude-darkTextSecondary dark:shadow-none dark:hover:bg-white/12 dark:hover:text-claude-darkText"
               >
                 <XMarkIcon className="h-5 w-5" />
@@ -94,10 +96,10 @@ const EmbeddedBrowserModal: React.FC<EmbeddedBrowserModalProps> = ({ title, url,
 
           <div className="relative flex-1 p-4">
             <div className="absolute inset-x-10 top-2 h-5 rounded-full bg-white/70 blur-xl dark:bg-white/6" />
-            <div className="relative flex h-full flex-col overflow-hidden rounded-[1.6rem] border-[10px] border-[#fff8fb] bg-[linear-gradient(180deg,#ffffff,#fef6fa_48%,#f4f8ff)] shadow-[0_18px_36px_rgba(255,177,204,0.22),inset_0_2px_0_rgba(255,255,255,0.95),inset_0_-10px_20px_rgba(172,198,255,0.18)] dark:border-[#2d3143] dark:bg-[linear-gradient(180deg,#121723,#171d2c_48%,#0e1420)] dark:shadow-[0_18px_34px_rgba(0,0,0,0.32),inset_0_1px_0_rgba(255,255,255,0.05),inset_0_-10px_20px_rgba(0,0,0,0.3)]">
+            <div className="relative flex h-full flex-col overflow-hidden rounded-[1.6rem] border dark:border-claude-darkBorder border-claude-border">
               <div className="pointer-events-none absolute left-4 top-4 h-2.5 w-2.5 rounded-full bg-emerald-300 shadow-[0_0_10px_rgba(74,222,128,0.55)] dark:bg-emerald-400" />
               {isLoading && (
-                <div className="absolute inset-0 z-10 flex items-center justify-center bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.88),rgba(255,241,247,0.76),rgba(222,236,255,0.72))] text-sm text-claude-textSecondary backdrop-blur-[2px] dark:bg-[radial-gradient(circle_at_top,rgba(27,32,45,0.94),rgba(22,27,39,0.92),rgba(17,24,39,0.9))] dark:text-claude-darkTextSecondary">
+                <div className="absolute inset-0 z-10 flex items-center justify-center bg-claude-surface/80 dark:bg-claude-darkSurface/80 text-sm text-claude-textSecondary backdrop-blur-sm dark:text-claude-darkTextSecondary">
                   <div className="rounded-[1.25rem] border border-white/70 bg-white/75 px-5 py-3 text-center shadow-[0_12px_30px_rgba(255,186,211,0.2)] dark:border-white/10 dark:bg-white/6 dark:shadow-none">
                     <div className="mb-1 text-base">🫧</div>
                     <div className="font-medium">小眼睛正在眨一眨</div>
@@ -127,3 +129,4 @@ const EmbeddedBrowserModal: React.FC<EmbeddedBrowserModalProps> = ({ title, url,
 };
 
 export default EmbeddedBrowserModal;
+

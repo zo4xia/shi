@@ -117,7 +117,7 @@ const DataBackup: React.FC = () => {
       )}
 
       <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-        <section className="rounded-[24px] border border-white/60 bg-white/55 px-5 py-5 shadow-[0_10px_24px_rgba(203,174,150,0.08)] dark:border-white/10 dark:bg-white/[0.03]">
+        <section className="rounded-2xl border dark:border-claude-darkBorder border-claude-border bg-claude-surface dark:bg-claude-darkSurface/50 px-5 py-5">
           <div className="flex items-center justify-between gap-3">
             <div>
               <h3 className="text-sm font-semibold dark:text-claude-darkText text-claude-text">数据概览</h3>
@@ -161,7 +161,7 @@ const DataBackup: React.FC = () => {
           </div>
         </section>
 
-        <section className="rounded-[24px] border border-white/60 bg-white/55 px-5 py-5 shadow-[0_10px_24px_rgba(203,174,150,0.08)] dark:border-white/10 dark:bg-white/[0.03]">
+        <section className="rounded-2xl border dark:border-claude-darkBorder border-claude-border bg-claude-surface dark:bg-claude-darkSurface/50 px-5 py-5">
           <div>
             <h3 className="text-sm font-semibold dark:text-claude-darkText text-claude-text">备份与还原</h3>
             <p className="mt-1 text-xs leading-5 dark:text-claude-darkTextSecondary text-claude-textSecondary">

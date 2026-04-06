@@ -47,6 +47,7 @@ import {
   resolveAgentRolesFromConfig,
   type AgentRoleConfigMap,
   type AgentRoleKey,
+  type CompatibleApiFormat,
 } from '../../shared/agentRoleConfig';
 import {
   buildConversationFileCacheUpdate,
@@ -153,93 +154,88 @@ const ClawApiIframeView: React.FC = () => {
   ];
 
   return (
-    <div className="relative h-full w-full overflow-auto">
-      <div className="relative h-full flex flex-col justify-center px-2 py-2">
-        <div className="w-full h-full rounded-[28px] border border-white/60 bg-gradient-to-br from-[#FFFDF9] via-[#FFF7EE] to-[#F7ECDD] px-6 py-6 shadow-[0_20px_60px_rgba(140,104,64,0.14)] dark:border-white/10 dark:bg-gradient-to-br dark:from-[#2B241D] dark:via-[#221C17] dark:to-[#191511] dark:shadow-[0_20px_50px_rgba(0,0,0,0.34)]">
+    <div className="h-full min-h-0 overflow-y-auto px-4 py-4 sm:p-6 space-y-6">
+      {/* 标题 */}
+      <div>
+        <h3 className="text-base font-semibold dark:text-claude-darkText text-claude-text">特价 API 套餐</h3>
+        <p className="text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary mt-0.5">官转白菜价，按量计费，随用随充</p>
+      </div>
 
-          {/* 标题 */}
-          <div className="mb-5">
-            <h3 className="text-base font-semibold dark:text-[#F2F0EB] text-[#5A5248]">特价 API 套餐</h3>
-            <p className="text-xs dark:text-[#9A9085] text-[#9A9085] mt-0.5">官转白菜价，按量计费，随用随充</p>
-          </div>
-
-          <div className="mb-4 flex items-start gap-3 rounded-2xl border border-[#E9D9C5] bg-gradient-to-r from-[#FFF6E9] via-[#FFF8F0] to-[#FFFDF8] px-4 py-3 shadow-[0_8px_20px_rgba(145,108,63,0.08)] dark:border-white/10 dark:bg-[linear-gradient(135deg,rgba(255,214,153,0.12),rgba(255,255,255,0.03))] dark:shadow-[0_10px_24px_rgba(0,0,0,0.18)]">
-            <span className="inline-flex shrink-0 items-center rounded-full bg-[#D97706] px-2.5 py-1 text-[10px] font-bold tracking-[0.12em] text-white dark:bg-[#F59E0B] dark:text-[#2B1F0D]">
-              赞助商活动
-            </span>
-            <div className="min-w-0">
-              <p className="text-xs font-medium leading-5 text-[#6B5848] dark:text-[#E9DDD0]">
-                本区为合作活动信息展示，价格、库存、规则与可用模型请以跳转页面实时信息为准。
-              </p>
-              <p className="mt-0.5 text-[11px] leading-5 text-[#9A8B7B] dark:text-[#B8AA9B]">
-                购买前请自行核对适用场景与资费说明，本应用仅做信息聚合展示。
-              </p>
-            </div>
-          </div>
-
-          {/* 大卡片 */}
-          <div className="grid grid-cols-2 gap-4">
-            {bigPlans.map(plan => (
-              <a
-                key={plan.name}
-                href={plan.href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="group flex flex-col no-underline rounded-[24px] border border-[#E7D7C3] bg-white/95 shadow-[0_14px_30px_rgba(145,108,63,0.10)] transition-all hover:-translate-y-0.5 hover:shadow-[0_18px_36px_rgba(145,108,63,0.16)] dark:border-white/10 dark:bg-white/[0.06] dark:shadow-[0_12px_28px_rgba(0,0,0,0.28)]"
-              >
-                <div className="px-6 pt-6 pb-3">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-base font-semibold dark:text-[#F2F0EB] text-[#5A5248]">{plan.name}</span>
-                    <span className={`text-[10px] font-bold text-white px-2 py-0.5 rounded-full ${plan.badgeBg}`}>{plan.badge}</span>
-                  </div>
-                  <p className="text-xs dark:text-[#9A9085] text-[#9A9085]">{plan.desc}</p>
-                  <div className="mt-4">
-                    <span className="text-3xl font-light tracking-tight dark:text-[#F2F0EB] text-[#3A3228]">{plan.price}</span>
-                    <span className="text-xs dark:text-[#9A9085] text-[#9A9085] ml-1">{plan.unit}</span>
-                  </div>
-                </div>
-                <div className="px-6 pb-6 pt-2">
-                  <div className="btn-primary flex items-center justify-center w-full text-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.35)]" style={{ padding: '8px 16px' }}>
-                    {plan.btnText}
-                  </div>
-                </div>
-              </a>
-            ))}
-          </div>
-
-          {/* 小卡片 */}
-          <div className="grid grid-cols-3 gap-3 mt-4">
-            {smallPlans.map(plan => (
-              <a
-                key={plan.name}
-                href={plan.href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex flex-col justify-between no-underline rounded-2xl border border-[#EADBC8] bg-[#FFFDF9] px-4 py-4 shadow-[0_10px_22px_rgba(145,108,63,0.08)] transition-all hover:-translate-y-0.5 hover:shadow-[0_14px_28px_rgba(145,108,63,0.12)] dark:border-white/10 dark:bg-white/[0.05] dark:shadow-[0_10px_20px_rgba(0,0,0,0.24)]"
-              >
-                <div className="flex items-center gap-2 mb-2">
-                  <span className={`w-1.5 h-1.5 rounded-full ${plan.dot} flex-shrink-0`} />
-                  <span className="text-sm font-medium dark:text-[#F2F0EB] text-[#5A5248] truncate">{plan.name}</span>
-                </div>
-                <div className="mt-3">
-                  <div>
-                    <span className="text-xl font-light dark:text-[#F2F0EB] text-[#3A3228]">{plan.price}</span>
-                    <span className="text-[11px] dark:text-[#9A9085] text-[#9A9085] ml-1">{plan.unit}</span>
-                  </div>
-                  <div className="mt-3 inline-flex items-center justify-center rounded-xl border border-[#E3C7A5] bg-gradient-to-r from-[#FFF0D8] to-[#FFE4B8] px-3 py-1.5 text-xs font-semibold text-[#9A5A06] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:border-[#7A5A2E] dark:bg-[linear-gradient(135deg,rgba(245,158,11,0.22),rgba(217,119,6,0.14))] dark:text-[#FFD89A]">
-                    {plan.btnText}
-                  </div>
-                </div>
-              </a>
-            ))}
-          </div>
-
-          {/* 联系方式 */}
-          <p className="mt-5 text-center text-xs dark:text-[#7A7065] text-[#9A9085]">
-            不会弄？加 Q/微信：<span className="font-medium dark:text-[#9A9085] text-[#7A7065] select-all">ooc1920</span> 协助配置
+      <div className="flex flex-col sm:flex-row items-start gap-3 rounded-xl border border-claude-border dark:border-claude-darkBorder bg-claude-surfaceInset dark:bg-claude-darkSurfaceInset px-4 py-3">
+        <span className="inline-flex shrink-0 items-center rounded-full bg-claude-accent px-2.5 py-1 text-[10px] font-bold tracking-[0.12em] text-white">
+          赞助商活动
+        </span>
+        <div className="min-w-0">
+          <p className="text-xs font-medium leading-5 dark:text-claude-darkText text-claude-text">
+            本区为合作活动信息展示，价格、库存、规则与可用模型请以跳转页面实时信息为准。
+          </p>
+          <p className="mt-0.5 text-[11px] leading-5 dark:text-claude-darkTextSecondary text-claude-textSecondary">
+            购买前请自行核对适用场景与资费说明，本应用仅做信息聚合展示。
           </p>
         </div>
       </div>
+
+      {/* 大卡片 */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {bigPlans.map(plan => (
+          <a
+            key={plan.name}
+            href={plan.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group flex flex-col no-underline rounded-xl border dark:border-claude-darkBorder border-claude-border dark:bg-claude-darkSurface bg-claude-surface transition-all hover:bg-claude-surfaceHover dark:hover:bg-claude-darkSurfaceHover hover:border-claude-accent/30 shadow-sm"
+          >
+            <div className="flex-1 px-5 pt-5 pb-3">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-base font-semibold dark:text-claude-darkText text-claude-text">{plan.name}</span>
+                <span className={`text-[10px] font-bold text-white px-2 py-0.5 rounded-full ${plan.badgeBg}`}>{plan.badge}</span>
+              </div>
+              <p className="text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary">{plan.desc}</p>
+              <div className="mt-4">
+                <span className="text-2xl font-light tracking-tight dark:text-claude-darkText text-claude-text">{plan.price}</span>
+                <span className="text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary ml-1">{plan.unit}</span>
+              </div>
+            </div>
+            <div className="px-5 pb-5 pt-2">
+              <div className="btn-primary flex items-center justify-center w-full text-sm py-2">
+                {plan.btnText}
+              </div>
+            </div>
+          </a>
+        ))}
+      </div>
+
+      {/* 小卡片 */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+        {smallPlans.map(plan => (
+          <a
+            key={plan.name}
+            href={plan.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex flex-col justify-between no-underline rounded-xl border dark:border-claude-darkBorder border-claude-border dark:bg-claude-darkSurface bg-claude-surface px-4 py-4 transition-all hover:bg-claude-surfaceHover dark:hover:bg-claude-darkSurfaceHover hover:border-claude-accent/30 shadow-sm"
+          >
+            <div className="flex items-center gap-2 mb-2">
+              <span className={`w-1.5 h-1.5 rounded-full ${plan.dot} flex-shrink-0`} />
+              <span className="text-sm font-medium dark:text-claude-darkText text-claude-text truncate">{plan.name}</span>
+            </div>
+            <div className="mt-2 flex items-center justify-between">
+              <div>
+                <span className="text-lg font-light dark:text-claude-darkText text-claude-text">{plan.price}</span>
+                <span className="text-[11px] dark:text-claude-darkTextSecondary text-claude-textSecondary ml-1">{plan.unit}</span>
+              </div>
+              <span className="text-xs font-medium text-claude-accent/90 dark:text-claude-accent">
+                {plan.btnText} &rarr;
+              </span>
+            </div>
+          </a>
+        ))}
+      </div>
+
+      {/* 联系方式 */}
+      <p className="pt-2 text-center text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary pb-4">
+        不会弄？加 Q/微信：<span className="font-medium dark:text-claude-darkText text-claude-text select-all">ooc1920</span> 协助配置
+      </p>
     </div>
   );
 };
@@ -1903,7 +1899,7 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
 
         return (
           <div className={isMobileViewport ? 'space-y-4' : 'grid h-full min-h-0 grid-cols-[320px_minmax(0,1fr)] gap-5'}>
-            <section className="space-y-3 rounded-[24px] border border-white/60 bg-white/55 p-4 shadow-[0_10px_24px_rgba(203,174,150,0.08)] dark:border-white/10 dark:bg-white/[0.03] overflow-y-auto min-h-0">
+            <section className="space-y-3 rounded-2xl border dark:border-claude-darkBorder border-claude-border dark:bg-claude-darkSurface/50 bg-claude-surface p-4 sm:p-5 overflow-y-auto min-h-0">
               <div className="px-1 pb-2 border-b dark:border-claude-darkBorder border-claude-border">
                 <h3 className="text-sm font-medium dark:text-claude-darkText text-claude-text">
                   {'角色配置'}
@@ -1975,7 +1971,7 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
               })}
             </section>
 
-            <section className="space-y-4 rounded-[24px] border border-white/60 bg-white/55 p-4 shadow-[0_10px_24px_rgba(203,174,150,0.08)] dark:border-white/10 dark:bg-white/[0.03] overflow-y-auto min-h-0 [scrollbar-gutter:stable]">
+            <section className="space-y-4 rounded-2xl border dark:border-claude-darkBorder border-claude-border dark:bg-claude-darkSurface/50 bg-claude-surface p-4 sm:p-5 overflow-y-auto min-h-0 [scrollbar-gutter:stable]">
               <div className="flex items-center justify-between rounded-xl border px-4 py-3 dark:border-claude-darkBorder border-claude-border dark:bg-claude-darkSurface/40 bg-claude-surface/40">
                 <div className="flex items-center gap-3">
                   <span className="inline-flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-claude-border bg-white/80 text-lg shadow-sm dark:border-claude-darkBorder dark:bg-white/[0.08]">
@@ -2106,7 +2102,7 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
             </div>
           ) : (
             <div className="px-6 pt-6 pb-4">
-              <div className="rounded-[22px] border border-white/60 bg-white/55 px-4 py-4 shadow-[0_10px_24px_rgba(203,174,150,0.10)] dark:border-white/10 dark:bg-white/[0.04]">
+              <div className="rounded-2xl border dark:border-claude-darkBorder border-claude-border bg-claude-surface dark:bg-claude-darkSurface/50 px-4 py-4">
                 <h2 className="text-base font-semibold dark:text-claude-darkText text-claude-text">{'设置'}</h2>
                 <p className="mt-1 text-[11px] leading-5 dark:text-claude-darkTextSecondary text-claude-textSecondary">
                   {'把模型、频道、记忆和文件入口轻轻收在一起。'}
@@ -2119,7 +2115,7 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
               /* ## {提取} SettingsMobileTabStrip
                   当前移动端设置导航改成横向切换栏。
                   后续可抽成轻量 tab-strip，供其它大设置页或管理页复用。 */
-              <div className="mx-3 mb-2 rounded-[20px] border border-white/60 bg-white/45 p-2 shadow-[0_10px_24px_rgba(203,174,150,0.08)] dark:border-white/10 dark:bg-white/[0.03]">
+              <div className="mx-3 mb-2 rounded-2xl border dark:border-claude-darkBorder border-claude-border bg-claude-surface dark:bg-claude-darkSurface/50 p-2">
                 <div className="flex gap-2 overflow-x-auto px-1 pb-1 whitespace-nowrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                   {sidebarTabs.map((tab) => (
                     <button
@@ -2129,7 +2125,7 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
                       className={`inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-2 text-sm transition-colors ${
                         activeTab === tab.key
                           ? 'border-claude-accent/30 bg-gradient-to-r from-claude-accent/14 to-claude-accent/6 text-claude-accent shadow-sm'
-                          : 'border-white/45 bg-white/55 text-claude-textSecondary dark:border-white/10 dark:bg-white/[0.04] dark:text-claude-darkTextSecondary'
+                          : 'border-claude-border dark:border-claude-darkBorder bg-claude-surface dark:bg-claude-darkSurface text-claude-textSecondary dark:text-claude-darkTextSecondary'
                       }`}
                     >
                       <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
@@ -2145,12 +2141,12 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
                 </div>
               </div>
             ) : (
-              <nav className="flex flex-col gap-2 rounded-[24px] border border-white/60 bg-white/45 p-2 shadow-[0_10px_24px_rgba(203,174,150,0.08)] dark:border-white/10 dark:bg-white/[0.03]">
+              <nav className="flex flex-col gap-1 rounded-2xl border dark:border-claude-darkBorder border-claude-border bg-claude-surface dark:bg-claude-darkSurface/50 p-2">
                 {sidebarTabs.map((tab) => (
                   <button
                     key={tab.key}
                     onClick={() => handleTabChange(tab.key)}
-                    className={`group flex items-center gap-3 rounded-[18px] px-3.5 py-3 transition-colors duration-200 ease-out text-left relative overflow-hidden ${
+                    className={`group flex items-center gap-3 rounded-2xl px-3.5 py-3 transition-colors duration-200 ease-out text-left relative overflow-hidden ${
                       activeTab === tab.key
                         ? 'bg-gradient-to-r from-claude-accent/16 to-claude-accent/8 text-claude-accent shadow-[0_10px_24px_rgba(193,156,133,0.14)]'
                         : 'dark:text-claude-darkTextSecondary text-claude-textSecondary dark:hover:text-claude-darkText hover:text-claude-text dark:hover:bg-claude-darkSurfaceHover/50 hover:bg-claude-surfaceHover/50'
@@ -2559,3 +2555,5 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
 };
 
 export default Settings; 
+
+
