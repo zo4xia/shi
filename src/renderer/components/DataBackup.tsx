@@ -217,6 +217,8 @@ const DataBackup: React.FC = () => {
               accept=".sqlite"
               onChange={handleImport}
               className="hidden"
+              aria-label="选择还原备份文件"
+              title="选择还原备份文件"
             />
 
             <p className="px-1 text-xs leading-5 dark:text-claude-darkTextSecondary/60 text-claude-textSecondary/60">

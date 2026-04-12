@@ -6,7 +6,7 @@
 - `contracts.ts`：最小接口约定
 - `requestTrace.ts`：请求追踪，方便定位“是谁触发的”
 - `channelSessionBinding.ts`：频道到会话的绑定层
-- `identityThread.ts`：24h 白板读写
+- `identityThreadHelper`：24h 白板现役真相 helper 以 `server/libs/identityThreadHelper.ts` 为准（clean-room 旧 helper 已退役）
 - `feishuSessionSpine.ts`：飞书会话复用/创建主干
 - `feishuRuntime.ts`：飞书 bot 运行时绑定与多应用合并
 - `feishuText.ts`：飞书文本拆包、mention 清洗、回复提取
@@ -15,7 +15,7 @@
 - `sessionIngress.ts`：统一的新建/续接入口准备层
 - `sessionOrchestrator.ts`：把入口准备、连续性补偿、执行器调用收成一层
 - `dailyMemorySpine.ts`：每日抽取“先写库、后清白板”的闭环骨架
-- `dailyMemoryDbAdapter.ts`：每日抽取真实角色扫描/线程装载/长期写库桥
+- `dailyMemoryDbAdapter`：旧的每日抽取 DB 适配层已退役；现役主链以 `SKILLs/daily-memory-extraction` + `server/libs/identityThreadHelper.ts` 为准
 - `dailyExtractorRole.ts`：从 `app_config.agentRoles` 选择每日摘要模型
 - `time.ts`：兼容历史混合时间戳格式
 - `dailySummaryPipeline.ts`：每日总结“先写持久层，再清白板”的门闩

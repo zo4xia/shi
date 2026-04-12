@@ -41,11 +41,7 @@ const EmbeddedBrowserModal: React.FC<EmbeddedBrowserModalProps> = ({ title, url,
         aria-modal="true"
         aria-label={title}
         onClick={(event) => event.stopPropagation()}
-        className="relative flex w-[min(92vw,1280px)] max-h-[88vh] flex-col overflow-hidden border border-claude-border dark:border-claude-darkBorder bg-claude-surface dark:bg-claude-darkSurface p-4 shadow-2xl"
-        style={{
-          borderRadius: 'calc(var(--uclaw-shell-radius) + 0.5rem)',
-          aspectRatio: 'var(--uclaw-shell-aspect-ratio)',
-        }}
+        className="relative flex w-[min(92vw,1280px)] max-h-[88vh] flex-col overflow-hidden border border-claude-border dark:border-claude-darkBorder bg-claude-surface dark:bg-claude-darkSurface p-4 shadow-2xl rounded-[calc(var(--uclaw-shell-radius)+0.5rem)] aspect-[var(--uclaw-shell-aspect-ratio)]"
       >
         <div className="pointer-events-none absolute -top-5 left-10 h-12 w-28 rounded-full bg-white/55 blur-xl dark:bg-fuchsia-200/10" />
         <div className="pointer-events-none absolute -right-4 top-10 h-28 w-28 rounded-full bg-sky-200/40 blur-2xl dark:bg-sky-400/10" />

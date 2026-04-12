@@ -1,7 +1,132 @@
+import { randomInt } from 'crypto';
 import fs from 'fs';
 import { Router, Request, Response } from 'express';
 import type { RequestContext } from '../src/index';
 import { resolveEnvSyncTargetPath } from './store';
+
+const TRIAL_ACCESS_STATE_KEY = 'trial_access_daily_key_v1';
+const DEFAULT_TRIAL_ACCESS_TIMEZONE = 'Asia/Shanghai';
+
+type TrialAccessState = {
+  day: string;
+  code: string;
+  generatedAt: string;
+  webhookSentAt?: string | null;
+  lastVerifiedAt?: string | null;
+};
+
+const isTrialAccessEnabled = (): boolean => {
+  const raw = String(process.env.UCLAW_TRIAL_ACCESS_ENABLED || '').trim().toLowerCase();
+  return raw === '1' || raw === 'true' || raw === 'yes' || raw === 'on';
+};
+
+const getTrialAccessTimezone = (): string => (
+  String(process.env.UCLAW_TRIAL_ACCESS_TIMEZONE || DEFAULT_TRIAL_ACCESS_TIMEZONE).trim() || DEFAULT_TRIAL_ACCESS_TIMEZONE
+);
+
+const getTrialAccessWebhookUrl = (): string => (
+  String(process.env.UCLAW_TRIAL_ACCESS_WEBHOOK_URL || '').trim()
+);
+
+const getCurrentTrialAccessDay = (): string => {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: getTrialAccessTimezone(),
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  return formatter.format(new Date());
+};
+
+const generateTrialAccessCode = (length = 8): string => {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let index = 0; index < length; index += 1) {
+    code += alphabet[randomInt(0, alphabet.length)];
+  }
+  return code;
+};
+
+const pushTrialAccessWebhook = async (state: TrialAccessState, req?: Request): Promise<boolean> => {
+  const webhookUrl = getTrialAccessWebhookUrl();
+  if (!webhookUrl) {
+    console.warn('[trial-access] Webhook URL missing; skip notification');
+    return false;
+  }
+
+  const protocol = req?.protocol || 'http';
+  const host = req?.get('host') || '';
+  const accessUrl = host ? `${protocol}://${host}` : '';
+  const payload = {
+    event: 'uclaw_trial_access_daily_code',
+    day: state.day,
+    code: state.code,
+    generatedAt: state.generatedAt,
+    timezone: getTrialAccessTimezone(),
+    app: 'UCLAW',
+    accessUrl,
+    text: `UCLAW 客户体验版 24小时密钥\n日期: ${state.day}\n密钥: ${state.code}${accessUrl ? `\n入口: ${accessUrl}` : ''}`,
+  };
+
+  const response = await fetch(webhookUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Webhook push failed: HTTP ${response.status}`);
+  }
+
+  return true;
+};
+
+const ensureTrialAccessState = async (store: RequestContext['store'], req?: Request): Promise<TrialAccessState> => {
+  const currentDay = getCurrentTrialAccessDay();
+  const current = store.get<TrialAccessState>(TRIAL_ACCESS_STATE_KEY) ?? null;
+
+  if (current?.day === currentDay && current.code?.trim()) {
+    if (!current.webhookSentAt) {
+      try {
+        const sent = await pushTrialAccessWebhook(current, req);
+        if (sent) {
+          const nextState: TrialAccessState = {
+            ...current,
+            webhookSentAt: new Date().toISOString(),
+          };
+          store.set(TRIAL_ACCESS_STATE_KEY, nextState);
+          return nextState;
+        }
+      } catch (error) {
+        console.error('[trial-access] Failed to resend webhook:', error);
+      }
+    }
+    return current;
+  }
+
+  const nextState: TrialAccessState = {
+    day: currentDay,
+    code: generateTrialAccessCode(),
+    generatedAt: new Date().toISOString(),
+    webhookSentAt: null,
+    lastVerifiedAt: null,
+  };
+  store.set(TRIAL_ACCESS_STATE_KEY, nextState);
+
+  try {
+    const sent = await pushTrialAccessWebhook(nextState, req);
+    if (sent) {
+      nextState.webhookSentAt = new Date().toISOString();
+      store.set(TRIAL_ACCESS_STATE_KEY, nextState);
+    }
+  } catch (error) {
+    console.error('[trial-access] Failed to push webhook:', error);
+  }
+
+  return nextState;
+};
 
 export function setupAppRoutes(app: Router) {
   const router = Router();
@@ -85,6 +210,79 @@ export function setupAppRoutes(app: Router) {
       envSyncTargetPath,
       envSyncTargetExists: fs.existsSync(envSyncTargetPath),
     });
+  });
+
+  router.get('/trialAccess/status', async (req: Request, res: Response) => {
+    try {
+      const enabled = isTrialAccessEnabled();
+      if (!enabled) {
+        return res.json({
+          enabled: false,
+          currentDay: getCurrentTrialAccessDay(),
+        });
+      }
+
+      const { store } = req.context as RequestContext;
+      const state = await ensureTrialAccessState(store, req);
+      res.json({
+        enabled: true,
+        currentDay: state.day,
+        timezone: getTrialAccessTimezone(),
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to get trial access status',
+      });
+    }
+  });
+
+  router.post('/trialAccess/verify', async (req: Request, res: Response) => {
+    try {
+      const enabled = isTrialAccessEnabled();
+      if (!enabled) {
+        return res.json({
+          success: true,
+          enabled: false,
+          currentDay: getCurrentTrialAccessDay(),
+        });
+      }
+
+      const { code } = req.body as { code?: string };
+      const normalizedCode = String(code || '').trim().toUpperCase();
+      if (!normalizedCode) {
+        return res.status(400).json({
+          success: false,
+          error: '请输入24小时密钥',
+        });
+      }
+
+      const { store } = req.context as RequestContext;
+      const state = await ensureTrialAccessState(store, req);
+      if (normalizedCode !== state.code) {
+        return res.status(401).json({
+          success: false,
+          error: '密钥不正确，请联系夏夏领取今天的24小时密钥',
+        });
+      }
+
+      const nextState: TrialAccessState = {
+        ...state,
+        lastVerifiedAt: new Date().toISOString(),
+      };
+      store.set(TRIAL_ACCESS_STATE_KEY, nextState);
+
+      return res.json({
+        success: true,
+        enabled: true,
+        currentDay: nextState.day,
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to verify trial access code',
+      });
+    }
   });
 
   // Note: App update routes (appUpdate:download, appUpdate:install) are Electron-specific

@@ -28,6 +28,8 @@ const ConversationActionButton: React.FC<ConversationActionButtonProps> = ({
     pending ? 'cursor-wait opacity-85' : '',
   ].filter(Boolean).join(' ');
 
+  const ariaPressedValue = ariaPressed === undefined ? undefined : (ariaPressed ? 'true' : 'false');
+
   return (
     <button
       type="button"
@@ -35,7 +37,7 @@ const ConversationActionButton: React.FC<ConversationActionButtonProps> = ({
       className={className}
       title={title}
       disabled={disabled}
-      aria-pressed={ariaPressed}
+      aria-pressed={ariaPressedValue}
     >
       <span className="font-semibold">{shortLabel}</span>
       <span>{label}</span>

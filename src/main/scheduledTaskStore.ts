@@ -3,7 +3,7 @@
  * {标记} 功能：定时任务的 CRUD + 状态管理
  * {标记} 用途：支持 cron/interval/at 三种调度模式
  * {验证} 2026-03-17 复查：定时任务系统核心，每日记忆抽取等依赖此文件 ✅
- * {警告} 修改此文件会影响所有定时任务的执行和状态管理
+ * {警告} 修改此文件会影响所有定时任务的执行和状态管理，以及角色身份/运行模型元信息的持久化方式
  */
 import { Database } from 'sql.js';
 import { v4 as uuidv4 } from 'uuid';
@@ -33,7 +33,7 @@ export interface Schedule {
 
 export type NotifyPlatform = 'dingtalk' | 'feishu' | 'qq' | 'telegram' | 'discord' | 'nim' | 'xiaomifeng' | 'wecom';
 
-// {标记} P0-BUG-FIX: 定时任务身份绑定 - 更新类型定义
+// {标记} P0-IDENTITY-BOUNDARY: 定时任务里 agentRoleKey 才是身份；modelId 只是运行时模型元信息。
 export interface ScheduledTask {
   id: string;
   name: string;
@@ -51,8 +51,7 @@ export interface ScheduledTask {
   feishuNotifyAgentRoleKey: string | null;
   feishuAppId: string | null;
   feishuChatId: string | null;
-  // {标记} P0-新增：身份绑定字段
-  // The stored identity key may be any preserved agentRoleKey. Runtime execution can still map to the 4 main role slots.
+  // {标记} P0-IDENTITY-BOUNDARY: 持久化保留的是角色身份键；运行时可映射到 4 主角色槽位，但不能让 modelId 取代身份。
   agentRoleKey: string;
   modelId: string;
   state: TaskState;
@@ -72,7 +71,7 @@ export interface ScheduledTaskRun {
   trigger: 'scheduled' | 'manual';
 }
 
-// {标记} P0-BUG-FIX: 定时任务身份绑定 - 更新输入类型
+// {标记} P0-IDENTITY-BOUNDARY: 输入层也必须区分角色身份与运行模型元信息。
 export interface ScheduledTaskInput {
   name: string;
   description: string;
@@ -89,14 +88,13 @@ export interface ScheduledTaskInput {
   feishuAppId?: string | null;
   feishuChatId?: string | null;
   enabled: boolean;
-  // {标记} P0-新增：身份绑定字段
-  // The stored identity key may be any preserved agentRoleKey. Runtime execution can still map to the 4 main role slots.
+  // {标记} P0-IDENTITY-BOUNDARY: agentRoleKey 是身份；modelId 只是执行时当前挂的发动机。
   agentRoleKey?: string;
   modelId?: string;
 }
 
 // Raw DB row types
-// {标记} P0-BUG-FIX: 定时任务身份绑定 - 更新 DB row 类型
+// {标记} P0-IDENTITY-BOUNDARY: DB row 里保留角色身份和运行模型元信息，但身份边界仍只认 agent_role_key。
 interface TaskRow {
   id: string;
   name: string;
@@ -114,7 +112,7 @@ interface TaskRow {
   feishu_notify_agent_role_key: string | null;
   feishu_app_id: string | null;
   feishu_chat_id: string | null;
-  // {标记} P0-新增：身份绑定字段
+  // {标记} P0-IDENTITY-BOUNDARY: agent_role_key 是身份；model_id 只是运行时元信息。
   agent_role_key: string;
   model_id: string;
   next_run_at_ms: number | null;
@@ -228,7 +226,7 @@ export class ScheduledTaskStore {
     const nextRunAtMs = input.enabled ? this.calculateNextRunTime(input.schedule, null) : null;
     const executionMode = 'local';
 
-    // {标记} P0-BUG-FIX: 定时任务身份绑定 - 插入身份字段
+    // {标记} P0-IDENTITY-BOUNDARY: 插入时要同时落角色身份键和运行模型元信息，但身份边界仍只认 agentRoleKey。
     this.db.run(`
       INSERT INTO scheduled_tasks
         (id, name, description, enabled, schedule_json, prompt,
@@ -288,7 +286,7 @@ export class ScheduledTaskStore {
     const feishuChatId = input.feishuChatId !== undefined
       ? (input.feishuChatId?.trim() || null)
       : existing.feishuChatId;
-    // {标记} P0-BUG-FIX: 定时任务身份绑定 - 更新身份字段
+    // {标记} P0-IDENTITY-BOUNDARY: 更新时要区分角色身份键与运行模型元信息，不能把 modelId 升格成身份。
     const agentRoleKey = input.agentRoleKey !== undefined ? input.agentRoleKey : existing.agentRoleKey;
     const modelId = input.modelId !== undefined ? input.modelId : existing.modelId;
 
@@ -300,7 +298,7 @@ export class ScheduledTaskStore {
         : null;
     }
 
-    // {标记} P0-BUG-FIX: 定时任务身份绑定 - 更新 SQL 包含身份字段
+    // {标记} P0-IDENTITY-BOUNDARY: SQL 里同时保留 agent_role_key / model_id，但身份边界仍只认 agent_role_key。
     this.db.run(`
       UPDATE scheduled_tasks
       SET name = ?, description = ?, enabled = ?, schedule_json = ?,
@@ -587,7 +585,7 @@ export class ScheduledTaskStore {
     } catch {
       notifyPlatforms = [];
     }
-    // {标记} P0-BUG-FIX: 定时任务身份绑定 - 读取身份字段
+    // {标记} P0-IDENTITY-BOUNDARY: 读取时返回角色身份键和运行模型元信息，上层不能把两者混成一个概念。
     return {
       id: row.id,
       name: row.name,

@@ -98,7 +98,7 @@ export interface MemoryEntry {
 }
 
 export interface YesterdayFallbackResult {
-  loadedFrom: 'shared-thread' | 'memory-db' | 'none';
+  loadedFrom: 'shared-thread' | 'durable-memory' | 'none';
   summary: string;
   memoryIds: string[];
 }

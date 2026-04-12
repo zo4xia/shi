@@ -460,6 +460,10 @@ export function syncAppConfigToEnv(config: any): void {
 }
 
 // {埋点} 💾 .env同步 (ID: env-sync-002) IM配置保存时，飞书凭证同步写入.env
+// 口径提醒：
+// - im_config 仍是运行态主真相源
+// - .env 这里只是同步镜像 / 部署兜底
+// - 不要反过来把 .env 当成 IM 运行时的第一真相源
 function syncImConfigToEnv(config: any): void {
   try {
     const envPath = resolveEnvSyncTargetPath();
@@ -467,27 +471,53 @@ function syncImConfigToEnv(config: any): void {
 
     let envContent = fs.readFileSync(envPath, 'utf8');
 
-    // 飞书配置 - 写入所有apps，第0个用无后缀变量，其余用_1/_2...后缀
+    // 飞书配置：
+    // - 先清掉旧的主名/兼容名和多应用后缀残留
+    // - 再只写主名 UCLAW_FEISHU_*，兼容名保留只读兼容，不再继续回写
+    envContent = clearIndexedEnvAliasLines(envContent, ENV_ALIAS_PAIRS.feishuAppId);
+    envContent = clearIndexedEnvAliasLines(envContent, ENV_ALIAS_PAIRS.feishuAppSecret);
+    envContent = clearIndexedEnvAliasLines(envContent, ENV_ALIAS_PAIRS.feishuAgentRoleKey);
     const feishu = config.feishu;
     if (feishu?.apps?.length > 0) {
       feishu.apps.forEach((app: any, i: number) => {
         if (!app) return;
         const suffix = i === 0 ? '' : `_${i}`;
-        envContent = upsertEnvAliasLines(envContent, ENV_ALIAS_PAIRS.feishuAppId, app.appId || '', suffix);
-        envContent = upsertEnvAliasLines(envContent, ENV_ALIAS_PAIRS.feishuAppSecret, app.appSecret || '', suffix);
-        envContent = upsertEnvAliasLines(envContent, ENV_ALIAS_PAIRS.feishuAgentRoleKey, app.agentRoleKey || 'organizer', suffix);
+        envContent = upsertPrimaryEnvLineForPair(envContent, ENV_ALIAS_PAIRS.feishuAppId, app.appId || '', suffix);
+        envContent = upsertPrimaryEnvLineForPair(envContent, ENV_ALIAS_PAIRS.feishuAppSecret, app.appSecret || '', suffix);
+        envContent = upsertPrimaryEnvLineForPair(envContent, ENV_ALIAS_PAIRS.feishuAgentRoleKey, app.agentRoleKey || 'organizer', suffix);
       });
     }
 
+    // IMA 配置：
+    // - 主名继续是 IMA_OPENAPI_*
+    // - UCLAW_IMA_* 只做兼容读取，不再回写到 .env
     const ima = normalizeImaConfig(config);
-    envContent = upsertEnvAliasLines(envContent, ENV_ALIAS_PAIRS.imaOpenapiClientId, ima.clientId);
-    envContent = upsertEnvAliasLines(envContent, ENV_ALIAS_PAIRS.imaOpenapiApiKey, ima.apiKey);
+    envContent = clearIndexedEnvAliasLines(envContent, ENV_ALIAS_PAIRS.imaOpenapiClientId);
+    envContent = clearIndexedEnvAliasLines(envContent, ENV_ALIAS_PAIRS.imaOpenapiApiKey);
+    envContent = upsertPrimaryEnvLineForPair(envContent, ENV_ALIAS_PAIRS.imaOpenapiClientId, ima.clientId);
+    envContent = upsertPrimaryEnvLineForPair(envContent, ENV_ALIAS_PAIRS.imaOpenapiApiKey, ima.apiKey);
 
     fs.writeFileSync(envPath, envContent, 'utf8');
     syncProcessEnvFromContent(envContent);
   } catch (err) {
     console.error('[env-sync] Failed to sync im_config to .env:', err);
   }
+}
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function clearIndexedEnvAliasLines(content: string, pair: { primary: string; legacy: string }): string {
+  const pattern = new RegExp(
+    `^(?:${escapeRegex(pair.primary)}|${escapeRegex(pair.legacy)})(?:_\\d+)?=.*(?:\\r?\\n)?`,
+    'gm'
+  );
+  return content.replace(pattern, '');
+}
+
+function upsertPrimaryEnvLineForPair(content: string, pair: { primary: string; legacy: string }, value: string, suffix = ''): string {
+  return upsertEnvLine(content, `${pair.primary}${suffix}`, value);
 }
 
 function upsertEnvAliasLines(content: string, pair: { primary: string; legacy: string }, value: string, suffix = ''): string {

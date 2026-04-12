@@ -16,10 +16,10 @@ const SettingsFieldGroup: React.FC<SettingsFieldGroupProps> = ({
   className = '',
 }) => (
   <div className={`space-y-2 ${className}`.trim()}>
-    <div className="space-y-1">
+    <div>
       <label
         htmlFor={labelFor}
-        className="text-sm font-medium dark:text-claude-darkText text-claude-text"
+        className="block text-sm font-medium dark:text-claude-darkText text-claude-text mb-1"
       >
         {label}
       </label>
@@ -29,9 +29,7 @@ const SettingsFieldGroup: React.FC<SettingsFieldGroupProps> = ({
         </p>
       ) : null}
     </div>
-    <div className="grid gap-1">
-      {children}
-    </div>
+    {children}
   </div>
 );
 

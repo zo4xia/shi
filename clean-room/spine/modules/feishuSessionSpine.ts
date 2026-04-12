@@ -84,6 +84,7 @@ function syncFeishuSessionTruth(
   scopeKey: string
 ): SessionRecord {
   // {标记} P0-IDENTITY-BOUNDARY: 这里同步的是渠道作用域与当前 runtime 元信息；session 复用判断本身不能按 modelId 切桶。
+  // modelId 只用于“当前绑定的发动机是否需要刷新到 session 元信息”，不用于 identity / thread / memory bucket。
   const needsSync = session.systemPrompt !== scopeKey
     || session.sourceType !== 'external'
     || session.agentRoleKey !== binding.agentRoleKey

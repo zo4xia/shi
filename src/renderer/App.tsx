@@ -1,59 +1,60 @@
-import React, { Suspense, useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { useSelector, useDispatch } from 'react-redux';
-import { RootState } from './store';
-import type { SettingsOpenOptions } from './components/Settings';
-import Sidebar from './components/Sidebar';
-import Toast from './components/Toast';
-import WindowTitleBar from './components/window/WindowTitleBar';
-import { CoworkView } from './components/cowork';
-import { GlobalFloatingActionRail } from './components/app-ui';
-import SidebarToggleIcon from './components/icons/SidebarToggleIcon';
-import CoworkPermissionModal from './components/cowork/CoworkPermissionModal';
-import CoworkQuestionWizard from './components/cowork/CoworkQuestionWizard';
-import { imService } from './services/im';
-import { configService } from './services/config';
-import { apiService } from './services/api';
-import { themeService } from './services/theme';
-import { coworkService } from './services/cowork';
-import { checkForAppUpdate, type AppUpdateInfo, type AppUpdateDownloadProgress, UPDATE_POLL_INTERVAL_MS, UPDATE_HEARTBEAT_INTERVAL_MS } from './services/appUpdate';
-import { defaultConfig } from './config';
-import { setAvailableModels, setSelectedModel } from './store/slices/modelSlice';
-import { clearSelection } from './store/slices/quickActionSlice';
 import {
-  buildAvailableModelsFromAgentRoles,
-  isAgentRoleProviderKey,
-  resolveAgentRolesFromConfig,
-} from '../shared/agentRoleConfig';
-import type { ApiConfig } from './services/api';
-import type { CoworkPermissionResult } from './types/cowork';
-import {
-  ChatBubbleLeftRightIcon,
+    ChatBubbleLeftRightIcon,
 } from '@heroicons/react/24/outline';
 import { StarIcon } from '@heroicons/react/24/solid';
-import { matchesShortcut } from './services/shortcuts';
-import AppUpdateBadge from './components/update/AppUpdateBadge';
-import AppUpdateModal from './components/update/AppUpdateModal';
+import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import {
+    buildAvailableModelsFromAgentRoles,
+    isAgentRoleProviderKey,
+    resolveAgentRolesFromConfig,
+} from '../shared/agentRoleConfig';
+import {
+    BROWSER_EYES_CURRENT_PAGE_STORE_KEY,
+    type BrowserEyesCurrentPageState,
+} from '../shared/browserEyesState';
+import { GlobalFloatingActionRail } from './components/app-ui';
+import { CoworkView } from './components/cowork';
+import CoworkPermissionModal from './components/cowork/CoworkPermissionModal';
+import CoworkQuestionWizard from './components/cowork/CoworkQuestionWizard';
+import type { CoworkRightDockAction } from './components/cowork/rightDock';
+import { normalizeSessionSourceFilter, type SessionSourceFilter } from './components/cowork/sessionRecordUtils';
 import EmbeddedBrowserModal from './components/EmbeddedBrowserModal';
 import EmbeddedIframeView from './components/EmbeddedIframeView';
+import type { SettingsOpenOptions } from './components/Settings';
+import TrialAccessGate from './components/TrialAccessGate';
+import Sidebar from './components/Sidebar';
+import Toast from './components/Toast';
+import AppUpdateBadge from './components/update/AppUpdateBadge';
+import AppUpdateModal from './components/update/AppUpdateModal';
+import WindowTitleBar from './components/window/WindowTitleBar';
+import { defaultConfig } from './config';
 import { getIframePage } from './config/iframePages';
-import { EMBEDDED_BROWSER_OPEN_EVENT, type EmbeddedBrowserRequest } from './services/embeddedBrowser';
-import { isWebBuild, isWindows, hasAppUpdate } from './utils/platform';
-import { normalizeSessionSourceFilter, type SessionSourceFilter } from './components/cowork/sessionRecordUtils';
-import { localStore } from './services/store';
-import { resolveSettingsAccessPassword } from './services/runtimeEndpoints';
-import { useIsMobileViewport } from './hooks/useIsMobileViewport';
 import { useIsMediumViewport } from './hooks/useIsMediumViewport';
+import { useIsMobileViewport } from './hooks/useIsMobileViewport';
+import type { ApiConfig } from './services/api';
+import { apiService } from './services/api';
+import { checkForAppUpdate, UPDATE_HEARTBEAT_INTERVAL_MS, UPDATE_POLL_INTERVAL_MS, type AppUpdateDownloadProgress, type AppUpdateInfo } from './services/appUpdate';
+import { configService } from './services/config';
+import { coworkService } from './services/cowork';
+import { EMBEDDED_BROWSER_OPEN_EVENT, type EmbeddedBrowserRequest } from './services/embeddedBrowser';
+import { imService } from './services/im';
+import { resolveSettingsAccessPassword } from './services/runtimeEndpoints';
+import { matchesShortcut } from './services/shortcuts';
+import { localStore } from './services/store';
+import { themeService } from './services/theme';
 import {
-  BROWSER_EYES_CURRENT_PAGE_STORE_KEY,
-  type BrowserEyesCurrentPageState,
-} from '../shared/browserEyesState';
-import type { CoworkRightDockAction } from './components/cowork/rightDock';
-import {
-  UI_META_TEXT_CLASS,
-  UI_MENU_ICON_CLASS,
-  UI_SECTION_PADDING_CLASS,
-  UI_SURFACE_COMPACT_GAP_CLASS,
-} from '../shared/mobileUi';
+  clearStoredTrialAccess,
+  fetchTrialAccessStatus,
+  isTrialAccessVerifiedForDay,
+  markTrialAccessVerified,
+  verifyTrialAccessCode,
+} from './services/trialAccess';
+import { RootState } from './store';
+import { setAvailableModels, setSelectedModel } from './store/slices/modelSlice';
+import { clearSelection } from './store/slices/quickActionSlice';
+import type { CoworkPermissionResult } from './types/cowork';
+import { hasAppUpdate, isWebBuild, isWindows } from './utils/platform';
 const Settings = React.lazy(() => import('./components/Settings'));
 const SkillsView = React.lazy(() => import('./components/skills/SkillsView'));
 const ScheduledTasksView = React.lazy(() => import('./components/scheduledTasks/ScheduledTasksView'));
@@ -67,9 +68,14 @@ const App: React.FC = () => {
   const [showSettings, setShowSettings] = useState(false);
   const [settingsOptions, setSettingsOptions] = useState<SettingsOpenOptions>({});
   const [showSettingsAccessGate, setShowSettingsAccessGate] = useState(false);
+  const [showTrialAccessGate, setShowTrialAccessGate] = useState(false);
   const [pendingSettingsOptions, setPendingSettingsOptions] = useState<SettingsOpenOptions>({});
   const [settingsPasswordInput, setSettingsPasswordInput] = useState('');
   const [settingsPasswordError, setSettingsPasswordError] = useState<string | null>(null);
+  const [trialAccessCode, setTrialAccessCode] = useState('');
+  const [trialAccessCurrentDay, setTrialAccessCurrentDay] = useState('');
+  const [trialAccessError, setTrialAccessError] = useState<string | null>(null);
+  const [isSubmittingTrialAccess, setIsSubmittingTrialAccess] = useState(false);
   const [mainView, setMainView] = useState<'cowork' | 'skills' | 'scheduledTasks' | 'mcp' | 'employeeStore' | 'resourceShare' | 'freeImageGen' | 'sessionHistory' | 'room' | 'aboutUs'>('cowork');
   const [sessionHistorySourceFilter, setSessionHistorySourceFilter] = useState<SessionSourceFilter>('all');
   const [isInitialized, setIsInitialized] = useState(false);
@@ -96,11 +102,7 @@ const App: React.FC = () => {
   const currentSessionId = useSelector((state: RootState) => state.cowork.currentSessionId);
   const pendingPermissions = useSelector((state: RootState) => state.cowork.pendingPermissions);
   const pendingPermission = pendingPermissions[0] ?? null;
-  const lockedFeatureLabel = mainView === 'room'
-    ? 'Room'
-    : mainView === 'employeeStore'
-      ? 'Agent 商店'
-      : null;
+  const lockedFeatureLabel = null;
   const shouldUseCompactTopActionButtons = isMobileViewport || isMediumViewport;
   const shouldUseLeftSidebarLauncher = shouldUseCompactTopActionButtons && mainView === 'cowork' && !currentSessionId && isSidebarCollapsed;
   const shouldShowGlobalTopActions = !isMobileViewport || (mainView === 'cowork' && !currentSessionId && isSidebarCollapsed);
@@ -141,12 +143,12 @@ const App: React.FC = () => {
 
         // 初始化配置
         await configService.init();
-        
+
         // 初始化主题
         themeService.initialize();
 
         const config = await configService.getConfig();
-        
+
         const apiConfig: ApiConfig = {
           apiKey: config.api.key,
           baseUrl: config.api.baseUrl,
@@ -190,6 +192,18 @@ const App: React.FC = () => {
               && (!config.model.defaultModelProvider || model.providerKey === config.model.defaultModelProvider)
           ) ?? resolvedModels[0];
           dispatch(setSelectedModel(preferredModel));
+        }
+
+        const trialAccessStatus = await fetchTrialAccessStatus();
+        if (trialAccessStatus.success && trialAccessStatus.data) {
+          const { currentDay, enabled } = trialAccessStatus.data;
+          setTrialAccessCurrentDay(currentDay || '');
+          if (enabled) {
+            setShowTrialAccessGate(!isTrialAccessVerifiedForDay(currentDay || ''));
+          } else {
+            clearStoredTrialAccess();
+            setShowTrialAccessGate(false);
+          }
         }
 
         setIsInitialized(true);
@@ -613,6 +627,29 @@ const App: React.FC = () => {
     setShowSettings(true);
   }, [pendingSettingsOptions, settingsAccessPassword, settingsPasswordInput]);
 
+  const handleConfirmTrialAccessGate = useCallback(async () => {
+    if (!trialAccessCode.trim()) {
+      setTrialAccessError('请输入24小时密钥');
+      return;
+    }
+
+    setIsSubmittingTrialAccess(true);
+    setTrialAccessError(null);
+    const result = await verifyTrialAccessCode(trialAccessCode.trim());
+    setIsSubmittingTrialAccess(false);
+
+    if (!result.success || !result.data) {
+      setTrialAccessError(result.error || '验证失败，请联系夏夏领取今天的密钥');
+      return;
+    }
+
+    markTrialAccessVerified(result.data.currentDay);
+    setTrialAccessCurrentDay(result.data.currentDay);
+    setTrialAccessCode('');
+    setTrialAccessError(null);
+    setShowTrialAccessGate(false);
+  }, [trialAccessCode]);
+
   const isShortcutInputActive = () => {
     const activeElement = document.activeElement;
     if (!(activeElement instanceof HTMLElement)) return false;
@@ -772,7 +809,7 @@ const App: React.FC = () => {
     );
   }, [pendingPermission, handlePermissionResponse]);
 
-  const isOverlayActive = showSettings || showSettingsAccessGate || showUpdateModal || pendingPermissions.length > 0 || embeddedBrowserRequest !== null;
+  const isOverlayActive = showSettings || showSettingsAccessGate || showTrialAccessGate || showUpdateModal || pendingPermissions.length > 0 || embeddedBrowserRequest !== null;
   const updateBadge = updateInfo && hasAppUpdate() ? (
     <AppUpdateBadge
       latestVersion={updateInfo.latestVersion}
@@ -842,6 +879,24 @@ const App: React.FC = () => {
       </div>
     </div>
   ) : null;
+  const trialAccessGateModal = (
+    <TrialAccessGate
+      isOpen={showTrialAccessGate}
+      code={trialAccessCode}
+      currentDay={trialAccessCurrentDay}
+      isSubmitting={isSubmittingTrialAccess}
+      error={trialAccessError}
+      onChange={(value) => {
+        setTrialAccessCode(value);
+        if (trialAccessError) {
+          setTrialAccessError(null);
+        }
+      }}
+      onSubmit={() => {
+        void handleConfirmTrialAccessGate();
+      }}
+    />
+  );
 
   if (!isInitialized) {
     return (
@@ -889,6 +944,7 @@ const App: React.FC = () => {
               />
             </Suspense>
           )}
+          {trialAccessGateModal}
           {settingsAccessGateModal}
         </div>
       </div>
@@ -920,14 +976,15 @@ const App: React.FC = () => {
           onToggleCollapse={handleToggleSidebar}
           updateBadge={!isSidebarCollapsed ? updateBadge : null}
         />
-        <div className={`flex flex-1 min-w-0 ${isSidebarCollapsed ? 'pl-1.5' : ''}`}>
+        {/* {标记} LAYOUT-SIMPLIFY-3LAYER: 布局从5层简化为3层，修复响应式和宽度比例 */}
+        {/* {标记} RESPONSIVE-ADAPTIVE: 响应式自适应布局，Sidebar 折叠时自动填充 */}
+        <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+          {/* 内容区容器：自适应宽度 + 全屏铺满 + 对齐 */}
           <div
-            className="app-shell-frame mx-auto h-full w-full min-w-0 overflow-hidden py-1.5 pr-1.5"
-            style={{ maxWidth: 'var(--uclaw-shell-max-width)' }}
+            className="h-full w-full mx-auto overflow-hidden"
           >
             <div
               className="h-full min-h-0 overflow-hidden bg-claude-bg dark:bg-claude-darkBg"
-              style={{ borderRadius: 'var(--uclaw-shell-radius)' }}
             >
               <Suspense fallback={deferredViewFallback}>
                 {mainView === 'skills' ? (
@@ -1006,7 +1063,7 @@ const App: React.FC = () => {
                 )}
               </Suspense>
               {lockedFeatureLabel && (
-                <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/8 backdrop-blur-[0.8px] dark:bg-black/6">
+                <div className="absolute inset-0 z-50 flex items-center justify-center bg-white/8 backdrop-blur-[0.8px] dark:bg-black/6">
                   <div className="mx-4 w-full max-w-sm rounded-[26px] border border-[#eadccf] bg-[#fff8f1] p-5 text-center shadow-[0_24px_80px_rgba(194,170,145,0.22)] dark:border-white/10 dark:bg-[#26221e]">
                     <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-amber-50 text-amber-500 shadow-[0_8px_24px_rgba(245,158,11,0.16)] dark:bg-amber-300/10 dark:text-amber-200">
                       <StarIcon className="h-6 w-6" />
@@ -1076,6 +1133,7 @@ const App: React.FC = () => {
           />
         </Suspense>
       )}
+      {trialAccessGateModal}
       {settingsAccessGateModal}
       {showUpdateModal && updateInfo && (
         <AppUpdateModal
@@ -1108,4 +1166,4 @@ const App: React.FC = () => {
   );
 };
 
-export default App; 
+export default App;

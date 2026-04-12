@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { XMarkIcon, InformationCircleIcon } from '@heroicons/react/24/outline';
+import { InformationCircleIcon } from '@heroicons/react/24/outline';
 import SearchIcon from '../icons/SearchIcon';
 import TrashIcon from '../icons/TrashIcon';
 import PencilIcon from '../icons/PencilIcon';
@@ -19,7 +19,6 @@ import McpServerFormModal from './McpServerFormModal';
 import ConfirmDialog from '../ui/ConfirmDialog';
 import RolePickerDialog from '../ui/RolePickerDialog';
 import { getResponsiveTabBarClass, getResponsiveTabButtonClass } from '../../../shared/mobileUi';
-import { RUNTIME_FLOW_TAGS } from '../../../shared/runtimeFlowTags';
 import { webSocketClient, WS_EVENTS } from '../../services/webSocketClient';
 import { skillService } from '../../services/skill';
 import { useIsMobileViewport } from '../../hooks/useIsMobileViewport';
@@ -37,6 +36,7 @@ const mcpDescMap: Record<string, string> = {
   mcpDesc_slack: 'Slack 工作区：频道管理、消息发送、用户查询',
   mcpDesc_todoist: '任务管理：创建、更新、完成和组织待办事项',
   mcpDesc_playwright: '高级浏览器自动化，支持 Chromium/Firefox/WebKit',
+  mcpDesc_desktop_control: '本机桌面控制：屏幕观察、局部截图、鼠标键盘操作，用于自我保护、自主观察和桌面接力',
   mcpDesc_canva: 'Canva 设计平台：创建和管理设计、模板操作',
   mcpDesc_firecrawl: '网页抓取与数据提取：支持批处理、结构化提取和内容分析',
   mcpDesc_fetch: '网页内容抓取和 HTML 转 Markdown，适合 LLM 消费',
@@ -540,7 +540,7 @@ const McpManager: React.FC = () => {
                       <span className="px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 font-medium">
                         {server.agentRoleKey === 'all'
                           ? '全部角色'
-                          : (AGENT_ROLE_SHORT_LABELS[server.agentRoleKey] || server.agentRoleKey || '当前角色')}
+                          : formatMcpScopeLabel(server.agentRoleKey ?? '')}
                       </span>
                       <span className={`px-2 py-0.5 rounded-full font-medium ${
                         runtimeVisibleServerIds.has(server.id)

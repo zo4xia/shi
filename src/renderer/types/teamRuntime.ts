@@ -1,3 +1,6 @@
+// #边界_Team类型层
+// 这里定义的是 Team feature-local 的参数与媒体结构。
+// 后续继续拆 Team 时，优先扩展这里，不要把同义参数再散回页面层。
 export type TeamSeat = 'A' | 'B' | 'C' | 'D';
 
 export type TimelinePointType = 'speech' | 'board';
@@ -28,6 +31,10 @@ export type BoardTimelinePoint = {
   startTime: number;
   endTime: number;
   speed: number;
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
   imageUrl?: string;
   imageNaturalWidth?: number;
   imageNaturalHeight?: number;

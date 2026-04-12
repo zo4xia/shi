@@ -13,7 +13,7 @@ const CODE_BLOCK_CHAR_LIMIT = 20000;
 const SYNTAX_HIGHLIGHTER_STYLE = {
   margin: 0,
   borderRadius: 0,
-  background: '#282c34',
+  background: '#1f2227',
 };
 const SAFE_URL_PROTOCOLS = new Set(['http', 'https', 'mailto', 'tel', 'file']);
 
@@ -616,8 +616,8 @@ const DeferredMarkdownContent: React.FC<Pick<MarkdownContentProps, 'content' | '
   content,
   className = '',
 }) => (
-  <div className={`markdown-content text-sm leading-[1.7] ${className}`}>
-    <div className="whitespace-pre-wrap break-words dark:text-claude-darkText text-claude-text">
+  <div className={`markdown-content select-text text-sm leading-[1.7] ${className}`}>
+    <div className="select-text whitespace-pre-wrap break-words dark:text-claude-darkText text-claude-text">
       {content}
     </div>
   </div>
@@ -671,7 +671,7 @@ const FullMarkdownContent: React.FC<Omit<MarkdownContentProps, 'deferMarkdown'>>
   ), [enableMath, mathDeps]);
 
   return (
-    <div className={`markdown-content text-sm leading-[1.7] ${className}`}>
+    <div className={`markdown-content select-text text-sm leading-[1.7] ${className}`}>
       <ReactMarkdown
         remarkPlugins={remarkPlugins as any}
         rehypePlugins={rehypePlugins as any}

@@ -1,34 +1,32 @@
 // {路标} FLOW-PAGE-SKILLS
+import { InformationCircleIcon } from '@heroicons/react/24/outline';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { XMarkIcon, InformationCircleIcon } from '@heroicons/react/24/outline';
-import SearchIcon from '../icons/SearchIcon';
-import PlusCircleIcon from '../icons/PlusCircleIcon';
-import UploadIcon from '../icons/UploadIcon';
-import FolderOpenIcon from '../icons/FolderOpenIcon';
-import LinkIcon from '../icons/LinkIcon';
-import PuzzleIcon from '../icons/PuzzleIcon';
-import TrashIcon from '../icons/TrashIcon';
+import { AGENT_ROLE_ORDER, AGENT_ROLE_SHORT_LABELS } from '../../../shared/agentRoleConfig';
+import { UI_BADGE_TEXT_CLASS, UI_MARK_ICON_CLASS, UI_MENU_ICON_CLASS } from '../../../shared/mobileUi';
+import { useIsMediumViewport } from '../../hooks/useIsMediumViewport';
+import { useIsMobileViewport } from '../../hooks/useIsMobileViewport';
 import {
-  skillService,
-  type RoleCapabilitySnapshotFile,
-  type SkillRoleConfigEntry,
+    skillService,
+    type RoleCapabilitySnapshotFile,
+    type SkillRoleConfigEntry,
 } from '../../services/skill';
 import { showGlobalToast } from '../../services/toast';
-import { setSkills } from '../../store/slices/skillSlice';
 import { RootState } from '../../store';
+import { setSkills } from '../../store/slices/skillSlice';
 import { Skill, getSkillDisplayName, getSkillFilterLabels } from '../../types/skill';
 import { WebFileOperations } from '../../utils/fileOperations';
 import ErrorMessage from '../ErrorMessage';
+import FolderOpenIcon from '../icons/FolderOpenIcon';
+import LinkIcon from '../icons/LinkIcon';
+import PlusCircleIcon from '../icons/PlusCircleIcon';
+import SearchIcon from '../icons/SearchIcon';
+import TrashIcon from '../icons/TrashIcon';
+import UploadIcon from '../icons/UploadIcon';
 import ConfirmDialog from '../ui/ConfirmDialog';
 import ImportDialog from '../ui/ImportDialog';
 import SkillDetailOverlay, { type RoleOptionKey } from './SkillDetailOverlay';
-import { AGENT_ROLE_ORDER, AGENT_ROLE_SHORT_LABELS } from '../../../shared/agentRoleConfig';
-import { RUNTIME_FLOW_TAGS } from '../../../shared/runtimeFlowTags';
-import { UI_BADGE_TEXT_CLASS, UI_MARK_ICON_CLASS, UI_MENU_ICON_CLASS, UI_META_TEXT_CLASS } from '../../../shared/mobileUi';
-import { useIsMobileViewport } from '../../hooks/useIsMobileViewport';
-import { useIsMediumViewport } from '../../hooks/useIsMediumViewport';
 
 const HIDDEN_SKILL_IDS = new Set(['daily-memory-extraction']);
 const SKILL_GROUP_LABELS: Record<string, string> = {
@@ -841,7 +839,8 @@ const SkillsManager: React.FC = () => {
                   {isAddSkillMenuOpen && (
                     <div
                       ref={addSkillMenuRef}
-                      className="absolute right-0 mt-2 w-80 rounded-2xl border border-claude-border dark:border-claude-darkBorder bg-claude-surface/80 dark:bg-claude-darkSurface shadow-lg z-50 overflow-hidden"
+                      className="absolute right-0 mt-2 w-80 rounded-2xl border border-claude-border dark:border-claude-darkBorder bg-claude-surface/80 dark:bg-claude-darkSurface shadow-lg z-popover overflow-hidden"
+                      style={{ zIndex: 'var(--z-popover)' }}
                     >
                       <div className="px-3 py-3 border-b border-claude-border dark:border-claude-darkBorder/70">
                         {renderImportTargetPicker()}

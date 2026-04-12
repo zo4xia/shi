@@ -170,7 +170,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ mode, task, onCancel, onSaved }) =>
     const loadImConfig = async () => {
       try {
         if (!isActive) return;
-        const config = normalizeIMConfig(imConfig as Record<string, unknown> | null);
+        const config = normalizeIMConfig(imConfig as unknown as Record<string, unknown> | null);
         setFeishuApps(config.feishu.apps.filter((app) => app.enabled && app.appId && app.appSecret));
       } catch (error) {
         console.warn('[TaskForm] Failed to load im_config for feishu notify:', error);
@@ -293,11 +293,11 @@ const TaskForm: React.FC<TaskFormProps> = ({ mode, task, onCancel, onSaved }) =>
       const legacyNotifyPlatforms = IM_NOTIFICATION_FEATURE_FROZEN
         ? []
         : (task?.notifyPlatforms ?? []).filter((platform) => platform !== 'feishu');
-      const finalNotifyPlatforms = IM_NOTIFICATION_FEATURE_FROZEN
+      const finalNotifyPlatforms: NotifyPlatform[] = IM_NOTIFICATION_FEATURE_FROZEN
         ? []
         : (notifyPlatforms.includes('feishu')
           ? [...legacyNotifyPlatforms, 'feishu']
-          : legacyNotifyPlatforms);
+          : legacyNotifyPlatforms) as NotifyPlatform[];
       const input: ScheduledTaskInput = {
         name: name.trim(),
         description: '',
@@ -314,7 +314,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ mode, task, onCancel, onSaved }) =>
         feishuAppId: null,
         feishuChatId: null,
         enabled: task?.enabled ?? true,
-        // {标记} P0-新增：身份绑定字段
+        // {标记} P0-IDENTITY-BOUNDARY: 表单里 agentRoleKey 是身份；modelId 只是当前执行模型元信息。
         agentRoleKey,
         modelId,
       };

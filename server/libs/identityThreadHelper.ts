@@ -1,7 +1,7 @@
 /**
  * {标记} Identity Thread Integration Helper - 核心记忆连续性机制
- * {标记} 用途：在 CoworkRunner 执行前注入 24 小时线程上下文
- * {标记} 设计：获取 identity_thread_24h 表中的历史消息，作为 system context 注入
+ * {标记} 用途：为现役执行主链提供 24 小时线程上下文、广播板观察与写回 helper
+ * {标记} 设计：获取 identity_thread_24h 表中的历史消息，作为现役执行器的连续性 system context 注入
  * {标记} P0架构修复(2026-03-17): 去掉 modelId 隔离，同一身份所有渠道/模型共享一条线程
  * {警告} 修改此文件会影响所有渠道的记忆连续性，改动前必须测试飞书/钉钉/Web 三端
  */
@@ -51,10 +51,10 @@ type IdentityThreadRow = {
   updatedAtMs: number;
 };
 
-const SHARED_THREAD_MESSAGE_SUMMARY_CHAR_LIMIT = 18;
-const SHARED_THREAD_LONG_MESSAGE_SUMMARY_CHAR_LIMIT = 36;
-const SHARED_THREAD_KEEP_RECENT = 120;
-const SHARED_THREAD_CONTEXT_CHAR_LIMIT = 480;
+const SHARED_THREAD_MESSAGE_SUMMARY_CHAR_LIMIT = 120;
+const SHARED_THREAD_LONG_MESSAGE_SUMMARY_CHAR_LIMIT = 240;
+const SHARED_THREAD_KEEP_RECENT = 1000;
+const SHARED_THREAD_CONTEXT_CHAR_LIMIT = 20000;
 const LEADING_FILLER_RE = /^(?:[啊呀哇呢啦嘛哦喔欸诶唉咦哈哼嗯呃][啊呀哇呢啦嘛哦喔欸诶唉咦哈哼嗯呃,.，。!！?？~、\s]*)+/u;
 const TRAILING_FILLER_RE = /(?:[啊呀哇呢啦嘛哦喔欸诶唉咦哈哼嗯呃][啊呀哇呢啦嘛哦喔欸诶唉咦哈哼嗯呃,.，。!！?？~、\s]*)+$/u;
 const PURE_FILLER_RE = /^(?:[啊呀哇呢啦嘛哦喔欸诶唉咦哈哼嗯呃,.，。!！?？~、\s]|哈哈|呵呵|嘿嘿)+$/u;
@@ -71,7 +71,7 @@ const CHANNEL_LABELS: Record<string, string> = {
   dingtalk: '钉钉',
   desktop: '桌面',
   web: '网页',
-  'memory-db': '记忆',
+  'durable-memory': '记忆',
   qq: 'QQ',
   telegram: 'Telegram',
 };
@@ -402,6 +402,7 @@ export function getIdentityThreadContext(
   try {
     // {BREAKPOINT} continuity-thread-summary-001
     // {标记} 广播板边界: 这里返回的是跨渠道交接摘要，不是全文仓库；下游必须把它当“锚点”，不能误当原文。
+    // {标记} P0-WAKEUP-FLOW-TRUTH: 24h 广播板只负责短摘接力和时间足迹，不负责替代数据库底仓。
     const mergedThread = loadMergedThreadState(db, agentRoleKey);
     if (!mergedThread) {
       return null;
@@ -609,7 +610,7 @@ export function seedIdentityThreadBootstrap(
   db: Database,
   agentRoleKey: string,
   summary: string,
-  channelHint = 'memory-db'
+  channelHint = 'durable-memory'
 ): void {
   appendIdentityThreadMessage(db, agentRoleKey, 'bootstrap', summary, channelHint);
 }

@@ -90,6 +90,7 @@ function inferRoleFromSession(session: CoworkSessionSummary): AgentRoleKey | und
     return session.agentRoleKey;
   }
 
+  // {标记} DISPLAY_ONLY: 这里只在历史页给 legacy 会话做角色展示推断，不得反向当成 session 身份真相。
   const title = (session.title || '').trim();
   if (!title) {
     return undefined;
@@ -270,7 +271,6 @@ export default function SessionHistoryView({
                     key={option.key}
                     type="button"
                     onClick={() => setActiveSourceFilter(option.key)}
-                    aria-pressed={active}
                     className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${
                       active
                         ? 'bg-claude-accent text-white shadow-sm'
@@ -286,7 +286,6 @@ export default function SessionHistoryView({
               <button
                 type="button"
                 onClick={() => setRoleFilter('all')}
-                aria-pressed={roleFilter === 'all'}
                 className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium transition-colors ${
                   roleFilter === 'all'
                     ? 'bg-claude-accent/90 text-white shadow-sm'
@@ -300,7 +299,6 @@ export default function SessionHistoryView({
                   key={roleKey}
                   type="button"
                   onClick={() => setRoleFilter(roleKey)}
-                  aria-pressed={roleFilter === roleKey}
                   className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium transition-colors ${
                     roleFilter === roleKey
                       ? `${ROLE_COLUMN_META[roleKey].badgeClass} shadow-sm`

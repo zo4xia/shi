@@ -15,14 +15,12 @@ import {
 import type { SkillManager } from '../../src/main/skillManager';
 import type { McpStore } from '../../src/main/mcpStore';
 import {
-  cleanupRoleSkillRuntimeState,
   ensureRoleRuntimeDirs,
   getRoleRoot,
   getRoleSkillConfigsRoot,
   getRoleSkillSecretsRoot,
   getRoleSkillsIndexPath,
   type RoleSkillIndexFile,
-  syncRoleSkillIndexes,
 } from './roleSkillFiles';
 
 export type RoleSettingsViewFile = {
@@ -335,14 +333,13 @@ export function syncRoleCapabilitySnapshot(
     };
     getSaveFunction(): () => void;
   },
-  skillManager: Pick<SkillManager, 'listSkills' | 'getSkillsRoot'>,
+  skillManager: Pick<SkillManager, 'getSkillsRoot'>,
   mcpStore: Pick<McpStore, 'getRuntimeEnabledServers'>
 ): { roleKey: AgentRoleKey; path: string; snapshot: RoleCapabilitySnapshotFile } {
   // {路标} FLOW-RUNTIME-CAPABILITY-SNAPSHOT
   // {FLOW} RUNTIME-CAPABILITY-SNAPSHOT: 汇总 skill bindings、skills.json、runtime MCP、native capabilities，生成 role-capabilities.json。
+  // {标记} ROLE-CAPABILITY-SNAPSHOT-TRUTH: 小 agent 房间里“当前真的可调用什么”，最终以 role-capabilities.json 的 availableSkills / runtimeMcpTools / runtimeNativeCapabilities 为准。
   ensureRoleRuntimeDirs(userDataPath);
-  cleanupRoleSkillRuntimeState(userDataPath, store, skillManager);
-  syncRoleSkillIndexes(userDataPath, store, skillManager);
   const roleRoot = getRoleRoot(userDataPath, roleKey);
   const nativeCapabilities = resolveNativeCapabilitiesConfigFromAppConfig(readAppConfigFromStore(store));
   const capabilitySnapshotPath = getRoleCapabilitySnapshotPath(userDataPath, roleKey);
@@ -362,33 +359,24 @@ export function syncRoleCapabilitySnapshot(
   const globalAvailableSkills = indexedSkills.filter((skill) => skill.scope === 'all');
   const roleBoundSkills = indexedSkills.filter((skill) => skill.scope !== 'all');
   const availableSkills = [...roleBoundSkills, ...globalAvailableSkills];
-  const boundSkillIds = new Set(indexedSkills.map((skill) => skill.id));
-  const installedSkills = skillManager.listSkills();
-  const installedSkillIds = new Set(installedSkills.map((skill) => skill.id));
+  const indexedSkillIds = new Set(indexedSkills.map((skill) => skill.id));
   const runtimeMcpTools = mcpStore.getRuntimeEnabledServers(roleKey).map((server) => ({
     id: server.id,
     name: server.name,
     transportType: server.transportType,
     scope: server.agentRoleKey,
   }));
-  const invalidBindings = configuredBindings
-    .filter((binding) => !installedSkillIds.has(binding.skillId))
-    .map((binding) => ({
-      skillId: binding.skillId,
-      skillName: binding.skillName,
-      scope: binding.roleKey,
-      reason: '数据库绑定存在，但运行时技能仓库里没有对应的有效技能目录或 SKILL.md。',
-    }));
-
-  const unboundWorkspaceSkills = installedSkills
-    .filter((skill) => !boundSkillIds.has(skill.id))
-    .map((skill) => ({
-      id: skill.id,
-      name: skill.name,
-      enabled: skill.enabled,
-      sourcePath: skill.skillPath,
-    }))
-    .sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'));
+  const invalidBindings = roleIndex
+    ? configuredBindings
+      .filter((binding) => !indexedSkillIds.has(binding.skillId))
+      .map((binding) => ({
+        skillId: binding.skillId,
+        skillName: binding.skillName,
+        scope: binding.roleKey,
+        reason: '数据库绑定存在，但角色技能索引里没有对应项；需要显式同步绑定链。',
+      }))
+    : [];
+  const unboundWorkspaceSkills: RoleCapabilitySnapshotFile['unboundWorkspaceSkills'] = [];
 
   const db = store.getDatabase();
   const configuredSkillBindings = configuredBindings.length;
@@ -402,9 +390,6 @@ export function syncRoleCapabilitySnapshot(
   }
   for (const binding of invalidBindings) {
     warnings.push(`无效技能绑定：${binding.skillId}（${binding.scope}）在运行时技能仓库中不存在有效 SKILL.md。`);
-  }
-  if (configuredSkillBindings === 0 && unboundWorkspaceSkills.length > 0) {
-    warnings.push('运行时技能仓库里已有技能，但当前角色尚未绑定任何技能。');
   }
   for (const skill of indexedSkills) {
     if (!fs.existsSync(skill.sourcePath)) {
@@ -427,10 +412,11 @@ export function syncRoleCapabilitySnapshot(
       projectSkillsRoot,
     },
     rules: {
+      // {标记} P0-ROOM-DOORPLATE-TRUTH: 房间门牌里的可调用能力必须唯一、可检索、可复核；不能让仓库候选和当前能力混成一层。
       truthRule: 'agent 只应把 roles/<role>/skills.json / availableSkills 与当前 runtime MCP 列表视为最终可用结果。',
-      warehouseRule: 'SKILLs/ 仓库只负责存放候选技能；有目录不等于已绑定，不等于当前角色可调用。',
+      warehouseRule: 'SKILLs/ 仓库只负责存放候选技能；默认能力快照不会主动扫描仓库候选层。',
       visibilityRule: '目录负责存放，配置负责声明，角色索引负责生效；默认可用 = 角色绑定 + 全局可用(all)。',
-      warehouseOnlyRule: '`unboundWorkspaceSkills` 只是仓库候选清单，供排查与绑定使用；不要把它们当成当前角色已具备能力。',
+      warehouseOnlyRule: '`unboundWorkspaceSkills` 只有在显式诊断链里才应出现；默认运行态能力快照不把仓库候选混进来。',
     },
     summary: {
       availableSkillCount: availableSkills.length,

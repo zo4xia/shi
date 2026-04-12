@@ -69,10 +69,13 @@ export class SqliteStore {
   private initTables(): void {
     // {路标} FLOW-TABLE-KV
     // Key-value store table
+    // {标记} P0-KV-UPDATED-AT-ALIGN: kv 的 updated_at 是跨端迁移/观察的时间锚。
+    // schema、旧库补列、set() 写路径必须同时一致，否则最基础的 store 写入都会炸。
     this.db.run(`
       CREATE TABLE IF NOT EXISTS kv (
         key TEXT PRIMARY KEY,
-        value TEXT
+        value TEXT,
+        updated_at INTEGER NOT NULL
       )
     `);
 
@@ -227,8 +230,6 @@ export class SqliteStore {
         role TEXT NOT NULL,
         is_active INTEGER NOT NULL DEFAULT 1,
         created_at INTEGER NOT NULL,
-        agent_role_key TEXT DEFAULT 'organizer',
-        model_id TEXT DEFAULT '',
         FOREIGN KEY (memory_id) REFERENCES user_memories(id) ON DELETE CASCADE
       )
     `);
@@ -244,7 +245,6 @@ export class SqliteStore {
         updated_at INTEGER DEFAULT (strftime('%s', 'now')),
         expires_at INTEGER NOT NULL,
         context TEXT NOT NULL DEFAULT '[]',
-        last_message_id TEXT,
         channel_hint TEXT,
         message_count INTEGER DEFAULT 0,
         UNIQUE(agent_role_key)
@@ -284,6 +284,9 @@ export class SqliteStore {
     `);
 
     // ── 迁移：为旧数据库补齐新增列 ──
+    // {标记} P0-KV-UPDATED-AT-ALIGN: 旧 Web 库如果还是两列表 kv，启动时先补 updated_at，再统一落默认值。
+    this.migrateAddColumn('kv', 'updated_at', 'INTEGER NOT NULL DEFAULT 0');
+    this.db.run(`UPDATE kv SET updated_at = COALESCE(updated_at, 0)`);
     // cowork_sessions
     this.migrateAddColumn('cowork_sessions', 'claude_session_id', 'TEXT');
     this.migrateAddColumn('cowork_sessions', 'agent_role_key', 'TEXT');
@@ -316,8 +319,6 @@ export class SqliteStore {
     this.migrateAddColumn('user_memories', 'agent_role_key', "TEXT DEFAULT 'organizer'");
     this.migrateAddColumn('user_memories', 'model_id', "TEXT DEFAULT ''");
     this.migrateAddColumn('user_memories', 'last_used_at', 'INTEGER');
-    this.migrateAddColumn('user_memory_sources', 'agent_role_key', "TEXT DEFAULT 'organizer'");
-    this.migrateAddColumn('user_memory_sources', 'model_id', "TEXT DEFAULT ''");
     // mcp_servers: 旧表有 command/args/env 等列，新表用 config_json
     this.migrateRebuildIfNeeded('mcp_servers', ['command', 'args', 'env'], `
       CREATE TABLE IF NOT EXISTS mcp_servers (
@@ -354,20 +355,49 @@ export class SqliteStore {
     // scheduled_task_runs: 旧列名迁移
     this.migrateRenameColumn('scheduled_task_runs', 'trigger', 'trigger_type');
     this.migrateAddColumn('scheduled_task_runs', 'trigger_type', "TEXT NOT NULL DEFAULT 'scheduled'");
+    this.migrateDropDeprecatedSchemaColumns();
+    this.db.run(`DELETE FROM cowork_config WHERE key = 'executionMode'`);
+
+    // {标记} P0-ROLE-MESSAGES-UNPOPULATED: 历史消息身份列必须与所属 session 对齐；
+    // 不能再让 cowork_messages 继续吃默认 organizer/空 model，导致角色消息检索失真。
+    this.db.run(`
+      UPDATE cowork_messages
+      SET
+        agent_role_key = COALESCE(
+          (SELECT NULLIF(cowork_sessions.agent_role_key, '') FROM cowork_sessions WHERE cowork_sessions.id = cowork_messages.session_id),
+          agent_role_key
+        ),
+        model_id = COALESCE(
+          (SELECT COALESCE(cowork_sessions.model_id, '') FROM cowork_sessions WHERE cowork_sessions.id = cowork_messages.session_id),
+          model_id
+        )
+      WHERE EXISTS (
+        SELECT 1
+        FROM cowork_sessions
+        WHERE cowork_sessions.id = cowork_messages.session_id
+      )
+    `);
 
     // ── 索引（放在迁移之后，确保列已存在） ──
-    this.db.run(`CREATE INDEX IF NOT EXISTS idx_cowork_messages_identity ON cowork_messages(agent_role_key, model_id, created_at DESC)`);
+    // {标记} P0-FIELD-SINGLE-RESPONSIBILITY: 这些组合索引里出现 model_id，只是为了读写局部性和兼容元信息，不代表 model_id 是身份边界。
+    this.db.run(`DROP INDEX IF EXISTS idx_cowork_messages_identity`);
+    this.db.run(`DROP INDEX IF EXISTS idx_mcp_servers_identity`);
+    this.db.run(`DROP INDEX IF EXISTS idx_scheduled_tasks_identity`);
+    this.db.run(`DROP INDEX IF EXISTS idx_user_memories_identity`);
+    this.db.run(`DROP INDEX IF EXISTS idx_user_memory_sources_identity`);
+    this.db.run(`DROP INDEX IF EXISTS idx_user_memory_sources_role_model_active`);
+    this.db.run(`DROP INDEX IF EXISTS idx_user_memory_sources_role_active`);
+    this.db.run(`DROP INDEX IF EXISTS idx_identity_thread_identity`);
+    this.db.run(`CREATE INDEX IF NOT EXISTS idx_cowork_messages_role_model_created ON cowork_messages(agent_role_key, model_id, created_at DESC)`);
     this.db.run(`CREATE INDEX IF NOT EXISTS idx_cowork_messages_role_created ON cowork_messages(agent_role_key, created_at DESC)`);
-    this.db.run(`CREATE INDEX IF NOT EXISTS idx_mcp_servers_identity ON mcp_servers(agent_role_key, enabled)`);
+    this.db.run(`CREATE INDEX IF NOT EXISTS idx_mcp_servers_role_enabled ON mcp_servers(agent_role_key, enabled)`);
     this.db.run(`CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_next_run ON scheduled_tasks(enabled, next_run_at_ms)`);
-    this.db.run(`CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_identity ON scheduled_tasks(agent_role_key, model_id, enabled)`);
+    this.db.run(`CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_role_model_enabled ON scheduled_tasks(agent_role_key, model_id, enabled)`);
     this.db.run(`CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_role_enabled ON scheduled_tasks(agent_role_key, enabled)`);
-    this.db.run(`CREATE INDEX IF NOT EXISTS idx_user_memories_identity ON user_memories(agent_role_key, model_id, status, updated_at DESC)`);
+    this.db.run(`CREATE INDEX IF NOT EXISTS idx_user_memories_role_model_status_updated ON user_memories(agent_role_key, model_id, status, updated_at DESC)`);
     this.db.run(`CREATE INDEX IF NOT EXISTS idx_user_memories_role_status_updated ON user_memories(agent_role_key, status, updated_at DESC)`);
     this.db.run(`CREATE INDEX IF NOT EXISTS idx_user_memories_status_updated_at ON user_memories(status, updated_at DESC)`);
     this.db.run(`CREATE INDEX IF NOT EXISTS idx_user_memories_fingerprint ON user_memories(fingerprint)`);
-    this.db.run(`CREATE INDEX IF NOT EXISTS idx_user_memory_sources_identity ON user_memory_sources(agent_role_key, model_id, is_active)`);
-    this.db.run(`CREATE INDEX IF NOT EXISTS idx_user_memory_sources_role_active ON user_memory_sources(agent_role_key, is_active)`);
     this.db.run(`CREATE INDEX IF NOT EXISTS idx_user_memory_sources_session_id ON user_memory_sources(session_id, is_active)`);
     this.db.run(`CREATE INDEX IF NOT EXISTS idx_user_memory_sources_memory_id ON user_memory_sources(memory_id, is_active)`);
 
@@ -414,6 +444,128 @@ export class SqliteStore {
     } catch (e: any) {
       // 如果 RENAME COLUMN 不支持（极旧版SQLite），静默跳过
       console.warn(`[Migration] Failed to rename ${table}.${oldCol} → ${newCol}:`, e?.message);
+    }
+  }
+
+  private migrateDropDeprecatedSchemaColumns(): void {
+    try {
+      // {标记} P0-THREAD-REBUILD-DEDUPE: 这里明确允许清理旧不兼容 thread 数据，
+      // 目标不是保留历史分叉，而是恢复“一个 role 只有一条 24h 广播板”的单一真相。
+      this.rebuildTableDroppingColumns({
+        table: 'identity_thread_24h',
+        deprecatedColumns: ['last_message_id'],
+        createSql: `
+          CREATE TABLE IF NOT EXISTS identity_thread_24h (
+            id TEXT PRIMARY KEY,
+            agent_role_key TEXT NOT NULL,
+            model_id TEXT NOT NULL,
+            created_at INTEGER DEFAULT (strftime('%s', 'now')),
+            updated_at INTEGER DEFAULT (strftime('%s', 'now')),
+            expires_at INTEGER NOT NULL,
+            context TEXT NOT NULL DEFAULT '[]',
+            channel_hint TEXT,
+            message_count INTEGER DEFAULT 0,
+            UNIQUE(agent_role_key)
+          )
+        `,
+        insertSql: `
+          WITH ranked AS (
+            SELECT
+              id,
+              agent_role_key,
+              COALESCE(model_id, '') AS model_id,
+              created_at,
+              updated_at,
+              expires_at,
+              COALESCE(context, '[]') AS context,
+              channel_hint,
+              COALESCE(message_count, 0) AS message_count,
+              ROW_NUMBER() OVER (
+                PARTITION BY agent_role_key
+                ORDER BY updated_at DESC, created_at DESC, id DESC
+              ) AS rn
+            FROM identity_thread_24h__legacy
+          )
+          INSERT INTO identity_thread_24h (
+            id, agent_role_key, model_id, created_at, updated_at, expires_at, context, channel_hint, message_count
+          )
+          SELECT
+            id,
+            agent_role_key,
+            model_id,
+            created_at,
+            updated_at,
+            expires_at,
+            context,
+            channel_hint,
+            message_count
+          FROM ranked
+          WHERE rn = 1
+        `,
+      });
+      // {标记} P0-SOURCE-TABLE-SINGLE-RESPONSIBILITY: user_memory_sources 只保来源关系本体；
+      // role/model 元信息既不参与现役读取，也不该继续污染这张辅助表。
+      this.rebuildTableDroppingColumns({
+        table: 'user_memory_sources',
+        deprecatedColumns: ['agent_role_key', 'model_id'],
+        createSql: `
+          CREATE TABLE IF NOT EXISTS user_memory_sources (
+            id TEXT PRIMARY KEY,
+            memory_id TEXT NOT NULL,
+            session_id TEXT,
+            message_id TEXT,
+            role TEXT NOT NULL,
+            is_active INTEGER NOT NULL DEFAULT 1,
+            created_at INTEGER NOT NULL,
+            FOREIGN KEY (memory_id) REFERENCES user_memories(id) ON DELETE CASCADE
+          )
+        `,
+        insertSql: `
+          INSERT INTO user_memory_sources (
+            id, memory_id, session_id, message_id, role, is_active, created_at
+          )
+          SELECT
+            id,
+            memory_id,
+            session_id,
+            message_id,
+            role,
+            is_active,
+            created_at
+          FROM user_memory_sources__legacy
+        `,
+      });
+    } catch (error) {
+      console.warn('[Migration] Failed to drop deprecated schema columns:', error);
+    }
+  }
+
+  private rebuildTableDroppingColumns(input: {
+    table: string;
+    deprecatedColumns: string[];
+    createSql: string;
+    insertSql: string;
+  }): void {
+    const info = this.db.exec(`PRAGMA table_info("${input.table}")`);
+    if (info.length === 0) return;
+    const cols = info[0].values.map(r => r[1] as string);
+    const hasDeprecatedColumns = input.deprecatedColumns.some((column) => cols.includes(column));
+    if (!hasDeprecatedColumns) return;
+    const legacyTable = `${input.table}__legacy`;
+    console.log(`[Migration] Rebuilding table "${input.table}" (dropping deprecated columns: ${input.deprecatedColumns.filter(c => cols.includes(c)).join(', ')})`);
+    // {标记} P0-DEPRECATED-COLUMN-REBUILD: 旧库结构清洁必须事务包裹；
+    // 失败时宁可整体回滚，也不能让现役表半建好、旧数据卡在 legacy 里。
+    this.db.run('BEGIN TRANSACTION');
+    try {
+      this.db.run(`DROP TABLE IF EXISTS "${legacyTable}"`);
+      this.db.run(`ALTER TABLE "${input.table}" RENAME TO "${legacyTable}"`);
+      this.db.run(input.createSql);
+      this.db.run(input.insertSql);
+      this.db.run(`DROP TABLE IF EXISTS "${legacyTable}"`);
+      this.db.run('COMMIT');
+    } catch (error) {
+      this.db.run('ROLLBACK');
+      throw error;
     }
   }
 
@@ -511,11 +663,15 @@ export class SqliteStore {
   set<T>(key: string, value: T): void {
     const oldValue = this.get(key);
     const valueStr = JSON.stringify(value);
+    const now = Date.now();
 
-    this.db.run(
-      'INSERT OR REPLACE INTO kv (key, value) VALUES (?, ?)',
-      [key, valueStr]
-    );
+    this.db.run(`
+      INSERT INTO kv (key, value, updated_at)
+      VALUES (?, ?, ?)
+      ON CONFLICT(key) DO UPDATE SET
+        value = excluded.value,
+        updated_at = excluded.updated_at
+    `, [key, valueStr, now]);
     this.save();
 
     this.emitter.emit('change', {

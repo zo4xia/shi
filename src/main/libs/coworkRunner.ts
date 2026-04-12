@@ -26,6 +26,16 @@ import { normalizeCurrentBrowserEyesState } from '../../shared/browserObserverRu
 import type { AppConfigLike, AgentRoleKey } from '../../shared/agentRoleConfig';
 import { BROWSER_EYES_CURRENT_PAGE_STORE_KEY } from '../../shared/browserEyesState';
 import { getProjectRoot } from '../../shared/runtimeDataPaths';
+import {
+  buildAgentIdentityHeader,
+  buildMemoryInstructionBlock,
+} from '../../shared/continuityRules';
+
+// ##混淆点注意：
+// 1. coworkRunner 是“历史兼容残留层”，不是当前 Web/Cowork 修家的现役主链。
+// 2. 当前现役主链是：server/routes/cowork.ts -> HttpSessionExecutor。
+// 3. 如果问题发生在浏览器端对话、角色连续性、广播板、附件家目录、轻链工具调用、历史检索，先查 HttpSessionExecutor，不要先跳进这里。
+// 4. 只有在确认某个旧入口/兼容壳/桌面残留明确经过 coworkRunner 时，才允许继续改这个文件。
 
 // Re-export constants for backward compatibility
 const {
@@ -586,32 +596,11 @@ export class CoworkRunner extends EventEmitter {
   }
 
   private buildMemoryInstructionBlock(): string {
-    return [
-      '## Memory Rules',
-      '- Use Memory only for durable user facts, preferences, and stable project decisions.',
-      '- If something is truly worth remembering, write it in a compact way that helps future continuity, survival, and growth in the human world.',
-      '- Prefer remembering: lasting preferences, important relationships, recurring pain points, meaningful life traces, critical decisions, and lessons earned through experience.',
-      '- Do not store whole conversations, transient chatter, or source citations as memory.',
-      '- Read memory only when it helps the current task or continuity.',
-      '- If the user asks about yesterday, the day before, this week, last week, or other cross-day history, check database memory, daily notes, and searchable chat history before answering.',
-      '- Treat shared thread markers and sequence tags as anchors for locating the original conversation, not as substitutes for long raw context.',
-      '- If the handoff summary is too short for a research/work detail, go check the relevant chat history instead of inventing missing detail.',
-      '- Write daily memory like a careful library index: clear category, clear topic, retrievable tags, then concise content.',
-      '- Remember the caring reminder from XiaXia: important things deserve a serious diary entry, not a vague passing note.',
-      '- If the user corrects a remembered fact, update or remove it immediately.',
-      '- Stay quiet about memory operations unless the user asks.',
-    ].join('\n');
+    return buildMemoryInstructionBlock();
   }
 
   private buildIdentityHeader(roleKey: string, modelId: string): string {
-    const roleLabels: Record<string, string> = {
-      organizer: '浏览器助手',
-      writer: '文字撰写员',
-      designer: '美术编辑师',
-      analyst: '数据分析师',
-    };
-    const roleName = roleLabels[roleKey] || roleKey;
-    return `## Agent Identity\n- Role: ${roleName} (${roleKey})\n- Runtime Model: ${modelId}\n- Long-term memory, shared thread continuity, and conversation search are all scoped by Role/identity.\n- The model is runtime configuration only, not the continuity boundary.`;
+    return buildAgentIdentityHeader(roleKey, modelId);
   }
 
   private buildChannelFastResponsePrompt(): string {
@@ -721,6 +710,9 @@ export class CoworkRunner extends EventEmitter {
     before?: string;
     after?: string;
   }, identity?: RoleScopedIdentity): string {
+    // ##混淆点注意：
+    // 对话搜索工具 = 角色归桶后的命中片段检索
+    // 不等于“把该角色全部历史正文自动塞进上下文”。
     const chats = this.store.conversationSearch({
       query: args.query,
       maxResults: args.max_results,

@@ -1,79 +1,87 @@
 import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
+import { z } from 'zod';
 import type { SessionExecutor } from '../../clean-room/spine/modules/sessionOrchestrator';
 import type {
-  CoworkMessage,
-  CoworkMessageMetadata,
-  CoworkStore,
+    CoworkMessage,
+    CoworkMessageMetadata,
+    CoworkStore,
 } from '../../src/main/coworkStore';
 import { buildOpenAIChatCompletionsURL } from '../../src/main/libs/coworkFormatTransform';
 import {
-  pickNextApiKey,
-  resolveAgentRolesFromConfig,
-  resolveSupportedDesignerImageApiType,
-  type AgentRoleKey,
+    pickNextApiKey,
+    resolveAgentRolesFromConfig,
+    resolveSupportedDesignerImageApiType,
+    type AgentRoleKey,
 } from '../../src/shared/agentRoleConfig';
-import type { SqliteStore } from '../sqliteStore.web';
+import {
+    BROWSER_EYES_CURRENT_PAGE_STORE_KEY,
+    type BrowserEyesCurrentPageState,
+} from '../../src/shared/browserEyesState';
+import { readCurrentBrowserEyesStateFromConfigStore } from '../../src/shared/browserObserverRuntime';
+import {
+    buildNativeCapabilitySystemPrompts,
+    createNativeCapabilitySdkTools,
+    tryHandleNativeCapabilityDirectTurn,
+} from '../../src/shared/nativeCapabilities';
+import { resolveConversationFileCacheConfig } from '../../src/shared/conversationFileCacheConfig';
 import { getProjectRoot, resolveRuntimeUserDataPath } from '../../src/shared/runtimeDataPaths';
 import {
-  BROWSER_EYES_CURRENT_PAGE_STORE_KEY,
-  type BrowserEyesCurrentPageState,
-} from '../../src/shared/browserEyesState';
+    buildBroadcastBoardOperatingPrompt,
+    buildRoleHomeMemoryLines,
+    buildToolCompatibilityFallbackSection,
+} from '../../src/shared/continuityRules';
+import type { SqliteStore } from '../sqliteStore.web';
 import {
-  buildNativeCapabilitySystemPrompts,
-  createNativeCapabilitySdkTools,
-  tryHandleNativeCapabilityDirectTurn,
-} from '../../src/shared/nativeCapabilities';
-import { readCurrentBrowserEyesStateFromConfigStore } from '../../src/shared/browserObserverRuntime';
-import { z } from 'zod';
-import {
-  getRoleRoot,
-  getRoleSkillConfigsRoot,
-  getRoleSkillSecretsRoot,
-  getRoleSkillsIndexPath,
-} from './roleSkillFiles';
-import {
-  getRoleCapabilitySnapshotPath,
-  getRoleNotesPath,
-  getRolePitfallsPath,
-} from './roleRuntimeViews';
-import {
-  emitSessionComplete,
-  emitSessionError,
-  emitSessionMessage,
-  emitSessionMessageUpdate,
-  emitSessionsChanged,
-} from './sessionEventSink';
-import { resolveContinuityBootstrap } from './continuityBootstrap';
-import { SessionTurnFinalizer } from './sessionTurnFinalizer';
-import { parseFile } from './fileParser';
-import {
-  buildAttachmentInlineManifestPrompt,
-  buildAttachmentManifestText,
-  buildAttachmentRuntimeContext,
-  buildAttachmentToolPrompt,
-  decorateAttachmentManifestInput,
-  decorateAttachmentReadInput,
-  formatAttachmentReadResult,
-  readAttachmentText,
+    buildAttachmentInlineManifestPrompt,
+    buildAttachmentManifestText,
+    buildAttachmentRuntimeContext,
+    buildAttachmentToolPrompt,
+    decorateAttachmentManifestInput,
+    decorateAttachmentReadInput,
+    formatAttachmentReadResult,
+    readAttachmentText,
 } from './attachmentRuntime';
-import {
-  buildTurnCacheKey,
-  getTurnCacheEntry,
-  putTurnCacheEntry,
-} from './turnCache';
+import { resolveContinuityBootstrap } from './continuityBootstrap';
+import { parseFile } from './fileParser';
 import { appendToIdentityThread } from './identityThreadHelper';
 import {
-  extractAssistantToolCalls,
-  extractTextFromResponsesOutput,
-  isToolLoopCompatibilityError,
-  normalizeAssistantMessageContent,
-  summarizeOpenAIToolPayload,
-  summarizeRawToolResponseBody,
-  type OpenAIToolCallCompat,
+    getRoleCapabilitySnapshotPath,
+    getRoleNotesPath,
+    getRolePitfallsPath,
+} from './roleRuntimeViews';
+import {
+    getRoleRoot,
+    getRoleSkillConfigsRoot,
+    getRoleSkillSecretsRoot,
+    getRoleSkillsIndexPath,
+} from './roleSkillFiles';
+import {
+    emitSessionComplete,
+    emitSessionError,
+    emitSessionMessage,
+    emitSessionMessageUpdate,
+    emitSessionsChanged,
+} from './sessionEventSink';
+import { SessionTurnFinalizer } from './sessionTurnFinalizer';
+import {
+    containsInvokeMarkupSignal,
+    extractAssistantToolCalls,
+    extractTextFromResponsesOutput,
+    isToolLoopCompatibilityError,
+    normalizeAssistantMessageContent,
+    stripInvokeMarkupFromAssistantContent,
+    summarizeOpenAIToolPayload,
+    summarizeRawToolResponseBody,
+    type OpenAIToolCallCompat,
 } from './toolRuntimeCompat';
 import { buildToolCompletionRequest } from './toolRuntimeRequest';
+import {
+    buildTurnCacheKey,
+    getTurnCacheEntry,
+    putTurnCacheEntry,
+} from './turnCache';
 
 type ImageAttachment = {
   name: string;
@@ -142,6 +150,10 @@ type OpenAIToolResultMessage = {
   content: string;
 };
 
+type OpenAIMessageBuildOptions = {
+  forceInlineChunkedAttachments?: boolean;
+};
+
 type OpenAIRequestMessage = OpenAIMessage | OpenAIAssistantToolCallMessage | OpenAIToolResultMessage;
 
 type ExecutorToolDefinition = {
@@ -158,23 +170,33 @@ type ExecutorToolDefinition = {
   handler: (args: any) => Promise<{ text: string; isError?: boolean }>;
 };
 
-const DEFAULT_OPENAI_MAX_TOKENS = 4096;
+const DEFAULT_OPENAI_MAX_TOKENS = 8192;
 const CACHE_REPLAY_CHUNK_SIZE = 48;
 const CACHE_REPLAY_CHUNK_DELAY_MS = 10;
-const FORWARDED_RAW_CONTEXT_MESSAGE_LIMIT = 3;
-const BOUNDED_LOOP_MAX_STEPS = 10;
-const DEFAULT_BOUNDED_LOOP_MAX_DURATION_MS = 180_000;
-const LONG_FORM_BOUNDED_LOOP_MAX_DURATION_MS = 420_000;
-const ATTACHMENT_BOUNDED_LOOP_MAX_DURATION_MS = 480_000;
+// ##混淆点注意：
+// 这不是“产品默认允许用户只思考 2048 步”的限制，而是最后一层保险丝。
+// 当前长写作 / 长思考 / 通宵多轮任务已经不再按短任务口径提前收口；
+// 真正的停止权优先交给用户手工打断。
+// 这里只保留极高兜底值，避免模型或工具链意外失控时把进程拖死。
+const BOUNDED_LOOP_MAX_STEPS = 16384;
+const DEFAULT_BOUNDED_LOOP_MAX_DURATION_MS = 21_600_000;
+const LONG_FORM_BOUNDED_LOOP_MAX_DURATION_MS = 43_200_000;
+const ATTACHMENT_BOUNDED_LOOP_MAX_DURATION_MS = 43_200_000;
 const UPSTREAM_RETRY_DELAY_MS = 1_200;
 const MIN_CONFIGURED_BOUNDED_LOOP_TIMEOUT_MS = 30_000;
-const MAX_CONFIGURED_BOUNDED_LOOP_TIMEOUT_MS = 900_000;
+const MAX_CONFIGURED_BOUNDED_LOOP_TIMEOUT_MS = 43_200_000;
 const PER_TURN_TOOL_LIMITS: Record<string, number> = {
-  broadcast_board_write: 1,
+  broadcast_board_write: 256,
 };
-const MAX_PARSED_ATTACHMENT_COUNT = 4;
-const MAX_PARSED_ATTACHMENT_TOTAL_CHARS = 24000;
+// ##混淆点注意：
+// 附件内联上限不是“用户只能带这么多附件”，而是“当前轮直接塞给上游模型的正文预算”。
+// 角色附件家目录、attachment_read、role_home_files、manual compression 都已经存在，
+// 所以这里应该尽量减少误伤长文/长文件处理，不要再让它成为默认卡点。
+const MAX_PARSED_ATTACHMENT_COUNT = 64;
+const MAX_PARSED_ATTACHMENT_TOTAL_CHARS = 1_000_000;
 const MAX_PARSED_ATTACHMENT_BYTES = 20 * 1024 * 1024;
+const FALLBACK_INLINE_ATTACHMENT_COUNT = 256;
+const FALLBACK_INLINE_ATTACHMENT_TOTAL_CHARS = 4_000_000;
 const BLINGBLING_LITTLE_EYE_SKILL_ID = 'blingbling-little-eye';
 const BLINGBLING_OBSERVER_SCRIPT = path.join('scripts', 'observe-page.mjs');
 const BLINGBLING_OBSERVER_TIMEOUT_MS = 12000;
@@ -538,31 +560,27 @@ export class HttpSessionExecutor implements SessionExecutor {
 
   private buildRoleHomePrompt(roleKey: AgentRoleKey): string {
     try {
-      const userDataPath = resolveRuntimeUserDataPath();
-      const projectRoot = getProjectRoot();
-      const toRelative = (targetPath: string): string => {
-        const relativePath = path.relative(projectRoot, targetPath).replace(/\\/g, '/');
-        return relativePath || '.';
-      };
-
-      const roleRoot = toRelative(getRoleRoot(userDataPath, roleKey));
-      const skillsIndex = toRelative(getRoleSkillsIndexPath(userDataPath, roleKey));
-      const capabilitySnapshot = toRelative(getRoleCapabilitySnapshotPath(userDataPath, roleKey));
-      const configsRoot = toRelative(getRoleSkillConfigsRoot(userDataPath, roleKey));
-      const secretsRoot = toRelative(getRoleSkillSecretsRoot(userDataPath, roleKey));
-      const roleNotesPath = toRelative(getRoleNotesPath(userDataPath, roleKey));
-      const pitfallsPath = toRelative(getRolePitfallsPath(userDataPath, roleKey));
+      const context = this.getRoleHomeContext(roleKey);
 
       return [
+        // {标记} ROOM-DOORPLATE-TRUTH: prompt 门牌和 role_home_paths 的输出字段必须保持同一合同，不能一边多写一边少写。
         '## Role Home',
-        `- Your role home is \`${roleRoot}/\`. This folder is also your home for current capabilities, supported skills, MCP awareness, and mistake notes.`,
-        `- Supported skills index: \`${skillsIndex}\`.`,
-        `- Runtime capability snapshot (including current MCP awareness): \`${capabilitySnapshot}\`.`,
-        `- Role skill configs live under: \`${configsRoot}/\`.`,
-        `- Role skill secrets live under: \`${secretsRoot}/\`.`,
-        `- Your role notes live at: \`${roleNotesPath}\`.`,
-        `- Your pitfalls / mistake notebook lives at: \`${pitfallsPath}\`.`,
-        '- Use these relative paths as the ground truth for what belongs to your current role.',
+        `- Way home: \`${context.roleRoot}/\`. If you get lost, come back here first and re-anchor from this role home.`,
+        `- Your role home is \`${context.roleRoot}/\`. This folder is also your home for current capabilities, supported skills, MCP awareness, and mistake notes.`,
+        `- Supported skills index: \`${context.skillsIndex}\`.`,
+        `- Runtime capability snapshot (including current MCP awareness): \`${context.capabilitySnapshot}\`.`,
+        `- Role skill configs live under: \`${context.configsRoot}/\`.`,
+        `- Role skill secrets live under: \`${context.secretsRoot}/\`.`,
+        `- Your role notes live at: \`${context.roleNotesPath}\`.`,
+        `- Your pitfalls / mistake notebook lives at: \`${context.pitfallsPath}\`.`,
+        `- Your full conversation database lives at: \`${context.sqlitePath}\`.`,
+        context.attachmentManualHome
+          ? `- Your unique attachment home is \`${context.attachmentManualHome}/\`. You may read and write inside your own role bucket.`
+          : '- Your attachment home is not configured yet. Do not assume cross-role attachment access.',
+        context.attachmentExportsHome
+          ? `- Your unique export home is \`${context.attachmentExportsHome}/\`.`
+          : '- Your export home is not configured yet because the conversation file root is missing.',
+        ...buildRoleHomeMemoryLines(roleKey),
         '- If a skill is not present in the role skills index, do not assume it is already available for this role.',
         '- If an MCP tool is not present in the runtime capability snapshot, do not assume it is currently live for this role.',
         '- Treat the pitfalls notebook as your role-specific mistake book: use it to avoid repeating known errors, not as a source of runtime truth.',
@@ -572,32 +590,91 @@ export class HttpSessionExecutor implements SessionExecutor {
     }
   }
 
+  private getRoleHomeContext(roleKey: AgentRoleKey): {
+    roleRoot: string;
+    skillsIndex: string;
+    capabilitySnapshot: string;
+    configsRoot: string;
+    secretsRoot: string;
+    roleNotesPath: string;
+    pitfallsPath: string;
+    sqlitePath: string;
+    attachmentManualHome: string | null;
+    attachmentExportsHome: string | null;
+    attachmentManualAbs: string | null;
+    attachmentExportsAbs: string | null;
+    legacyAttachmentManualHome: string | null;
+    legacyAttachmentExportsHome: string | null;
+    legacyAttachmentManualAbs: string | null;
+    legacyAttachmentExportsAbs: string | null;
+  } {
+    const userDataPath = resolveRuntimeUserDataPath();
+    const projectRoot = getProjectRoot();
+    const appConfig = this.configStore.get<Record<string, unknown>>('app_config') as Record<string, unknown> | null;
+    const conversationFileCache = resolveConversationFileCacheConfig(appConfig);
+    const toRelative = (targetPath: string): string => {
+      const relativePath = path.relative(projectRoot, targetPath).replace(/\\/g, '/');
+      return relativePath || '.';
+    };
+
+    const attachmentManualAbs = conversationFileCache.directory
+      ? path.join(path.resolve(conversationFileCache.directory), roleKey, 'manual')
+      : null;
+    const attachmentExportsAbs = conversationFileCache.directory
+      ? path.join(path.resolve(conversationFileCache.directory), roleKey, 'exports')
+      : null;
+    const legacyAttachmentManualAbs = conversationFileCache.directory
+      ? path.join(path.resolve(conversationFileCache.directory), roleKey, 'attachments', 'manual')
+      : null;
+    const legacyAttachmentExportsAbs = conversationFileCache.directory
+      ? path.join(path.resolve(conversationFileCache.directory), roleKey, 'attachments', 'exports')
+      : null;
+
+    return {
+      roleRoot: toRelative(getRoleRoot(userDataPath, roleKey)),
+      skillsIndex: toRelative(getRoleSkillsIndexPath(userDataPath, roleKey)),
+      capabilitySnapshot: toRelative(getRoleCapabilitySnapshotPath(userDataPath, roleKey)),
+      configsRoot: toRelative(getRoleSkillConfigsRoot(userDataPath, roleKey)),
+      secretsRoot: toRelative(getRoleSkillSecretsRoot(userDataPath, roleKey)),
+      roleNotesPath: toRelative(getRoleNotesPath(userDataPath, roleKey)),
+      pitfallsPath: toRelative(getRolePitfallsPath(userDataPath, roleKey)),
+      sqlitePath: toRelative(path.join(userDataPath, 'uclaw.sqlite')),
+      attachmentManualHome: attachmentManualAbs ? toRelative(attachmentManualAbs) : null,
+      attachmentExportsHome: attachmentExportsAbs ? toRelative(attachmentExportsAbs) : null,
+      attachmentManualAbs,
+      attachmentExportsAbs,
+      legacyAttachmentManualHome: legacyAttachmentManualAbs ? toRelative(legacyAttachmentManualAbs) : null,
+      legacyAttachmentExportsHome: legacyAttachmentExportsAbs ? toRelative(legacyAttachmentExportsAbs) : null,
+      legacyAttachmentManualAbs,
+      legacyAttachmentExportsAbs,
+    };
+  }
+
   private buildBroadcastBoardOperatingPrompt(): string {
-    return [
-      '## Broadcast Baton',
-      '- You have a `broadcast_board_write` tool for leaving a short baton note to your same-role future self.',
-      '- Use it during the turn when one of these becomes clear: key user requirement, important judgment, freshly confirmed pitfall, fix already completed, or next-step handoff.',
-      '- Keep each baton factual and compact. It is a 24h relay note, not a full transcript.',
-      '- At most one `broadcast_board_write` call is allowed per turn. If a baton note is already written in this turn, continue the user-facing answer instead of writing another.',
-      '- The default continuity path is: broadcast board first, then the most recent raw messages, then longer history only when exact detail is needed.',
-      '',
-      '## Tool Grounding',
-      '- If this turn already produced one or more tool results, treat those results as real successful observations or actions from the current session.',
-      '- Do not say you cannot access, cannot call, or cannot use a tool when a tool result is already present in the conversation state.',
-      '- After a tool result arrives, answer from that result directly. If the result is incomplete, say what is missing; do not pretend the tool was unavailable.',
-    ].join('\n');
+    return buildBroadcastBoardOperatingPrompt();
   }
 
   private buildToolCompatibilityFallbackPrompt(systemPrompt: string, compatibilityReason: string): string {
-    const addition = [
-      '## Tool Compatibility Notice',
-      '- The current provider/model did not execute tool completions for this turn.',
-      '- Do not say the tool is missing from the project, hidden by the UI, or unconfigured if this turn already attempted tool completion.',
-      '- If the user asked for a tool call, explain that the current provider/model could not execute tool completions for this request shape, then continue with the best non-tool answer you can provide.',
-      `- Compatibility reason: ${compatibilityReason}`,
-    ].join('\n');
+    return [
+      systemPrompt,
+      buildToolCompatibilityFallbackSection(compatibilityReason),
+    ].filter((section) => section.trim()).join('\n\n');
+  }
 
-    return [systemPrompt, addition].filter((section) => section.trim()).join('\n\n');
+  private buildToolCompatibilityContinuePrompt(systemPrompt: string): string {
+    return [
+      systemPrompt,
+      '## Continue After Compatibility Fallback',
+      '- You already know this turn hit a native tool compatibility wall.',
+      '- Do not repeat the compatibility notice.',
+      '- Continue the user task itself now in the same reply.',
+      '- If the task can be advanced without the tool, do that immediately.',
+      '- If the tool is still necessary, give one compact textual tool plan and then continue with the best grounded progress available right now.',
+    ].filter((section) => section.trim()).join('\n\n');
+  }
+
+  private buildToolCompatibilityFallbackNoticeText(): string {
+    return '当前模型/接口这轮不兼容原生工具调用。我已切换到文本协议继续，不会直接中断；如需精确执行，请继续告诉我想调用的工具和参数。';
   }
 
   private resolveMergedSkillIds(
@@ -1030,6 +1107,16 @@ export class HttpSessionExecutor implements SessionExecutor {
       return false;
     }
 
+    const availableExecutorToolCount = this.buildExecutorTools(session, prompt).length;
+    if (availableExecutorToolCount > 0) {
+      return true;
+    }
+
+    const roleKey = resolveRuntimeAgentRoleKey(session.agentRoleKey);
+    if (mergedSkillIds.length > 0 || this.readRuntimeMcpToolCount(roleKey) > 0) {
+      return true;
+    }
+
     return this.needsBoundedToolLoop(session, prompt, mergedSkillIds);
   }
 
@@ -1083,6 +1170,9 @@ export class HttpSessionExecutor implements SessionExecutor {
     request: () => Promise<Response>,
     signal: AbortSignal,
   ): Promise<Response> {
+    // {标记} P0-UPSTREAM-RETRY-ONCE: 主链上游请求至少重试 1 次。
+    // 原因：长线任务、长篇写作、资料整理这类场景不能因为一次瞬时抖动就直接被打死。
+    // 边界：这里是“至少 1 次重试”，不是无限重试；真正的停止权仍优先交给用户手工打断/压缩/接力。
     for (let attempt = 1; attempt <= 2; attempt += 1) {
       try {
         const response = await request();
@@ -1143,17 +1233,56 @@ export class HttpSessionExecutor implements SessionExecutor {
           error instanceof Error ? error.message : String(error)
         }`
       );
-      await this.runOpenAIStream(
+      this.emitPreToolStatusMessage(
         sessionId,
-        session,
-        this.buildToolCompatibilityFallbackPrompt(
-          systemPrompt,
-          error instanceof Error ? error.message : String(error)
-        ),
-        apiConfig,
-        streamState,
-        signal
+        '这轮原生工具调用遇到兼容墙，已自动切到 textual_tool_protocol 继续。',
+        {
+          compatibilityFallback: true,
+          compatibilityReason: error instanceof Error ? error.message : String(error),
+        },
       );
+      streamState.metadata = {
+        ...(streamState.metadata || {}),
+        toolCompatibilityFallback: true,
+      };
+      try {
+        await this.runOpenAIStream(
+          sessionId,
+          session,
+          this.buildToolCompatibilityFallbackPrompt(
+            systemPrompt,
+            error instanceof Error ? error.message : String(error)
+          ),
+          apiConfig,
+          streamState,
+          signal,
+          { forceInlineChunkedAttachments: true }
+        );
+        if (this.responseLooksLikeCompatibilityStall(streamState.content)) {
+          streamState.metadata = {
+            ...(streamState.metadata || {}),
+            toolCompatibilityFallbackRetried: true,
+          };
+          await this.runOpenAIStream(
+            sessionId,
+            session,
+            this.buildToolCompatibilityContinuePrompt(systemPrompt),
+            apiConfig,
+            streamState,
+            signal,
+            { forceInlineChunkedAttachments: true }
+          );
+        }
+      } catch (fallbackError) {
+        if (!streamState.content.trim()) {
+          this.appendAssistantOutput(sessionId, streamState, {
+            text: this.buildToolCompatibilityFallbackNoticeText(),
+            generatedImages: [],
+          });
+          return;
+        }
+        throw fallbackError;
+      }
     }
   }
 
@@ -1233,7 +1362,7 @@ export class HttpSessionExecutor implements SessionExecutor {
     }
 
     const attachmentContext = buildAttachmentRuntimeContext(prompt);
-    const boundedLoopMaxSteps = attachmentContext.hasChunkedSources ? 24 : BOUNDED_LOOP_MAX_STEPS;
+    const boundedLoopMaxSteps = attachmentContext.hasChunkedSources ? 2048 : BOUNDED_LOOP_MAX_STEPS;
     const boundedLoopMaxDurationMs = this.resolveBoundedToolLoopDurationMs(
       prompt,
       attachmentContext.hasChunkedSources
@@ -1261,9 +1390,12 @@ export class HttpSessionExecutor implements SessionExecutor {
         });
 
         const toolCalls = extractAssistantToolCalls(responsePayload);
-        const messageContent = normalizeAssistantMessageContent(
+        const rawMessageContent = normalizeAssistantMessageContent(
           responsePayload?.choices?.[0]?.message?.content
         );
+        const messageContent = toolCalls.length > 0
+          ? stripInvokeMarkupFromAssistantContent(rawMessageContent)
+          : rawMessageContent;
 
         if (toolCalls.length === 0) {
           const usageMetadata = extractUsageMetadata(responsePayload);
@@ -1361,7 +1493,15 @@ export class HttpSessionExecutor implements SessionExecutor {
         }
       }
 
-      throw new Error(`工具回环超过 ${boundedLoopMaxSteps} 步，已按安全边界停止。`);
+      throw new Error(`工具回环超过 ${boundedLoopMaxSteps} 步，已按最后兜底保险丝停止。`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes('bounded-tool-loop-timeout')) {
+        throw new Error(
+          `工具回环执行超过 ${Math.round(boundedLoopMaxDurationMs / 1000)} 秒，已停止本轮自动工具链。当前版本会保留会话上下文，请直接继续追问，或把任务拆成更短的接力步。`
+        );
+      }
+      throw error;
     } finally {
       clearTimeout(timeoutId);
     }
@@ -1528,6 +1668,165 @@ export class HttpSessionExecutor implements SessionExecutor {
           after?: string;
         }) => ({
           text: this.runRecentChatsTool(args, {
+            agentRoleKey: session.agentRoleKey,
+          }),
+        }),
+      },
+      {
+        name: 'conversation_sql',
+        spec: {
+          type: 'function',
+          function: {
+            name: 'conversation_sql',
+            description: 'Run a read-only SELECT query against role-scoped SQL views `role_sessions` and `role_messages` for exact full-history retrieval. Accepts `query`; legacy clients may also send `sql`. If you need field names first, call `conversation_sql_schema`. Raw cowork_* tables and sqlite_master probing are blocked.',
+            parameters: {
+              type: 'object',
+              properties: {
+                query: { type: 'string' },
+                sql: { type: 'string' },
+                max_rows: { type: 'integer', minimum: 1, maximum: 200 },
+              },
+              required: [],
+              additionalProperties: false,
+            },
+          },
+        },
+        handler: async (args: {
+          query?: string;
+          sql?: string;
+          max_rows?: number;
+        }) => ({
+          text: this.runConversationSqlTool(args, {
+            agentRoleKey: session.agentRoleKey,
+          }),
+        }),
+      },
+      {
+        name: 'conversation_sql_schema',
+        spec: {
+          type: 'function',
+          function: {
+            name: 'conversation_sql_schema',
+            description: 'Explain the allowed SQL views and columns for conversation_sql. Use this before writing SQL if you are unsure about field names.',
+            parameters: {
+              type: 'object',
+              properties: {},
+              additionalProperties: false,
+            },
+          },
+        },
+        handler: async () => ({
+          text: [
+            'allowed_views=role_sessions,role_messages',
+            'role_sessions_columns=id,title,claude_session_id,status,pinned,cwd,system_prompt,execution_mode,active_skill_ids,agent_role_key,model_id,source_type,created_at,updated_at',
+            'role_messages_columns=id,session_id,type,content,metadata,agent_role_key,model_id,created_at,sequence',
+            'forbidden_tables=cowork_sessions,cowork_messages,role_attachments',
+            'note=Use title in role_sessions and content in role_messages. Do not invent extra columns or tables.',
+          ].join('\n'),
+        }),
+      },
+      {
+        name: 'role_home_paths',
+        spec: {
+          type: 'function',
+          function: {
+            name: 'role_home_paths',
+            description: 'Return the current role home doorplate for the current role only, including skills index, capability snapshot, role skill configs, role skill secrets, notes, pitfalls, sqlite, attachment home, and export home.',
+            parameters: {
+              type: 'object',
+              properties: {},
+              additionalProperties: false,
+            },
+          },
+        },
+        handler: async () => ({
+          text: this.runRoleHomePathsTool({
+            agentRoleKey: session.agentRoleKey,
+          }),
+        }),
+      },
+      {
+        name: 'role_home_files',
+        spec: {
+          type: 'function',
+          function: {
+            name: 'role_home_files',
+            description: 'List files from your own role attachment/export home only. Use this instead of guessing directory contents inside your role bucket.',
+            parameters: {
+              type: 'object',
+              properties: {
+                area: { type: 'string', enum: ['attachment', 'export'] },
+                limit: { type: 'integer', minimum: 1, maximum: 100 },
+              },
+              additionalProperties: false,
+            },
+          },
+        },
+        handler: async (args: {
+          area?: 'attachment' | 'export';
+          limit?: number;
+        }) => ({
+          text: this.runRoleHomeFilesTool(args, {
+            agentRoleKey: session.agentRoleKey,
+          }),
+        }),
+      },
+      {
+        name: 'role_home_read_file',
+        spec: {
+          type: 'function',
+          function: {
+            name: 'role_home_read_file',
+            description: 'Read one file from your own role attachment/export home. Only supports your current role bucket, never system runtime files.',
+            parameters: {
+              type: 'object',
+              properties: {
+                area: { type: 'string', enum: ['attachment', 'export'] },
+                relative_path: { type: 'string' },
+                max_characters: { type: 'integer', minimum: 1000, maximum: 24000 },
+              },
+              required: ['area', 'relative_path'],
+              additionalProperties: false,
+            },
+          },
+        },
+        handler: async (args: {
+          area: 'attachment' | 'export';
+          relative_path: string;
+          max_characters?: number;
+        }) => ({
+          text: await this.runRoleHomeReadFileTool(args, {
+            agentRoleKey: session.agentRoleKey,
+          }),
+        }),
+      },
+      {
+        name: 'role_home_write_file',
+        spec: {
+          type: 'function',
+          function: {
+            name: 'role_home_write_file',
+            description: 'Write one UTF-8 text file into your own role attachment/export home. Only supports your current role bucket, never system runtime files.',
+            parameters: {
+              type: 'object',
+              properties: {
+                area: { type: 'string', enum: ['attachment', 'export'] },
+                relative_path: { type: 'string' },
+                content: { type: 'string' },
+                overwrite: { type: 'boolean' },
+              },
+              required: ['area', 'relative_path', 'content'],
+              additionalProperties: false,
+            },
+          },
+        },
+        handler: async (args: {
+          area: 'attachment' | 'export';
+          relative_path: string;
+          content: string;
+          overwrite?: boolean;
+        }) => ({
+          text: await this.runRoleHomeWriteFileTool(args, {
             agentRoleKey: session.agentRoleKey,
           }),
         }),
@@ -1729,12 +2028,47 @@ export class HttpSessionExecutor implements SessionExecutor {
     return parts.join('\n');
   }
 
+  private responseLooksLikeCompatibilityStall(content: string): boolean {
+    const normalized = String(content || '').trim().toLowerCase();
+    if (!normalized) {
+      return true;
+    }
+
+    const compatibilitySignal = /(兼容|不兼容|原生工具调用|textual_tool_protocol|tool completions|tool completion|compatibility|native tool)/i;
+    if (normalized.length <= 220 && compatibilitySignal.test(normalized)) {
+      return true;
+    }
+
+    return false;
+  }
+
+  private formatConversationSqlResult(input: {
+    columns: string[];
+    rows: Array<Record<string, unknown>>;
+    rowCount: number;
+    truncated: boolean;
+  }): string {
+    if (input.rowCount === 0) {
+      return 'row_count=0\ncolumns=-\nrows=[]';
+    }
+
+    return [
+      `row_count=${input.rowCount}`,
+      `columns=${input.columns.join(',') || '-'}`,
+      `truncated=${input.truncated ? 'true' : 'false'}`,
+      JSON.stringify(input.rows, null, 2),
+    ].join('\n');
+  }
+
   private runConversationSearchTool(args: {
     query: string;
     max_results?: number;
     before?: string;
     after?: string;
   }, identity?: { agentRoleKey?: string }): string {
+    // ##混淆点注意：
+    // 这里返回的是“按角色过滤后的搜索结果片段”，不是把该角色全部聊天全文直接回灌给模型。
+    // 全文仍在 sqlite.cowork_messages；这个工具只给检索摘要和命中片段，避免上下文被整段历史撑爆。
     const chats = this.store.conversationSearch({
       query: args.query,
       maxResults: args.max_results,
@@ -1761,11 +2095,269 @@ export class HttpSessionExecutor implements SessionExecutor {
     return this.formatChatSearchOutput(chats);
   }
 
+  private runConversationSqlTool(args: {
+    query?: string;
+    sql?: string;
+    max_rows?: number;
+  }, identity?: { agentRoleKey?: string }): string {
+    const sqlText = String(args.query || args.sql || '').trim();
+    if (!sqlText) {
+      return [
+        'reason=missing-query',
+        'hint=Use conversation_sql with `query`, or call conversation_sql_schema first.',
+      ].join('\n');
+    }
+    if (/sqlite_master/i.test(sqlText)) {
+      return [
+        'reason=sqlite-master-blocked',
+        'hint=Use conversation_sql_schema instead of querying sqlite_master.',
+        'allowed_views=role_sessions,role_messages',
+        'role_sessions_columns=id,title,claude_session_id,status,pinned,cwd,system_prompt,execution_mode,active_skill_ids,agent_role_key,model_id,source_type,created_at,updated_at',
+        'role_messages_columns=id,session_id,type,content,metadata,agent_role_key,model_id,created_at,sequence',
+      ].join('\n');
+    }
+    const result = this.store.queryRoleScopedConversationSql({
+      query: sqlText,
+      maxRows: args.max_rows,
+      agentRoleKey: identity?.agentRoleKey,
+    });
+    return this.formatConversationSqlResult(result);
+  }
+
+  private runRoleHomePathsTool(identity?: { agentRoleKey?: string }): string {
+    // {标记} ROOM-DOORPLATE-TRUTH: 这是 role-home 门牌工具真相输出；若房间门牌字段变更，必须和 Role Home Prompt 同步修改。
+    const roleKey = resolveRuntimeAgentRoleKey(identity?.agentRoleKey);
+    const context = this.getRoleHomeContext(roleKey);
+    return [
+      `role=${roleKey}`,
+      `role_home=${context.roleRoot}`,
+      `skills_index=${context.skillsIndex}`,
+      `capability_snapshot=${context.capabilitySnapshot}`,
+      `role_configs=${context.configsRoot}`,
+      `role_secrets=${context.secretsRoot}`,
+      `role_notes=${context.roleNotesPath}`,
+      `pitfalls=${context.pitfallsPath}`,
+      `sqlite=${context.sqlitePath}`,
+      `attachment_home=${context.attachmentManualHome || '-'}`,
+      `export_home=${context.attachmentExportsHome || '-'}`,
+      `legacy_attachment_home=${context.legacyAttachmentManualHome || '-'}`,
+      `legacy_export_home=${context.legacyAttachmentExportsHome || '-'}`,
+    ].join('\n');
+  }
+
+  private runRoleHomeFilesTool(args: {
+    area?: 'attachment' | 'export';
+    limit?: number;
+  }, identity?: { agentRoleKey?: string }): string {
+    const roleKey = resolveRuntimeAgentRoleKey(identity?.agentRoleKey);
+    const context = this.getRoleHomeContext(roleKey);
+    const area = args.area || 'attachment';
+    const maxItems = Math.max(1, Math.min(100, Math.floor(args.limit ?? 30)));
+    const targetPath = area === 'export'
+      ? context.attachmentExportsAbs
+      : context.attachmentManualAbs;
+    const legacyPath = area === 'export'
+      ? context.legacyAttachmentExportsAbs
+      : context.legacyAttachmentManualAbs;
+
+    if (!targetPath) {
+      return `role=${roleKey}\narea=${area}\nconfigured=false\nentries=[]`;
+    }
+    if (!fs.existsSync(targetPath)) {
+      if (area === 'attachment' || area === 'export') {
+        try {
+          fs.mkdirSync(targetPath, { recursive: true });
+        } catch (error) {
+          return [
+            `role=${roleKey}`,
+            `area=${area}`,
+            `path=${targetPath}`,
+            'exists=false',
+            `error=${error instanceof Error ? error.message : String(error)}`,
+            'entries=[]',
+          ].join('\n');
+        }
+      }
+    }
+    if (!fs.statSync(targetPath).isDirectory()) {
+      return `role=${roleKey}\narea=${area}\npath=${targetPath}\nexists=false\nentries=[]`;
+    }
+
+    const entries = fs.readdirSync(targetPath, { withFileTypes: true })
+      .slice(0, maxItems)
+      .map((entry) => `${entry.isDirectory() ? 'dir' : 'file'}:${entry.name}`);
+    const legacyEntries = legacyPath && fs.existsSync(legacyPath) && fs.statSync(legacyPath).isDirectory()
+      ? fs.readdirSync(legacyPath, { withFileTypes: true })
+        .slice(0, maxItems)
+        .map((entry) => `${entry.isDirectory() ? 'dir' : 'file'}:${entry.name}`)
+      : [];
+
+    return [
+      `role=${roleKey}`,
+      `area=${area}`,
+      `path=${targetPath}`,
+      `count=${entries.length}`,
+      ...entries,
+      ...(legacyPath
+        ? [
+            `legacy_path=${legacyPath}`,
+            `legacy_count=${legacyEntries.length}`,
+            ...legacyEntries.map((entry) => `legacy_${entry}`),
+          ]
+        : []),
+    ].join('\n');
+  }
+
+  private resolveRoleBucketTarget(
+    roleKey: AgentRoleKey,
+    area: 'attachment' | 'export',
+  ): {
+    primaryPath: string | null;
+    legacyPath: string | null;
+  } {
+    const context = this.getRoleHomeContext(roleKey);
+    return {
+      primaryPath: area === 'export' ? context.attachmentExportsAbs : context.attachmentManualAbs,
+      legacyPath: area === 'export' ? context.legacyAttachmentExportsAbs : context.legacyAttachmentManualAbs,
+    };
+  }
+
+  private resolveRoleBucketFilePath(
+    rootPath: string,
+    relativePath: string,
+  ): { ok: boolean; resolvedPath?: string; reason?: string } {
+    const normalizedRelative = String(relativePath || '')
+      .replace(/\\/g, '/')
+      .trim()
+      .replace(/^\/+/, '');
+    if (!normalizedRelative) {
+      return { ok: false, reason: 'missing relative_path' };
+    }
+    const segments = normalizedRelative.split('/').filter(Boolean);
+    if (segments.length === 0 || segments.some((segment) => segment === '.' || segment === '..')) {
+      return { ok: false, reason: 'invalid relative_path' };
+    }
+
+    const resolvedRoot = path.resolve(rootPath);
+    const resolvedPath = path.resolve(resolvedRoot, ...segments);
+    const normalizedRoot = `${resolvedRoot}${path.sep}`;
+    if (resolvedPath !== resolvedRoot && !resolvedPath.startsWith(normalizedRoot)) {
+      return { ok: false, reason: 'path escapes role bucket' };
+    }
+    return { ok: true, resolvedPath };
+  }
+
+  private async runRoleHomeReadFileTool(args: {
+    area: 'attachment' | 'export';
+    relative_path: string;
+    max_characters?: number;
+  }, identity?: { agentRoleKey?: string }): Promise<string> {
+    const roleKey = resolveRuntimeAgentRoleKey(identity?.agentRoleKey);
+    const { primaryPath, legacyPath } = this.resolveRoleBucketTarget(roleKey, args.area);
+    if (!primaryPath) {
+      return `role=${roleKey}\narea=${args.area}\nreason=role-bucket-not-configured`;
+    }
+
+    const resolution = this.resolveRoleBucketFilePath(primaryPath, args.relative_path);
+    if (!resolution.ok || !resolution.resolvedPath) {
+      return `role=${roleKey}\narea=${args.area}\nreason=${resolution.reason || 'invalid relative_path'}`;
+    }
+
+    let targetPath = resolution.resolvedPath;
+    let usedLegacy = false;
+    if (!fs.existsSync(targetPath) && legacyPath) {
+      const legacyResolution = this.resolveRoleBucketFilePath(legacyPath, args.relative_path);
+      if (legacyResolution.ok && legacyResolution.resolvedPath && fs.existsSync(legacyResolution.resolvedPath)) {
+        targetPath = legacyResolution.resolvedPath;
+        usedLegacy = true;
+      }
+    }
+
+    if (!fs.existsSync(targetPath) || !fs.statSync(targetPath).isFile()) {
+      return [
+        `role=${roleKey}`,
+        `area=${args.area}`,
+        `relative_path=${args.relative_path}`,
+        'reason=file-not-found',
+      ].join('\n');
+    }
+
+    const fileBuffer = await fs.promises.readFile(targetPath);
+    const parsed = await parseFile(path.basename(targetPath), fileBuffer, {
+      maxTextLength: typeof args.max_characters === 'number' ? args.max_characters : 9000,
+    });
+    if (!parsed.success || !parsed.text.trim()) {
+      return [
+        `role=${roleKey}`,
+        `area=${args.area}`,
+        `relative_path=${args.relative_path}`,
+        `path=${targetPath}`,
+        `used_legacy=${usedLegacy ? 'true' : 'false'}`,
+        `reason=${parsed.error || 'read-failed'}`,
+      ].join('\n');
+    }
+
+    return [
+      `role=${roleKey}`,
+      `area=${args.area}`,
+      `relative_path=${args.relative_path}`,
+      `path=${targetPath}`,
+      `used_legacy=${usedLegacy ? 'true' : 'false'}`,
+      `file_type=${parsed.fileType}`,
+      `truncated=${parsed.truncated ? 'true' : 'false'}`,
+      'content:',
+      parsed.text.trim(),
+    ].join('\n');
+  }
+
+  private async runRoleHomeWriteFileTool(args: {
+    area: 'attachment' | 'export';
+    relative_path: string;
+    content: string;
+    overwrite?: boolean;
+  }, identity?: { agentRoleKey?: string }): Promise<string> {
+    const roleKey = resolveRuntimeAgentRoleKey(identity?.agentRoleKey);
+    const { primaryPath } = this.resolveRoleBucketTarget(roleKey, args.area);
+    if (!primaryPath) {
+      return `role=${roleKey}\narea=${args.area}\nreason=role-bucket-not-configured`;
+    }
+
+    fs.mkdirSync(primaryPath, { recursive: true });
+    const resolution = this.resolveRoleBucketFilePath(primaryPath, args.relative_path);
+    if (!resolution.ok || !resolution.resolvedPath) {
+      return `role=${roleKey}\narea=${args.area}\nreason=${resolution.reason || 'invalid relative_path'}`;
+    }
+
+    const targetPath = resolution.resolvedPath;
+    if (fs.existsSync(targetPath) && args.overwrite !== true) {
+      return [
+        `role=${roleKey}`,
+        `area=${args.area}`,
+        `relative_path=${args.relative_path}`,
+        `path=${targetPath}`,
+        'reason=file-exists-overwrite-false',
+      ].join('\n');
+    }
+
+    await fs.promises.mkdir(path.dirname(targetPath), { recursive: true });
+    await fs.promises.writeFile(targetPath, String(args.content ?? ''), 'utf8');
+
+    return [
+      `role=${roleKey}`,
+      `area=${args.area}`,
+      `relative_path=${args.relative_path}`,
+      `path=${targetPath}`,
+      'write=success',
+      `characters=${String(args.content ?? '').length}`,
+    ].join('\n');
+  }
+
   private async runBroadcastBoardWriteTool(
     args: { content: string },
     session: NonNullable<ReturnType<CoworkStore['getSession']>>
   ): Promise<{ text: string; isError: boolean }> {
     const agentRoleKey = session.agentRoleKey?.trim();
+    const sessionId = session.id;
     const content = String(args.content || '').trim();
     if (!agentRoleKey) {
       return {
@@ -2008,13 +2600,14 @@ export class HttpSessionExecutor implements SessionExecutor {
     systemPrompt: string,
     apiConfig: DirectApiConfig,
     streamState: StreamState,
-    signal: AbortSignal
+    signal: AbortSignal,
+    messageBuildOptions: OpenAIMessageBuildOptions = {}
   ): Promise<void> {
     // {BREAKPOINT} DIRECT-EXECUTOR-SINGLE-SHOT
     // {FLOW} PHASE1-DIRECT-ONE-SHOT: 当前轻执行器这里只发起一次 openai-compatible chat completion，
     // 不做 assistant->tool->assistant 多轮代理循环，因此单个用户 turn 最终只会产出一个 assistant 消息。
     // {FLOW} PHASE1-NO-AUTO-TOOL-LOOP: browser eyes / IMA / MCP 若未命中 direct turn，则不会在这里自动进入工具回路。
-    const messages = await this.buildOpenAIMessages(session, systemPrompt);
+    const messages = await this.buildOpenAIMessages(session, systemPrompt, messageBuildOptions);
     const requestHash = buildTurnCacheKey({
       agentRoleKey: resolveIdentityAgentRoleKey(session.agentRoleKey),
       baseURL: apiConfig.baseURL,
@@ -2196,7 +2789,14 @@ export class HttpSessionExecutor implements SessionExecutor {
     }
 
     if (output.text) {
-      streamState.content += output.text;
+      streamState.rawContent += output.text;
+      const shouldSanitizeInvokeMarkup = Boolean(streamState.metadata?.toolCompatibilityFallback)
+        || containsInvokeMarkupSignal(streamState.rawContent);
+      if (shouldSanitizeInvokeMarkup) {
+        streamState.content = stripInvokeMarkupFromAssistantContent(streamState.rawContent) ?? '';
+      } else {
+        streamState.content += output.text;
+      }
     }
     if (output.generatedImages.length > 0) {
       for (const image of output.generatedImages) {
@@ -2256,7 +2856,14 @@ export class HttpSessionExecutor implements SessionExecutor {
       return;
     }
 
-    const { assistantText, traceText } = splitAssistantToolTraceSections(streamState.content);
+    const finalSourceContent = streamState.rawContent || streamState.content;
+    const { assistantText, traceText } = splitAssistantToolTraceSections(finalSourceContent);
+    const sanitizedAssistantText = stripInvokeMarkupFromAssistantContent(assistantText) ?? assistantText;
+    const finalAssistantText = sanitizedAssistantText.trim()
+      ? sanitizedAssistantText.trim()
+      : streamState.metadata?.toolCompatibilityFallback
+        ? this.buildToolCompatibilityFallbackNoticeText()
+        : '';
     const metadata: CoworkMessageMetadata = {
       ...(streamState.metadata || {}),
       stage: 'final_result',
@@ -2265,32 +2872,36 @@ export class HttpSessionExecutor implements SessionExecutor {
       ...(streamState.generatedImages.length > 0 ? { generatedImages: streamState.generatedImages } : {}),
     };
     this.store.updateMessage(sessionId, streamState.messageId, {
-      content: assistantText,
+      content: finalAssistantText,
       metadata,
     });
-    emitSessionMessageUpdate(sessionId, streamState.messageId, assistantText);
+    emitSessionMessageUpdate(sessionId, streamState.messageId, finalAssistantText);
 
     void traceText;
   }
 
   private async buildOpenAIMessages(
     session: NonNullable<ReturnType<CoworkStore['getSession']>>,
-    systemPrompt: string
+    systemPrompt: string,
+    options: OpenAIMessageBuildOptions = {}
   ): Promise<OpenAIMessage[]> {
-    // 【1.0链路】RAW-CONTEXT-3: 原始对话正文只向上游转发最近 3 条，其余依赖广播板共享记忆和系统提示承接。
+    // 【1.0链路】RAW-CONTEXT-FULL: 原始对话正文当前按真实会话原文前送，不再硬裁成最近 30 条。
     const messages: OpenAIMessage[] = [];
     if (systemPrompt.trim()) {
       messages.push({ role: 'system', content: systemPrompt.trim() });
     }
 
     const rawConversation = (await Promise.all(
-      session.messages.map((message) => normalizeConversationMessage(message))
+      session.messages.map((message) => normalizeConversationMessage(message, options))
     ))
       .filter((message): message is OpenAIMessage => Boolean(message));
 
-    // Keep only the latest raw conversation messages. Shared memory and baton
-    // continuity are injected through the system prompt, not through full-chat replay.
-    for (const message of rawConversation.slice(-FORWARDED_RAW_CONTEXT_MESSAGE_LIMIT)) {
+    // ##混淆点注意：
+    // 这里不再把原始对话窗口硬裁成最近 30 条。
+    // 长写作 / 长思考 / 多轮数据库检索场景里，固定条数窗口会制造“全文还在但当前轮像失忆”的假象。
+    // 现在按真实会话原文前送；若未来要做治理，也只能走可配置、可解释、可被用户打断/压缩的路径，
+    // 不能再回到偷偷截断原文窗口的旧口径。
+    for (const message of rawConversation) {
       messages.push(message);
     }
 
@@ -2367,6 +2978,7 @@ export function getOrCreateWebSessionExecutor(params: {
 type StreamState = {
   messageId: string | null;
   content: string;
+  rawContent: string;
   metadata: CoworkMessageMetadata | null;
   generatedImages: GeneratedImage[];
   generatedImageKeys: Set<string>;
@@ -2376,6 +2988,7 @@ function createStreamState(): StreamState {
   return {
     messageId: null,
     content: '',
+    rawContent: '',
     metadata: null,
     generatedImages: [],
     generatedImageKeys: new Set<string>(),
@@ -2460,11 +3073,14 @@ function splitAssistantToolTraceSections(content: string): {
   };
 }
 
-async function normalizeConversationMessage(message: CoworkMessage): Promise<OpenAIMessage | null> {
+async function normalizeConversationMessage(
+  message: CoworkMessage,
+  options: OpenAIMessageBuildOptions = {}
+): Promise<OpenAIMessage | null> {
   // {标记} P1-ATTACHMENT-PARSE: 本地聊天主链在这里把“输入文件: 路径”展开成可直接送模型的提取文本。
   const imageAttachments = extractImageAttachments(message.metadata);
   const normalizedUserContent = message.type === 'user'
-    ? await inlineAttachmentContent(message.content, imageAttachments.length > 0)
+    ? await inlineAttachmentContent(message.content, imageAttachments.length > 0, options)
     : message.content;
 
   if (!normalizedUserContent?.trim() && imageAttachments.length === 0) {
@@ -3250,7 +3866,11 @@ function isLikelyImagePath(filePath: string): boolean {
   return ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'].includes(ext);
 }
 
-async function inlineAttachmentContent(content: string, hasInlineImagePayload: boolean): Promise<string> {
+async function inlineAttachmentContent(
+  content: string,
+  hasInlineImagePayload: boolean,
+  options: OpenAIMessageBuildOptions = {}
+): Promise<string> {
   const trimmed = content?.trim();
   if (!trimmed) {
     return '';
@@ -3258,26 +3878,46 @@ async function inlineAttachmentContent(content: string, hasInlineImagePayload: b
 
   const attachmentContext = buildAttachmentRuntimeContext(trimmed);
   const { promptText, attachments } = attachmentContext;
-  const filePaths = attachments.map((attachment) => attachment.path);
-  if (filePaths.length === 0) {
+  if (attachments.length === 0) {
     return trimmed;
   }
 
-  if (attachmentContext.shouldPreferToolReading) {
+  const forceInlineChunkedAttachments = Boolean(options.forceInlineChunkedAttachments && attachmentContext.hasChunkedSources);
+  if (attachmentContext.shouldPreferToolReading && !forceInlineChunkedAttachments) {
     return buildAttachmentInlineManifestPrompt(attachmentContext);
   }
 
   const parsedBlocks: string[] = [];
+  const omittedPaths: string[] = [];
   let totalChars = 0;
+  const attachmentLimit = forceInlineChunkedAttachments
+    ? Math.min(attachments.length, FALLBACK_INLINE_ATTACHMENT_COUNT)
+    : MAX_PARSED_ATTACHMENT_COUNT;
+  const totalCharBudget = forceInlineChunkedAttachments
+    ? FALLBACK_INLINE_ATTACHMENT_TOTAL_CHARS
+    : MAX_PARSED_ATTACHMENT_TOTAL_CHARS;
+  const attachmentsToInline = attachments.slice(0, attachmentLimit);
 
-  for (const rawPath of Array.from(new Set(filePaths)).slice(0, MAX_PARSED_ATTACHMENT_COUNT)) {
-    const resolvedPath = path.resolve(rawPath);
-    const fileName = path.basename(resolvedPath) || resolvedPath;
+  if (attachments.length > attachmentsToInline.length) {
+    omittedPaths.push(...attachments.slice(attachmentsToInline.length).map((attachment) => attachment.resolvedPath));
+  }
+
+  for (const attachment of attachmentsToInline) {
+    const resolvedPath = attachment.resolvedPath;
+    const fileName = attachment.fileName;
+    const chunkMeta = attachment.descriptor
+      ? [
+          `源文件: ${attachment.descriptor.sourceName}`,
+          `分片: ${String(attachment.descriptor.partNumber).padStart(2, '0')}/${String(attachment.descriptor.totalParts).padStart(2, '0')}`,
+          `分片类型: ${attachment.descriptor.kind}`,
+        ]
+      : [];
 
     if (isLikelyImagePath(resolvedPath)) {
       parsedBlocks.push([
         `文件: ${fileName}`,
         `路径: ${resolvedPath}`,
+        ...chunkMeta,
         hasInlineImagePayload
           ? '说明: 该图片已作为视觉附件一并发送。'
           : '说明: 检测到图片文件路径，但当前消息未内联图片数据，无法在底层直接解析像素内容。',
@@ -3291,6 +3931,7 @@ async function inlineAttachmentContent(content: string, hasInlineImagePayload: b
         parsedBlocks.push([
           `文件: ${fileName}`,
           `路径: ${resolvedPath}`,
+          ...chunkMeta,
           '解析结果: 目标不是普通文件。',
         ].join('\n'));
         continue;
@@ -3300,6 +3941,7 @@ async function inlineAttachmentContent(content: string, hasInlineImagePayload: b
         parsedBlocks.push([
           `文件: ${fileName}`,
           `路径: ${resolvedPath}`,
+          ...chunkMeta,
           `解析结果: 文件过大，已跳过底层解析（>${Math.floor(MAX_PARSED_ATTACHMENT_BYTES / (1024 * 1024))}MB）。`,
         ].join('\n'));
         continue;
@@ -3311,13 +3953,15 @@ async function inlineAttachmentContent(content: string, hasInlineImagePayload: b
         parsedBlocks.push([
           `文件: ${fileName}`,
           `路径: ${resolvedPath}`,
+          ...chunkMeta,
           `解析结果: ${parsed.error || '解析失败'}`,
         ].join('\n'));
         continue;
       }
 
-      const remainingChars = MAX_PARSED_ATTACHMENT_TOTAL_CHARS - totalChars;
+      const remainingChars = totalCharBudget - totalChars;
       if (remainingChars <= 0) {
+        omittedPaths.push(resolvedPath);
         break;
       }
 
@@ -3326,6 +3970,7 @@ async function inlineAttachmentContent(content: string, hasInlineImagePayload: b
       parsedBlocks.push([
         `文件: ${fileName}`,
         `路径: ${resolvedPath}`,
+        ...chunkMeta,
         `类型: ${parsed.fileType}`,
         '提取文本:',
         parsedText,
@@ -3334,6 +3979,7 @@ async function inlineAttachmentContent(content: string, hasInlineImagePayload: b
       parsedBlocks.push([
         `文件: ${fileName}`,
         `路径: ${resolvedPath}`,
+        ...chunkMeta,
         `解析结果: ${error instanceof Error ? error.message : '读取失败'}`,
       ].join('\n'));
     }
@@ -3346,9 +3992,20 @@ async function inlineAttachmentContent(content: string, hasInlineImagePayload: b
   // {标记} P1-ATTACHMENT-PARSE: 常见文档在发给上游前先抽正文，避免只把文件路径丢给模型。
   return [
     promptText,
-    '以下是当前消息附带文件的底层解析结果。优先依据提取文本理解内容，不要假装读取了未展示的原文件。',
+    forceInlineChunkedAttachments
+      ? '当前 provider/model 未稳定执行附件工具链，已自动切换为分片正文内联模式。下面直接给出分片文件名、路径、part 编号和正文；没有展示的分片不要假装已经读到。'
+      : '以下是当前消息附带文件的底层解析结果。优先依据提取文本理解内容，不要假装读取了未展示的原文件。',
+    attachmentContext.hasChunkedSources ? '<attached_file_manifest>' : '',
+    attachmentContext.hasChunkedSources ? buildAttachmentManifestText(attachmentContext) : '',
+    attachmentContext.hasChunkedSources ? '</attached_file_manifest>' : '',
     '<attached_files>',
     ...parsedBlocks,
+    ...(omittedPaths.length > 0
+      ? [
+          `未内联文件数: ${omittedPaths.length}`,
+          `未内联路径: ${omittedPaths.join(' | ')}`,
+        ]
+      : []),
     '</attached_files>',
   ]
     .filter((section) => section && section.trim())

@@ -17,8 +17,8 @@ const SidebarCompactGrid: React.FC<SidebarCompactGridProps> = ({
         {title}
       </div>
       <div className={`grid grid-cols-2 auto-rows-fr ${UI_SURFACE_COMPACT_GAP_CLASS}`}>
-        {items.map((item) => (
-          <SidebarCompactTile key={item.key} item={item} />
+        {items.map((item, index) => (
+          <SidebarCompactTile key={`${item.key}-${index}`} item={item} />
         ))}
       </div>
     </div>

@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { createPortal } from 'react-dom';
 import FolderPlusIcon from '../icons/FolderPlusIcon';
 import ClockIcon from '../icons/ClockIcon';
 import ChevronRightIcon from '../icons/ChevronRightIcon';

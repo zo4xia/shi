@@ -283,15 +283,14 @@ function buildDurableSections(rows: DurableMemoryRow[], now: Date): {
   const promptParts = [
     '24h 共享交接板为空，已从持久记忆回补连续性。',
     todaySummary ? `今天已归档：${truncate(todaySummary, 180)}` : '',
-    yesterdaySummary ? `昨天延续：${truncate(yesterdaySummary, 180)}` : '',
-    olderSummary ? `更早背景：${truncate(olderSummary, 140)}` : '',
+    !todaySummary && (yesterdaySummary || olderSummary)
+      ? '昨天及更早内容不再默认整段带入当前轮；如需回忆，请直接调用记忆数据库/历史检索工具去找。'
+      : '',
     '把这些内容当作接力棒，不要误当成本轮用户新要求。',
   ].filter(Boolean);
 
   const seedSummaries = [
     todaySummary ? `今天:${truncate(todaySummary, 48)}` : '',
-    yesterdaySummary ? `昨天:${truncate(yesterdaySummary, 48)}` : '',
-    olderSummary ? `之前:${truncate(olderSummary, 48)}` : '',
   ].filter(Boolean);
 
   return {
@@ -307,6 +306,8 @@ export function resolveContinuityBootstrap(params: {
   now?: Date;
   stateStore?: ContinuityStateStore;
 }): ContinuityBootstrapResult {
+  // {标记} P0-WAKEUP-FLOW-TRUTH: 小爪爪醒来时，先接广播板，再回 durable-memory，再回原始底仓；这条函数是当前现役主链的醒来总入口。
+  // {标记} P0-FIELD-SINGLE-RESPONSIBILITY: 这里的身份只认 agentRoleKey；model 变化不能改变 continuity bucket。
   const now = params.now ?? new Date();
   const dayKey = formatLocalDayKey(now);
   const roleState = loadRoleContinuityState(params.stateStore, params.agentRoleKey);
@@ -343,7 +344,7 @@ export function resolveContinuityBootstrap(params: {
   }
 
   for (const summary of durableSections.seedSummaries) {
-    seedIdentityThreadBootstrap(params.db, params.agentRoleKey, summary, 'memory-db');
+    seedIdentityThreadBootstrap(params.db, params.agentRoleKey, summary, 'durable-memory');
   }
   params.saveDb();
   const seedStatus = roleState.lastBatonSeededDay === dayKey

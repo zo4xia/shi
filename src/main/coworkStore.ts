@@ -12,6 +12,8 @@ import {
   shouldRunDailyConversationBackup,
   writeConversationBackupSnapshot,
 } from './libs/conversationBackup';
+import { resolveConversationFileCacheConfig } from '../shared/conversationFileCacheConfig';
+import { buildSharedMemoryBoardRulesSection } from '../shared/continuityRules';
 import * as CoworkStoreConstants from './coworkStore/constants';
 import * as CoworkStoreHelpers from './coworkStore/helpers';
 
@@ -217,6 +219,13 @@ export interface CoworkConversationSearchRecord {
   assistant: string;
 }
 
+export interface CoworkRoleConversationSqlQueryResult {
+  columns: string[];
+  rows: Array<Record<string, unknown>>;
+  rowCount: number;
+  truncated: boolean;
+}
+
 export interface CoworkConfig {
   workingDirectory: string;
   systemPrompt: string;
@@ -282,11 +291,7 @@ const getDefaultSystemPrompt = (): string => {
 - 修改代码前：查「祖传勿改代码清单.md」
 - 核心原则：不要重复踩同一个坑
 
-## 共享记忆板规则
-- 共享记忆板只保留跨渠道交接摘要，不是全文仓库。
-- 遇到较长原文、科研讨论、工作细节或需要精确上下文时，不要只靠共享摘要硬猜。
-- 共享记忆板里的渠道标记和序号，是给你定位原对话位置的锚点；如有需要，去对应渠道/历史记录附近回看原文。
-- 短期原始上下文只保留最近几条，跨渠道连续性主要依赖共享记忆板与长期记忆。`;
+${buildSharedMemoryBoardRulesSection()}`;
 
   return cachedDefaultSystemPrompt;
 };
@@ -324,7 +329,7 @@ export class CoworkStore {
     this.saveDb = saveDb;
   }
 
-  // {标记} P0-1: 暴露数据库访问，供CoworkRunner直接读取24h线程（避免自调HTTP回环）
+  // {标记} P0-1: 暴露数据库访问；当前这条更多是 legacy compatibility 用途，不代表 CoworkRunner 仍是现役 Web 主链。
   getDatabase(): Database {
     return this.db;
   }
@@ -427,6 +432,10 @@ export class CoworkStore {
   }
 
   getSession(id: string, options: GetSessionOptions = {}): CoworkSession | null {
+    // ##混淆点注意：
+    // 1. 会话全文历史主真相源始终是 cowork_messages。
+    // 2. 这里的 messageLimit 只影响“本次返回给 UI/接口的装载量”，不代表旧消息被删掉了。
+    // 3. “角色现在只能搜到摘要/片段”是执行器工具层的暴露方式，不是数据库里只剩摘要。
     interface SessionRow {
       id: string;
       title: string;
@@ -477,6 +486,7 @@ export class CoworkStore {
       messages,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
+      // {标记} P0-IDENTITY-BOUNDARY: session 返回给上层时，身份只认 agent_role_key；model_id 只作为当前运行时发动机元信息透传。
       agentRoleKey: row.agent_role_key || undefined,
       modelId: row.model_id || undefined,
       sourceType: row.source_type === 'desktop' || row.source_type === 'external'
@@ -494,6 +504,7 @@ export class CoworkStore {
     id: string,
     updates: Partial<Pick<CoworkSession, 'title' | 'claudeSessionId' | 'status' | 'cwd' | 'systemPrompt' | 'executionMode' | 'agentRoleKey' | 'modelId' | 'sourceType'>>
   ): void {
+    // {标记} P0-IDENTITY-BOUNDARY: 这里只允许更新 session 的运行时模型元信息，不允许把 modelId 升格成身份隔离主键。
     const now = Date.now();
     const setClauses: string[] = ['updated_at = ?'];
     const values: (string | number | null)[] = [now];
@@ -690,6 +701,9 @@ export class CoworkStore {
   }
 
   private getSessionMessages(sessionId: string, options: GetSessionOptions = {}): CoworkMessage[] {
+    // ##混淆点注意：
+    // messageLimit != history pruning
+    // 这里只是按需取最近 N 条给前端，完整正文仍留在 cowork_messages 里。
     const requestedLimit = Number.isFinite(options.messageLimit)
       ? Math.max(1, Math.floor(options.messageLimit as number))
       : null;
@@ -734,6 +748,12 @@ export class CoworkStore {
   addMessage(sessionId: string, message: Omit<CoworkMessage, 'id' | 'timestamp'>): CoworkMessage {
     const id = uuidv4();
     const now = Date.now();
+    const sessionIdentity = this.getOne<{ agent_role_key: string | null; model_id: string | null }>(`
+      SELECT agent_role_key, model_id
+      FROM cowork_sessions
+      WHERE id = ?
+      LIMIT 1
+    `, [sessionId]);
 
     const sequenceRow = this.db.exec(`
       SELECT COALESCE(MAX(sequence), 0) + 1 as next_seq
@@ -743,14 +763,16 @@ export class CoworkStore {
     const sequence = sequenceRow[0]?.values[0]?.[0] as number || 1;
 
     this.db.run(`
-      INSERT INTO cowork_messages (id, session_id, type, content, metadata, created_at, sequence)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO cowork_messages (id, session_id, type, content, metadata, agent_role_key, model_id, created_at, sequence)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       id,
       sessionId,
       message.type,
       message.content,
       message.metadata ? JSON.stringify(message.metadata) : null,
+      sessionIdentity?.agent_role_key || 'organizer',
+      sessionIdentity?.model_id || '',
       now,
       sequence,
     ]);
@@ -843,13 +865,9 @@ export class CoworkStore {
     }
 
     if (config.executionMode !== undefined) {
-      this.db.run(`
-        INSERT INTO cowork_config (key, value, updated_at)
-        VALUES ('executionMode', ?, ?)
-        ON CONFLICT(key) DO UPDATE SET
-          value = excluded.value,
-          updated_at = excluded.updated_at
-      `, ['local', now]);
+      // {标记} P0-EXECUTION-MODE-KEY-RETIRED: 前端若还带 executionMode 更新进来，这里直接清旧 key，
+      // 不再继续把这个配置键当成现役入口保存。
+      this.db.run(`DELETE FROM cowork_config WHERE key = 'executionMode'`);
     }
 
     if (config.memoryEnabled !== undefined) {
@@ -950,18 +968,17 @@ export class CoworkStore {
 
   private addMemorySource(
     memoryId: string,
-    source?: CoworkUserMemorySourceInput,
-    identity?: { agentRoleKey?: string; modelId?: string }
+    source?: CoworkUserMemorySourceInput
   ): void {
     if (!this.hasTable('user_memory_sources')) {
       return;
     }
     const now = Date.now();
-    const agentRoleKey = identity?.agentRoleKey?.trim() || 'organizer';
-    const modelId = identity?.modelId?.trim() || '';
+    // {标记} P0-SOURCE-TABLE-SINGLE-RESPONSIBILITY: user_memory_sources 只保来源关系，
+    // 不再继续写 role/model 元信息，避免把辅助表误读成身份表。
     this.db.run(`
-      INSERT INTO user_memory_sources (id, memory_id, session_id, message_id, role, is_active, created_at, agent_role_key, model_id)
-      VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)
+      INSERT INTO user_memory_sources (id, memory_id, session_id, message_id, role, is_active, created_at)
+      VALUES (?, ?, ?, ?, ?, 1, ?)
     `, [
       uuidv4(),
       memoryId,
@@ -969,8 +986,6 @@ export class CoworkStore {
       source?.messageId || null,
       source?.role || 'system',
       now,
-      agentRoleKey,
-      modelId,
     ]);
   }
 
@@ -1034,15 +1049,14 @@ export class CoworkStore {
       const mergedExplicit = existing.is_explicit ? 1 : explicitFlag;
       const mergedConfidence = Math.max(Number(existing.confidence) || 0, confidence);
       const nextModelId = modelId || ((existing as CoworkUserMemoryRow & { model_id?: string }).model_id ?? '');
+      // {标记} P0-LAST-USED-AT-MIN-ACTIVATE: 这轮先把 last_used_at 接到最小有意义语义：
+      // 创建/复活/编辑记忆都刷新它，避免同表里一部分记录永远没有使用时间。
       this.db.run(`
         UPDATE user_memories
-        SET text = ?, fingerprint = ?, confidence = ?, is_explicit = ?, status = 'created', updated_at = ?, model_id = ?
+        SET text = ?, fingerprint = ?, confidence = ?, is_explicit = ?, status = 'created', updated_at = ?, last_used_at = ?, model_id = ?
         WHERE id = ?
-      `, [mergedText, buildMemoryFingerprint(mergedText), mergedConfidence, mergedExplicit, now, nextModelId, existing.id]);
-      this.addMemorySource(existing.id, input.source, {
-        agentRoleKey,
-        modelId: nextModelId,
-      });
+      `, [mergedText, buildMemoryFingerprint(mergedText), mergedConfidence, mergedExplicit, now, now, nextModelId, existing.id]);
+      this.addMemorySource(existing.id, input.source);
       const memory = this.getOne<CoworkUserMemoryRow>(`
         SELECT id, text, fingerprint, confidence, is_explicit, status, created_at, updated_at, last_used_at, agent_role_key, model_id
         FROM user_memories
@@ -1058,13 +1072,10 @@ export class CoworkStore {
     this.db.run(`
       INSERT INTO user_memories (
         id, text, fingerprint, confidence, is_explicit, status, created_at, updated_at, last_used_at, agent_role_key, model_id
-      ) VALUES (?, ?, ?, ?, ?, 'created', ?, ?, NULL, ?, ?)
-    `, [id, normalizedText, fingerprint, confidence, explicitFlag, now, now, agentRoleKey, modelId]);
+      ) VALUES (?, ?, ?, ?, ?, 'created', ?, ?, ?, ?, ?)
+    `, [id, normalizedText, fingerprint, confidence, explicitFlag, now, now, now, agentRoleKey, modelId]);
     // {标记} P1-MEMORY-SOURCE-IDENTITY: source 记录与主记忆同源写入角色/模型，避免默认值污染来源表。
-    this.addMemorySource(id, input.source, {
-      agentRoleKey,
-      modelId,
-    });
+    this.addMemorySource(id, input.source);
 
     const memory = this.getOne<CoworkUserMemoryRow>(`
       SELECT id, text, fingerprint, confidence, is_explicit, status, created_at, updated_at, last_used_at, agent_role_key, model_id
@@ -1168,9 +1179,9 @@ export class CoworkStore {
 
     this.db.run(`
       UPDATE user_memories
-      SET text = ?, fingerprint = ?, confidence = ?, is_explicit = ?, status = ?, updated_at = ?
+      SET text = ?, fingerprint = ?, confidence = ?, is_explicit = ?, status = ?, updated_at = ?, last_used_at = ?
       WHERE id = ?
-    `, [nextText, buildMemoryFingerprint(nextText), nextConfidence, nextExplicit, nextStatus, now, input.id]);
+    `, [nextText, buildMemoryFingerprint(nextText), nextConfidence, nextExplicit, nextStatus, now, now, input.id]);
 
     const updated = this.getOne<CoworkUserMemoryRow>(`
       SELECT id, text, fingerprint, confidence, is_explicit, status, created_at, updated_at, last_used_at, agent_role_key, model_id
@@ -1316,28 +1327,30 @@ export class CoworkStore {
   }
 
   private setKvValue(key: string, value: string): void {
+    const now = Date.now();
     this.db.run(`
-      INSERT INTO kv (key, value)
-      VALUES (?, ?)
+      INSERT INTO kv (key, value, updated_at)
+      VALUES (?, ?, ?)
       ON CONFLICT(key) DO UPDATE SET
-        value = excluded.value
-    `, [key, value]);
+        value = excluded.value,
+        updated_at = excluded.updated_at
+    `, [key, value, now]);
     this.saveDb();
   }
 
   private getConversationFileCacheDirectory(): string {
+    // ##混淆点注意：
+    // conversationFileCache.directory 不是消息正文库路径。
+    // 它控制的是“每日对话归档目录 / 浏览器上传附件家目录 / 导出文件家目录”。
+    // 角色聊天全文真正存储位置仍是 .uclaw/web/uclaw.sqlite 的 cowork_messages。
     const raw = this.getKvValue('app_config');
     if (!raw) {
       return '';
     }
 
     try {
-      const config = JSON.parse(raw) as {
-        conversationFileCache?: {
-          directory?: string;
-        };
-      };
-      return config.conversationFileCache?.directory?.trim() ?? '';
+      const config = JSON.parse(raw) as Parameters<typeof resolveConversationFileCacheConfig>[0];
+      return resolveConversationFileCacheConfig(config).directory;
     } catch {
       return '';
     }
@@ -1566,5 +1579,72 @@ export class CoworkStore {
       human: this.getLatestMessageByType(row.id, 'user'),
       assistant: this.getLatestMessageByType(row.id, 'assistant'),
     }));
+  }
+
+  queryRoleScopedConversationSql(options: {
+    query: string;
+    agentRoleKey?: string;
+    maxRows?: number;
+  }): CoworkRoleConversationSqlQueryResult {
+    const agentRoleKey = String(options.agentRoleKey || 'organizer').trim() || 'organizer';
+    const rawQuery = String(options.query || '').trim().replace(/;+$/g, '').trim();
+    if (!rawQuery) {
+      throw new Error('query is required');
+    }
+
+    const normalizedQuery = rawQuery.toLowerCase();
+    if (!normalizedQuery.startsWith('select ')) {
+      throw new Error('Only SELECT queries are allowed. Query role_sessions / role_messages instead of raw tables.');
+    }
+
+    if (/[;]/.test(rawQuery)) {
+      throw new Error('Multiple SQL statements are not allowed.');
+    }
+
+    if (/\b(cowork_sessions|cowork_messages)\b/i.test(rawQuery)) {
+      throw new Error('Use role_sessions / role_messages only. Raw cowork_* tables are blocked here.');
+    }
+
+    if (/\b(insert|update|delete|drop|alter|attach|detach|pragma|vacuum|create|replace|reindex)\b/i.test(rawQuery)) {
+      throw new Error('Only read-only SELECT queries are allowed.');
+    }
+
+    const maxRows = Math.max(1, Math.min(200, Math.floor(options.maxRows ?? 50)));
+    const scopedSql = `
+      WITH role_sessions AS (
+        SELECT id, title, claude_session_id, status, pinned, cwd, system_prompt, execution_mode, active_skill_ids, agent_role_key, model_id, source_type, created_at, updated_at
+        FROM cowork_sessions
+        WHERE agent_role_key = ?
+      ),
+      role_messages AS (
+        SELECT id, session_id, type, content, metadata, agent_role_key, model_id, created_at, sequence
+        FROM cowork_messages
+        WHERE agent_role_key = ?
+      ),
+      scoped_query AS (
+        ${rawQuery}
+      )
+      SELECT *
+      FROM scoped_query
+      LIMIT ?
+    `;
+
+    const result = this.db.exec(scopedSql, [agentRoleKey, agentRoleKey, maxRows]);
+    const columns = result[0]?.columns ?? [];
+    const values = result[0]?.values ?? [];
+    const rows = values.map((rowValues) => {
+      const row: Record<string, unknown> = {};
+      columns.forEach((column, index) => {
+        row[column] = rowValues[index];
+      });
+      return row;
+    });
+
+    return {
+      columns,
+      rows,
+      rowCount: rows.length,
+      truncated: rows.length >= maxRows,
+    };
   }
 }

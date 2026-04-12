@@ -5,8 +5,8 @@
  * {标记} 状态：新建✅
  */
 
-import React from 'react';
 import { CheckIcon, XMarkIcon } from '@heroicons/react/20/solid';
+import React from 'react';
 
 export interface SwitchProps {
   /** 是否选中 */
@@ -98,8 +98,8 @@ export const Switch: React.FC<SwitchProps> = ({
       <button
         type="button"
         role="switch"
-        aria-checked={checked}
-        aria-disabled={disabled}
+        aria-checked={checked ? 'true' : 'false'}
+        aria-disabled={disabled ? 'true' : 'false'}
         className={baseClasses}
         onClick={handleClick}
         onKeyDown={handleKeyDown}

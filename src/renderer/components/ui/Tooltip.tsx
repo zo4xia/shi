@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useLayoutEffect, useEffect } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 interface TooltipProps {
   content: React.ReactNode;
@@ -136,6 +136,7 @@ const Tooltip: React.FC<TooltipProps> = ({
     >
       {children}
       {isVisible && content && (
+        // {标记} Z-LAYER-TOOLTIP: 提示层 (z-60，高于popover但低于modal)
         <div
           ref={tooltipRef}
           className={`absolute z-[60] px-3.5 py-2.5 text-[13px] leading-relaxed rounded-xl shadow-xl

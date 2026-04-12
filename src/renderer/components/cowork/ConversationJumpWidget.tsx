@@ -24,7 +24,7 @@ const ConversationJumpWidget: React.FC<ConversationJumpWidgetProps> = ({ actions
   }
 
   return (
-    <FloatingWidgetShell title="对话跳转">
+    <FloatingWidgetShell title="跳转">
       {actions.map((action) => {
         const isPrimaryAction = action.icon === 'jump-bottom';
         const buttonClassName = isPrimaryAction

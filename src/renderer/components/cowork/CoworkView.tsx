@@ -1,33 +1,30 @@
 // {路标} FLOW-PAGE-COWORK
-import React, { useEffect, useState, useRef } from 'react';
-import { useSelector, useDispatch } from 'react-redux';
-import { RootState } from '../../store';
-import { clearCurrentSession } from '../../store/slices/coworkSlice';
-import { clearActiveSkills } from '../../store/slices/skillSlice';
-import { clearSelection } from '../../store/slices/quickActionSlice';
-import { coworkService } from '../../services/cowork';
-import { getPlatform } from '../../utils/platform';
-import CoworkPromptInput, { type CoworkPromptInputRef, type CoworkSubmitOptions } from './CoworkPromptInput';
-import CoworkSessionDetail from './CoworkSessionDetail';
-import { buildSessionPreviewText, type SessionSourceFilter } from './sessionRecordUtils';
+import React, { useEffect, useRef, useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import {
-  AGENT_ROLE_ORDER,
-  getAgentRoleDisplayAvatar,
-  getAgentRoleDisplayLabel,
-  resolveAgentRolesFromConfig,
-  type AgentRoleKey,
+    AGENT_ROLE_ORDER,
+    getAgentRoleDisplayAvatar,
+    getAgentRoleDisplayLabel,
+    resolveAgentRolesFromConfig,
+    type AgentRoleKey,
 } from '../../../shared/agentRoleConfig';
-import SidebarToggleIcon from '../icons/SidebarToggleIcon';
-import ComposeIcon from '../icons/ComposeIcon';
-import type { SettingsOpenOptions } from '../Settings';
-import type { CoworkImageAttachment } from '../../types/cowork';
-import { configService } from '../../services/config';
-import HomePromptPanel from './HomePromptPanel';
-import { setSelectedModel } from '../../store/slices/modelSlice';
-import { renderAgentRoleAvatar } from '../../utils/agentRoleDisplay';
-import type { CoworkRightDockAction } from './rightDock';
 import { useIsMediumViewport } from '../../hooks/useIsMediumViewport';
 import { useIsMobileViewport } from '../../hooks/useIsMobileViewport';
+import { configService } from '../../services/config';
+import { coworkService } from '../../services/cowork';
+import { RootState } from '../../store';
+import { clearCurrentSession } from '../../store/slices/coworkSlice';
+import { setSelectedModel } from '../../store/slices/modelSlice';
+import { clearSelection } from '../../store/slices/quickActionSlice';
+import { clearActiveSkills } from '../../store/slices/skillSlice';
+import type { CoworkImageAttachment } from '../../types/cowork';
+import { renderAgentRoleAvatar } from '../../utils/agentRoleDisplay';
+import type { SettingsOpenOptions } from '../Settings';
+import { type CoworkPromptInputRef, type CoworkSubmitOptions } from './CoworkPromptInput';
+import CoworkSessionDetail from './CoworkSessionDetail';
+import HomePromptPanel from './HomePromptPanel';
+import type { CoworkRightDockAction } from './rightDock';
+import { type SessionSourceFilter } from './sessionRecordUtils';
 
 export interface CoworkViewProps {
   onRequestAppSettings?: (options?: SettingsOpenOptions) => void;
@@ -51,7 +48,6 @@ const CoworkView: React.FC<CoworkViewProps> = ({
   onSetRightDockActions,
 }) => {
   const dispatch = useDispatch();
-  const isMac = getPlatform() === 'darwin';
   const [isInitialized, setIsInitialized] = useState(false);
   // Track if we're starting a session to prevent duplicate submissions
   const isStartingRef = useRef(false);
@@ -339,16 +335,16 @@ const CoworkView: React.FC<CoworkViewProps> = ({
       <div className="flex-1 overflow-y-auto min-h-0">
         <div className={`mx-auto flex w-full flex-col px-4 py-8 sm:px-6 ${isMediumViewport ? 'max-w-[920px] min-h-[760px] justify-center py-10' : 'max-w-[var(--uclaw-home-max-width,1080px)] sm:py-[50px]'}`}>
           <div className={`relative text-center ${isMediumViewport ? 'mb-8' : 'mb-10 sm:mb-14'}`}>
-            <div className="absolute inset-x-0 top-3 -z-10 mx-auto h-36 w-36 rounded-full bg-gradient-radial from-claude-accent/6 to-transparent blur-3xl" />
-            <div className="mx-auto inline-flex flex-col items-center">
-              <div className="relative inline-block">
-                <div className="absolute -inset-1 rounded-[36px] bg-gradient-to-r from-violet-300/38 via-claude-accent/46 to-violet-300/34 blur-md" />
-                <div className="absolute inset-0 rounded-[34px] bg-gradient-to-br from-claude-accent/30 via-violet-200/20 to-clay-soft/16 blur-sm" />
-                <div className="relative rounded-[32px] bg-gradient-to-br from-claude-accent/28 via-violet-100/42 to-clay-soft/20 p-1">
-                  <div className={`rounded-[28px] bg-gradient-to-br from-white via-pearl-50 to-pearl-100 shadow-md dark:from-gray-800 dark:via-gray-900 dark:to-gray-950 ${isMediumViewport ? 'p-3.5' : 'p-3 sm:p-4'}`}>
-                    <img src="logo.png" alt="logo" className={isMediumViewport ? 'h-14 w-14' : 'h-12 w-12 sm:h-16 sm:w-16'} />
-                  </div>
-                </div>
+            <div className="absolute inset-x-0 top-5 -z-10 mx-auto h-40 w-40 rounded-full bg-gradient-radial from-claude-accent/6 to-transparent blur-3xl" />
+            <div className="mx-auto inline-flex flex-col items-center pt-2 sm:pt-3">
+              {/* {标记} DIV-FLATTEN-LOGO: Logo 装饰从 4 层减为 1 层，使用 CSS 渐变 */}
+              <div className={`relative inline-flex items-center justify-center rounded-[28px] bg-gradient-to-br from-white via-pearl-50 to-pearl-100 shadow-md dark:from-gray-800 dark:via-gray-900 dark:to-gray-950 transition-transform duration-200 hover:scale-105 ${isMediumViewport ? 'p-4' : 'p-3.5 sm:p-[18px]'}`}
+                style={{
+                  backgroundImage: 'linear-gradient(135deg, rgba(255,255,255,0.7) 0%, rgba(251,245,239,0.55) 100%)',
+                  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.6), 0 4px 16px rgba(203,174,150,0.12), 0 1px 3px rgba(203,174,150,0.08)',
+                }}>
+                {/* 装饰渐变背景 - 用伪元素效果直接在样式中 */}
+                <img src="logo.png" alt="logo" className={`relative z-10 ${isMediumViewport ? 'h-16 w-16' : 'h-[52px] w-[52px] sm:h-[72px] sm:w-[72px]'}`} />
               </div>
               <h1 className={`uclaw-ui-display font-semibold text-claude-text dark:text-claude-darkText ${isMediumViewport ? 'mt-5 text-[34px]' : 'mt-4 text-[28px] sm:text-[38px]'}`}>
                 Uclaw
@@ -418,11 +414,10 @@ const CoworkView: React.FC<CoworkViewProps> = ({
               })()}
           </div>
 
+{/* {标记} DIV-FLATTEN-PROMPT-SHELL: 优化首页输入框容器，减少装饰性div */}
           <div
             className={`relative overflow-hidden rounded-[36px] border border-white/75 bg-[linear-gradient(180deg,rgba(255,252,248,0.96),rgba(251,245,239,0.92))] shadow-[0_20px_46px_rgba(203,174,150,0.18),0_6px_18px_rgba(203,174,150,0.10),inset_0_1px_0_rgba(255,255,255,0.86),inset_0_-14px_28px_rgba(229,214,201,0.24)] dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.04))] dark:shadow-[0_20px_48px_rgba(0,0,0,0.26),inset_0_1px_0_rgba(255,255,255,0.06)] ${isMobileViewport ? 'px-3 py-3' : isMediumViewport ? 'px-5 py-5' : 'px-4 py-4'} ${!isMobileViewport ? 'mt-1' : ''}`}
           >
-            <div className="pointer-events-none absolute inset-x-10 top-0 h-10 rounded-b-[40px] bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.72),transparent_72%)] opacity-80" />
-            <div className="pointer-events-none absolute inset-x-6 bottom-0 h-10 rounded-t-[40px] bg-[linear-gradient(180deg,transparent,rgba(227,208,194,0.18))] dark:bg-[linear-gradient(180deg,transparent,rgba(255,255,255,0.03))]" />
             <HomePromptPanel
               latestVisibleSession={latestVisibleSession}
               promptInputRef={promptInputRef}

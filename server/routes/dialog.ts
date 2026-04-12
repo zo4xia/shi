@@ -30,6 +30,7 @@ const MIME_EXTENSION_MAP: Record<string, string> = {
 
 const INVALID_FILE_NAME_PATTERN = /[<>:"/\\|?*\u0000-\u001F]/g;
 type SaveInlineFilePurpose = 'attachment' | 'export';
+const ROLE_ATTACHMENT_KEYS = new Set(['organizer', 'writer', 'designer', 'analyst']);
 
 const sanitizeAttachmentFileName = (value?: string): string => {
   const raw = typeof value === 'string' ? value.trim() : '';
@@ -53,15 +54,32 @@ const resolveInlineAttachmentDirs = (
   req: Request,
   userDataPath: string,
   cwd?: string,
+  agentRoleKey?: string,
   purpose: SaveInlineFilePurpose = 'attachment',
 ): { primaryDir: string; cacheDir: string | null } => {
+  // ##混淆点注意：
+  // 1. conversationFileCache.directory 一旦用户显式设置，就应视为“新主家”，不能再把 cwd 旧路径继续当主落点。
+  // 2. 这个配置可能是“总根目录”，也可能已经直接指到某个角色目录；这里必须兼容两种写法。
+  // 3. 角色分桶是按 organizer / writer / designer / analyst 自动推导的，不要再手工叠一层 attachments/manual 造成双层目录。
+  // 4. 这里决定的是“浏览器上传/导出文件往哪落”，不是消息正文存储；聊天正文主真相源仍在 sqlite.cowork_messages。
   // {BUG} bug-attachment-save-root-001
   // {说明} 分片文件“明明切出来了却找不到”时，先看这里。
   // {波及} 这里决定附件跟工作目录走、跟用户设置目录走，还是漂到 userData 黑箱目录。
   const appConfig = (req.context as RequestContext | undefined)?.store?.get('app_config');
   const conversationFileCache = resolveConversationFileCacheConfig(appConfig as Parameters<typeof resolveConversationFileCacheConfig>[0]);
-  const cacheDir = conversationFileCache.directory.trim()
-    ? path.join(path.resolve(conversationFileCache.directory.trim()), 'attachments', 'manual')
+  const normalizedRoleKey = ROLE_ATTACHMENT_KEYS.has(String(agentRoleKey || '').trim())
+    ? String(agentRoleKey).trim()
+    : 'organizer';
+  const configuredConversationDir = conversationFileCache.directory.trim();
+  const cacheDir = configuredConversationDir
+    ? (() => {
+      const resolvedConfiguredDir = path.resolve(configuredConversationDir);
+      const configuredLeaf = path.basename(resolvedConfiguredDir);
+      if (ROLE_ATTACHMENT_KEYS.has(configuredLeaf)) {
+        return path.join(path.dirname(resolvedConfiguredDir), normalizedRoleKey);
+      }
+      return path.join(resolvedConfiguredDir, normalizedRoleKey);
+    })()
     : null;
   const coworkConfigWorkingDirectory = (() => {
     try {
@@ -76,7 +94,14 @@ const resolveInlineAttachmentDirs = (
 
   if (purpose === 'export' && cacheDir) {
     // {标记} P1-FILE-PURPOSE-SPLIT: 导出产物优先落会话缓存目录，和运行态附件分流。
-    return { primaryDir: cacheDir, cacheDir };
+    // ##混淆点注意：导出和上传附件不是一类文件，不要再混写到同一个 manual 目录。
+    return { primaryDir: path.join(cacheDir, 'exports'), cacheDir: null };
+  }
+
+  if (cacheDir) {
+    // {标记} P1-ROLE-ATTACHMENT-HOME: 用户显式设置后，附件主落点直接切到角色目录，不再继续双写旧 cwd 路径。
+    // ##混淆点注意：这里是“主落点切换”，不是“再额外复制一份副本”。
+    return { primaryDir: path.join(cacheDir, 'manual'), cacheDir: null };
   }
 
   const preferredWorkingDirectory = [
@@ -89,6 +114,7 @@ const resolveInlineAttachmentDirs = (
     if (fs.existsSync(resolved) && fs.statSync(resolved).isDirectory()) {
       // {标记} P1-OPENCLAW-SKILL-COMPAT: 运行态附件主路径仍优先放工作目录，避免打断 skills 读取绝对路径。
       // {标记} P1-ATTACHMENT-WORKDIR-TRUTH: 前端若一时未透传 cwd，后端继续以 coworkConfig.workingDirectory 为兜底真相源。
+      // ##混淆点注意：只有“用户没显式设置新主家”时，才允许退回 cwd/.cowork-temp。
       return {
         primaryDir: path.join(resolved, '.cowork-temp', 'attachments', 'manual'),
         cacheDir,
@@ -259,6 +285,7 @@ export function setupDialogRoutes(app: Router) {
   router.post('/saveInlineFile', async (req: Request, res: Response) => {
     try {
       const { dataBase64, fileName, mimeType, cwd, purpose } = req.body;
+      const agentRoleKey = typeof req.body?.agentRoleKey === 'string' ? req.body.agentRoleKey.trim() : '';
       const userDataPath = req.app.get('userDataPath') as string;
 
       const dataBase64Str = typeof dataBase64 === 'string' ? dataBase64.trim() : '';
@@ -285,7 +312,7 @@ export function setupDialogRoutes(app: Router) {
       }
 
       const normalizedPurpose: SaveInlineFilePurpose = purpose === 'export' ? 'export' : 'attachment';
-      const { primaryDir, cacheDir } = resolveInlineAttachmentDirs(req, userDataPath, cwd, normalizedPurpose);
+      const { primaryDir, cacheDir } = resolveInlineAttachmentDirs(req, userDataPath, cwd, agentRoleKey, normalizedPurpose);
       await fs.promises.mkdir(primaryDir, { recursive: true });
       if (cacheDir && cacheDir !== primaryDir) {
         await fs.promises.mkdir(cacheDir, { recursive: true });

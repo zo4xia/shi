@@ -275,6 +275,7 @@ export function syncRoleSkillIndexes(
   skillManager: Pick<SkillManager, 'listSkills' | 'getSkillsRoot'>
 ): Array<{ roleKey: AgentRoleKey; path: string; skills: number }> {
   // {FLOW} ROLE-SKILL-INDEX-TRUTH: roles/<role>/skills.json 是角色技能可见性真相索引；来源 = skill_role_configs + 运行时 SKILLs 仓库。
+  // {标记} ROLE-INDEX-TRUTH: 小 agent 房间里“这个角色现在看得见哪些技能”，最终以 roles/<role>/skills.json 为准。
   ensureRoleRuntimeDirs(userDataPath);
 
   cleanupRoleSkillRuntimeState(userDataPath, store, skillManager);

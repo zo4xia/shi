@@ -201,7 +201,7 @@ export function compactMcpDescription(
   mcpName: string,
   mcpDescription: string
 ): string {
-  // MCP 特殊处理：保留身份绑定信息
+  // MCP 特殊处理：保留角色适用范围提示，但不要把运行模型元信息误写成身份键
   const roleMatch = mcpDescription.match(/\((organizer|writer|designer|analyst|all)[^\)]*\)/i);
   const roleHint = roleMatch ? roleMatch[0] : '';
   
@@ -215,7 +215,7 @@ export function compactMcpDescription(
     }
   );
 
-  // 保留身份绑定提示
+  // 保留角色范围提示
   if (roleHint && !optimized.includes(roleHint)) {
     optimized += ` ${roleHint}`;
   }

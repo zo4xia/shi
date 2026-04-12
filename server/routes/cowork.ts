@@ -1,20 +1,20 @@
-import { Router, Request, Response } from 'express';
-import path from 'path';
+import { Request, Response, Router } from 'express';
 import fs from 'fs';
-import type { RequestContext, CoworkSessionId } from '../src/index';
+import path from 'path';
+import { createWebInboundRequest } from '../../clean-room/spine/modules/inbound';
+import { createRequestTrace } from '../../clean-room/spine/modules/requestTrace';
+import { orchestrateWebTurn } from '../../clean-room/spine/modules/sessionOrchestrator';
 import { generateSessionTitle } from '../../src/main/libs/coworkUtil';
 import { resolveAgentRolesFromConfig, type AgentRoleKey as SharedAgentRoleKey } from '../../src/shared/agentRoleConfig';
 import { getProjectRoot } from '../../src/shared/runtimeDataPaths';
 import { getOrCreateWebSessionExecutor } from '../libs/httpSessionExecutor';
 import { clearIdentityThreadForRole, listIdentityThreadBoardSnapshots } from '../libs/identityThreadHelper';
-import {
-  getRoleSkillConfigPath,
-  getRoleSkillSecretPath,
-} from '../libs/roleSkillFiles';
 import { compressSessionContext } from '../libs/manualContextCompression';
-import { createWebInboundRequest } from '../../clean-room/spine/modules/inbound';
-import { createRequestTrace } from '../../clean-room/spine/modules/requestTrace';
-import { orchestrateWebTurn } from '../../clean-room/spine/modules/sessionOrchestrator';
+import {
+    getRoleSkillConfigPath,
+    getRoleSkillSecretPath,
+} from '../libs/roleSkillFiles';
+import type { CoworkSessionId, RequestContext } from '../src/index';
 // {标记} P0-记忆连续性-FIX: route 层不再直接 appendToIdentityThread，由当前命中的执行器收口 shared-thread finalizer。
 
 // Constants
@@ -122,6 +122,10 @@ export function setupCoworkRoutes(app: Router) {
   const router = Router();
 
   // 【1.0链路】WEB-EXECUTOR: 当前稳定主链统一走 HttpSessionExecutor，不再按 skill payload 静默回退旧 CoworkRunner。
+  // ##混淆点注意：
+  // 1. 现在修 Web/Cowork 的主战场在这里，不在 coworkRunner。
+  // 2. 如果问题表现发生在浏览器端对话、角色链路、附件路径、广播板、历史检索，先查这条轻链。
+  // 3. 旧 CoworkRunner 只剩历史兼容残留，不再是默认修复入口。
   // {标记} 待评估-可能波及: server/routes/cowork.ts 当前同时承载轻链主路与旧链回退口，属于重构边界文件。
   const createPreferredSessionExecutor = (context: RequestContext) => getOrCreateWebSessionExecutor({
     store: context.coworkStore,
@@ -196,7 +200,7 @@ export function setupCoworkRoutes(app: Router) {
       if (unsupportedRuntimeSkillIds.length > 0) {
         return res.status(400).json({
           success: false,
-          error: `当前 Web 轻链已禁止回退旧 CoworkRunner；以下技能仍依赖未桥接的 runtime config/secret：${unsupportedRuntimeSkillIds.join(', ')}`,
+          error: `当前这组技能还依赖未桥接的 runtime config/secret，暂时不能在现役 Web 轻链里直接运行：${unsupportedRuntimeSkillIds.join(', ')}`,
         });
       }
 
@@ -231,12 +235,18 @@ export function setupCoworkRoutes(app: Router) {
       const { prompt, systemPrompt, activeSkillIds, imageAttachments, zenMode } = req.body;
 
       const session = coworkStore.getSession(sessionId as CoworkSessionId);
+      if (!session) {
+        return res.status(404).json({
+          success: false,
+          error: '会话不存在或已失效，请刷新会话列表后重试。',
+        });
+      }
       const agentRoleKey = resolveIdentityRoleKey(session?.agentRoleKey || coworkStore.getConfig().agentRoleKey);
       const runtimeUserDataPath = String(req.app.get('userDataPath') || '');
       const effectiveSkillIds = activeSkillIds?.length
         ? activeSkillIds
-        : session?.activeSkillIds ?? [];
-      const modelId = session?.modelId || resolveConfiguredRoleModelId(store, agentRoleKey);
+        : session.activeSkillIds ?? [];
+      const modelId = session.modelId || resolveConfiguredRoleModelId(store, agentRoleKey);
       const trace = createRequestTrace({
         platform: 'web',
         channelId: sessionId,
@@ -250,7 +260,7 @@ export function setupCoworkRoutes(app: Router) {
         skillIds: activeSkillIds,
         imageAttachments,
         zenMode: Boolean(zenMode),
-        cwd: session?.cwd,
+        cwd: session.cwd,
         sessionId,
         agentRoleKey,
         modelId,
@@ -267,7 +277,7 @@ export function setupCoworkRoutes(app: Router) {
       if (unsupportedRuntimeSkillIds.length > 0) {
         return res.status(400).json({
           success: false,
-          error: `当前 Web 轻链已禁止回退旧 CoworkRunner；以下技能仍依赖未桥接的 runtime config/secret：${unsupportedRuntimeSkillIds.join(', ')}`,
+          error: `当前这组技能还依赖未桥接的 runtime config/secret，暂时不能在现役 Web 轻链里直接运行：${unsupportedRuntimeSkillIds.join(', ')}`,
         });
       }
 
@@ -278,7 +288,7 @@ export function setupCoworkRoutes(app: Router) {
         executor: sessionExecutor,
         trace,
         request,
-        defaultCwd: session?.cwd || resolveExistingTaskWorkingDirectory(
+        defaultCwd: session.cwd || resolveExistingTaskWorkingDirectory(
           coworkStore.getConfig().workingDirectory || String(req.app.get('workspace') || getProjectRoot())
         ),
       });
@@ -308,14 +318,15 @@ export function setupCoworkRoutes(app: Router) {
       if (!handledByWebExecutor) {
         return res.status(409).json({
           success: false,
-          error: '当前 Web 会话未处于可停止的轻执行状态，旧 CoworkRunner 停止兜底已禁用。',
+          error: '当前会话没有处于可打断的现役执行状态，请稍后刷新会话状态后再试。',
         });
       }
       res.json({ success: true });
     } catch (error) {
+      console.error('[Cowork] POST /sessions/:sessionId/stop error:', error);
       res.status(500).json({
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to stop session',
+        error: '这次没有成功把打断请求送出去，请稍后刷新会话状态后再试。',
       });
     }
   });

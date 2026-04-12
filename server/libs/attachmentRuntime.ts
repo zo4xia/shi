@@ -153,6 +153,7 @@ export function buildAttachmentManifestText(
         `kind=${kindLabel}`,
         `total_parts=${group.totalParts}`,
         `available_parts=${partPreview}`,
+        `file_names=${group.references.map((reference) => reference.fileName).join(' | ')}`,
         `paths=${group.references.map((reference) => reference.resolvedPath).join(' | ')}`,
       ].join('\n');
     }),

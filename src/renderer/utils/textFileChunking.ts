@@ -1,8 +1,3 @@
-import {
-  parseGeneratedTextChunkName,
-  type GeneratedTextChunkDescriptor,
-} from '../../shared/attachmentChunkMetadata';
-
 const DEFAULT_TEXT_SPLIT_TRIGGER_BYTES = 900 * 1024;
 const DEFAULT_TEXT_CHUNK_SIZE = 120_000;
 const DEFAULT_TEXT_CHUNK_OVERLAP = 2_000;

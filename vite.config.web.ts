@@ -6,6 +6,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tsconfigPaths from 'vite-tsconfig-paths';
+import path from 'node:path';
 
 const devHost = process.env.VITE_DEV_HOST || '127.0.0.1';
 const devPort = Number(process.env.VITE_DEV_PORT || '5176');
@@ -17,6 +18,23 @@ const backendHost = process.env.VITE_BACKEND_HOST || '127.0.0.1';
 const backendPort = Number(process.env.VITE_BACKEND_PORT || '3001');
 const apiBase = `http://${backendHost}:${backendPort}`;
 
+function escapeHtmlAttribute(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('"', '&quot;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;');
+}
+
+function buildDeploymentMetaReplacements() {
+  return {
+    __UCLAW_META_BACKEND_ORIGIN__: escapeHtmlAttribute(process.env.VITE_BACKEND_ORIGIN || ''),
+    __UCLAW_META_API_BASE__: escapeHtmlAttribute(process.env.VITE_PUBLIC_API_BASE || ''),
+    __UCLAW_META_WS_URL__: escapeHtmlAttribute(process.env.VITE_PUBLIC_WS_URL || ''),
+    __UCLAW_META_SETTINGS_PASSWORD__: escapeHtmlAttribute(process.env.VITE_SETTINGS_ACCESS_PASSWORD || ''),
+  };
+}
+
 export default defineConfig({
   define: {
     __VERSION__: JSON.stringify(katexVersion),
@@ -27,6 +45,17 @@ export default defineConfig({
   plugins: [
     react(),
     tsconfigPaths(),  // Reads paths from tsconfig.json — no hardcoded aliases
+    {
+      name: 'uclaw-deployment-meta-injector',
+      transformIndexHtml(html) {
+        const replacements = buildDeploymentMetaReplacements();
+        let nextHtml = html;
+        for (const [token, value] of Object.entries(replacements)) {
+          nextHtml = nextHtml.replaceAll(token, value);
+        }
+        return nextHtml;
+      },
+    },
   ],
   base: '/',
   build: {
@@ -35,6 +64,10 @@ export default defineConfig({
     sourcemap: true,
     minify: 'esbuild',
     rollupOptions: {
+      input: {
+        main: path.resolve(__dirname, 'index.html'),
+        team: path.resolve(__dirname, 'team.html'),
+      },
       output: {
         manualChunks: {
           // Split vendor chunks for better caching

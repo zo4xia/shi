@@ -234,10 +234,19 @@ function buildRuntimeState(req: Request, roleKey: AgentRoleKey): SkillsMcpHelper
 function findMentionedSkill(
   rawMessage: string,
   runtime: SkillsMcpHelperRuntimeState,
-): (HelperRuntimeSkillState | { id: string; name: string; enabled: boolean; sourcePath: string }) | null {
+): HelperRuntimeSkillState | null {
   const message = rawMessage.toLowerCase();
-  const candidates = [...runtime.availableSkills, ...runtime.warehouseOnlySkills];
-  return candidates.find((skill) => (
+  return runtime.availableSkills.find((skill) => (
+    message.includes(skill.id.toLowerCase()) || message.includes(skill.name.toLowerCase())
+  )) ?? null;
+}
+
+function findMentionedWarehouseSkill(
+  rawMessage: string,
+  runtime: SkillsMcpHelperRuntimeState,
+): { id: string; name: string; enabled: boolean; sourcePath: string } | null {
+  const message = rawMessage.toLowerCase();
+  return runtime.warehouseOnlySkills.find((skill) => (
     message.includes(skill.id.toLowerCase()) || message.includes(skill.name.toLowerCase())
   )) ?? null;
 }
@@ -382,6 +391,14 @@ function buildRuntimeVerificationReply(
   const mentionedSkill = findMentionedSkill(rawMessage, runtime);
   if (mentionedSkill) {
     return buildSkillRuntimeVerificationReply(mentionedSkill, runtime);
+  }
+
+  const warehouseQuery = containsAny(message, ['仓库', '候选', '未绑定', '未生效', 'warehouse']);
+  if (warehouseQuery) {
+    const mentionedWarehouseSkill = findMentionedWarehouseSkill(rawMessage, runtime);
+    if (mentionedWarehouseSkill) {
+      return buildSkillRuntimeVerificationReply(mentionedWarehouseSkill, runtime);
+    }
   }
 
   const mentionedMcp = findMentionedMcp(rawMessage, runtime);

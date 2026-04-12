@@ -2,10 +2,10 @@ import React from 'react';
 import CoworkPromptInput, { type CoworkPromptInputRef, type CoworkSubmitOptions } from './CoworkPromptInput';
 import { buildSessionPreviewText, type SessionSourceFilter } from './sessionRecordUtils';
 import { coworkService } from '../../services/cowork';
-import type { CoworkImageAttachment, CoworkSession } from '../../types/cowork';
+import type { CoworkImageAttachment, CoworkSessionSummary } from '../../types/cowork';
 
 export interface HomePromptPanelProps {
-  latestVisibleSession: CoworkSession | null;
+  latestVisibleSession: CoworkSessionSummary | null;
   promptInputRef: React.RefObject<CoworkPromptInputRef>;
   onStartSession: (prompt: string, skillPrompt?: string, imageAttachments?: CoworkImageAttachment[], submitOptions?: CoworkSubmitOptions) => Promise<void> | void;
   onStopSession: () => void;
@@ -78,7 +78,7 @@ const HomePromptPanel: React.FC<HomePromptPanelProps> = ({
         isStreaming={isStreaming}
         placeholder="分配一个任务或提问任何问题"
         size="large"
-        workingDirectory={workingDirectory}
+        workingDirectory={workingDirectory ?? undefined}
         onWorkingDirectoryChange={onWorkingDirectoryChange}
         showFolderSelector={true}
         onManageSkills={() => onShowSkills?.()}

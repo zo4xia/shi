@@ -9,6 +9,12 @@ export const WEB_RUNTIME_SUBDIR = 'web';
 let globalProjectRoot: string | null = null;
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 
+// Terminology guardrail:
+// - projectRoot/workspace: project code root
+// - runtimeRoot: project-scoped runtime container, usually <projectRoot>/.uclaw
+// - userDataPath: web runtime data root, usually <runtimeRoot>/web
+// - workingDirectory: task/session execution cwd, not the same thing as userDataPath
+
 function looksLikeProjectRoot(candidatePath: string): boolean {
   return fs.existsSync(path.join(candidatePath, 'package.json'))
     && fs.existsSync(path.join(candidatePath, 'server'));

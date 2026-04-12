@@ -16,24 +16,22 @@ const SettingsSectionCard: React.FC<SettingsSectionCardProps> = ({
   className = '',
 }) => (
   <section
-    className={`rounded-[24px] border border-white/60 bg-white/55 px-4 py-4 shadow-[0_10px_24px_rgba(203,174,150,0.08)] dark:border-white/10 dark:bg-white/[0.03] sm:px-5 sm:py-5 ${className}`.trim()}
+    className={`rounded-xl border dark:border-claude-darkBorder/70 border-claude-border/70 bg-claude-surface/60 dark:bg-claude-darkSurface/30 px-4 py-4 sm:px-5 sm:py-5 transition-colors hover:bg-claude-surface dark:hover:bg-claude-darkSurface/40 ${className}`.trim()}
   >
-    <div className="flex items-start justify-between gap-3">
-      <div className="min-w-0">
+    <div className="flex items-start justify-between gap-3 mb-3 sm:mb-4">
+      <div className="min-w-0 flex-1">
         <h4 className="text-[13px] font-semibold dark:text-claude-darkText text-claude-text sm:text-sm">
           {title}
         </h4>
         {description ? (
-          <p className="mt-1 hidden text-xs leading-5 dark:text-claude-darkTextSecondary text-claude-textSecondary sm:block">
+          <p className="mt-1 text-xs leading-5 dark:text-claude-darkTextSecondary text-claude-textSecondary">
             {description}
           </p>
         ) : null}
       </div>
-      {actions ? <div className="shrink-0">{actions}</div> : null}
+      {actions ? <div className="shrink-0 flex-none">{actions}</div> : null}
     </div>
-    <div className="mt-4">
-      {children}
-    </div>
+    {children}
   </section>
 );
 

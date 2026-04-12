@@ -16,6 +16,8 @@ const ErrorMessage: React.FC<ErrorMessageProps> = ({ message, onClose }) => {
       {onClose && (
         <button
           onClick={onClose}
+          title="Close error message"
+          aria-label="Close error message"
           className="ml-2 text-white hover:text-red-100 rounded-full p-1 hover:bg-white/10 transition-colors"
         >
           <XMarkIcon className="h-5 w-5" />

@@ -1,0 +1,40 @@
+# EditorConfig is awesome: https://EditorConfig.org
+
+root = true
+
+# Unix-style newlines with a newline ending every file
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# 2 space indentation
+[*.{ts,tsx,js,jsx,json,css,scss,md,yaml,yml}]
+indent_style = space
+indent_size = 2
+
+# 4 space indentation for Python and Markdown
+[*.{py,sh}]
+indent_style = space
+indent_size = 4
+
+# Markdown files
+[*.md]
+trim_trailing_whitespace = false
+max_line_length = 120
+
+# Package files
+[{package.json,.npmrc,.yarnrc}]
+indent_style = space
+indent_size = 2
+
+# YAML config files
+[{.gitlab-ci.yml,.github/**/*.yml,*.yaml,*.yml}]
+indent_style = space
+indent_size = 2
+
+# HTML
+[*.html]
+indent_style = space
+indent_size = 2

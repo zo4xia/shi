@@ -234,7 +234,7 @@ export class McpStore {
    * {标记} P0-MCP-MEMORY-DEDUPE
    * 运行态注入时只保留真正参与会话的 MCP。
    * 旧的 Memory 记录仅作兼容保留，不再参与普通会话 / 定时任务注入，
-   * 因为 CoworkRunner 会单独注入运行时记忆核心，避免重复挂两套记忆入口。
+   * 因为现役主链已经有独立记忆核心，避免重复挂两套记忆入口。
    */
   getRuntimeEnabledServers(agentRoleKey?: string): McpServerRecord[] {
     // {FLOW} MCP-RUNTIME-TRUTH: 会话实际注入只看这里；它在 getEnabledServers 基础上再排除 legacy Memory compat 记录。
@@ -245,7 +245,7 @@ export class McpStore {
     const targets = this.listServers().filter((server) => this.isLegacyMemoryCompatServer(server) && server.enabled);
     for (const server of targets) {
       this.updateServer(server.id, {
-        description: '旧 Memory MCP 兼容记录。真实记忆核心由 CoworkRunner 运行时注入；此记录不再参与会话或定时任务工具注入。',
+        description: '旧 Memory MCP 兼容记录。真实记忆核心由现役主链独立注入；此记录不再参与会话或定时任务工具注入。',
       });
       this.setEnabled(server.id, false);
     }

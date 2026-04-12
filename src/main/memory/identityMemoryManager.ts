@@ -6,7 +6,14 @@
  * 存储在 user_memories 表中，按 agent_role_key 过滤。
  */
 
+import crypto from 'crypto';
 import type { Database } from 'sql.js';
+import { normalizeMemoryMatchKey } from '../coworkStore/helpers';
+
+function buildMemoryFingerprint(text: string): string {
+  const key = normalizeMemoryMatchKey(text);
+  return crypto.createHash('sha1').update(key).digest('hex');
+}
 
 // ─── 类型定义 ─────────────────────────────────────────────────────
 
@@ -118,14 +125,16 @@ class IdentityMemoryManager {
     const now = Date.now();
     const nowStr = new Date().toISOString();
     const modelId = identity.modelId || '';
+    // {标记} P0-LAST-USED-AT-MIN-ACTIVATE: identityMemoryManager 和 coworkStore 共写同一张 user_memories；
+    // 如果这里只写 created/updated_at，不写 last_used_at，就会把这张表重新分裂成两套时间语义。
 
     if (updates.userInfo && Object.keys(updates.userInfo).length > 0) {
       const text = JSON.stringify({ type: 'userInfo', data: updates.userInfo });
       const id = `mem_${now}_${Math.random().toString(36).slice(2, 8)}`;
       this.db.run(
-        `INSERT INTO user_memories (id, text, fingerprint, confidence, is_explicit, status, agent_role_key, model_id, created_at, updated_at)
-         VALUES (?, ?, ?, 1.0, 0, 'created', ?, ?, ?, ?)`,
-        [id, text, text.slice(0, 64), identity.agentRoleKey, modelId, nowStr, nowStr]
+        `INSERT INTO user_memories (id, text, fingerprint, confidence, is_explicit, status, agent_role_key, model_id, created_at, updated_at, last_used_at)
+         VALUES (?, ?, ?, 1.0, 0, 'created', ?, ?, ?, ?, ?)`,
+        [id, text, buildMemoryFingerprint(text), identity.agentRoleKey, modelId, nowStr, nowStr, now]
       );
     }
 
@@ -133,9 +142,9 @@ class IdentityMemoryManager {
       const text = JSON.stringify({ type: 'projectContext', data: updates.projectContext });
       const id = `mem_${now}_${Math.random().toString(36).slice(2, 8)}`;
       this.db.run(
-        `INSERT INTO user_memories (id, text, fingerprint, confidence, is_explicit, status, agent_role_key, model_id, created_at, updated_at)
-         VALUES (?, ?, ?, 1.0, 0, 'created', ?, ?, ?, ?)`,
-        [id, text, text.slice(0, 64), identity.agentRoleKey, modelId, nowStr, nowStr]
+        `INSERT INTO user_memories (id, text, fingerprint, confidence, is_explicit, status, agent_role_key, model_id, created_at, updated_at, last_used_at)
+         VALUES (?, ?, ?, 1.0, 0, 'created', ?, ?, ?, ?, ?)`,
+        [id, text, buildMemoryFingerprint(text), identity.agentRoleKey, modelId, nowStr, nowStr, now]
       );
     }
 
@@ -144,9 +153,9 @@ class IdentityMemoryManager {
         const text = JSON.stringify({ type: 'decision', ...d });
         const id = `mem_${now}_${Math.random().toString(36).slice(2, 8)}`;
         this.db.run(
-          `INSERT INTO user_memories (id, text, fingerprint, confidence, is_explicit, status, agent_role_key, model_id, created_at, updated_at)
-           VALUES (?, ?, ?, 1.0, 0, 'created', ?, ?, ?, ?)`,
-          [id, text, text.slice(0, 64), identity.agentRoleKey, modelId, nowStr, nowStr]
+          `INSERT INTO user_memories (id, text, fingerprint, confidence, is_explicit, status, agent_role_key, model_id, created_at, updated_at, last_used_at)
+           VALUES (?, ?, ?, 1.0, 0, 'created', ?, ?, ?, ?, ?)`,
+          [id, text, buildMemoryFingerprint(text), identity.agentRoleKey, modelId, nowStr, nowStr, now]
         );
       }
     }
@@ -156,9 +165,9 @@ class IdentityMemoryManager {
         const text = JSON.stringify({ type: 'note', ...n });
         const id = `mem_${now}_${Math.random().toString(36).slice(2, 8)}`;
         this.db.run(
-          `INSERT INTO user_memories (id, text, fingerprint, confidence, is_explicit, status, agent_role_key, model_id, created_at, updated_at)
-           VALUES (?, ?, ?, 1.0, 0, 'created', ?, ?, ?, ?)`,
-          [id, text, text.slice(0, 64), identity.agentRoleKey, modelId, nowStr, nowStr]
+          `INSERT INTO user_memories (id, text, fingerprint, confidence, is_explicit, status, agent_role_key, model_id, created_at, updated_at, last_used_at)
+           VALUES (?, ?, ?, 1.0, 0, 'created', ?, ?, ?, ?, ?)`,
+          [id, text, buildMemoryFingerprint(text), identity.agentRoleKey, modelId, nowStr, nowStr, now]
         );
       }
     }

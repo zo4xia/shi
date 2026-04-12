@@ -943,6 +943,7 @@ class WechatBotGateway {
 
   private syncSessionTruth(session: CoworkSession, binding: WechatBotAgentBinding, scopeKey: string): CoworkSession {
     const deps = this.requireDeps();
+    // {标记} P0-IDENTITY-BOUNDARY: 这里更新的是外渠道 scope 和当前 runtime model 元信息；不能把 modelId 当成身份切桶键。
     const needsSync = session.systemPrompt !== scopeKey
       || session.sourceType !== 'external'
       || session.agentRoleKey !== binding.agentRoleKey

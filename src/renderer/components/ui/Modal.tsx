@@ -5,8 +5,8 @@
  * {标记} 状态：新建✅
  */
 
-import React, { useEffect, useRef } from 'react';
 import { XMarkIcon } from '@heroicons/react/20/solid';
+import React, { useEffect, useRef } from 'react';
 
 export interface ModalProps {
   /** 是否显示 */
@@ -102,6 +102,7 @@ export const Modal: React.FC<ModalProps> = ({
 
   if (!open) return null;
 
+  // {标记} Z-LAYER-MODAL: 标准模态框层 (z-50)
   const baseClasses = `
     fixed inset-0 z-50
     flex items-center justify-center
@@ -151,6 +152,8 @@ export const Modal: React.FC<ModalProps> = ({
             {showCloseButton && (
               <button
                 onClick={onClose}
+                aria-label="关闭弹窗"
+                title="关闭弹窗"
                 className="ml-4 p-1.5 rounded-lg text-claude-textSecondary hover:text-claude-text dark:text-claude-darkTextSecondary dark:hover:text-claude-darkText hover:bg-claude-surfaceHover dark:hover:bg-claude-darkSurfaceHover transition-colors"
               >
                 <XMarkIcon className="h-5 w-5" />

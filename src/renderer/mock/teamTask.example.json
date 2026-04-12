@@ -28,7 +28,7 @@
   "seats": {
     "A": {
       "provider": "aliyun",
-      "baseUrl": "",
+      "baseUrl": "http://127.0.0.1:3000",
       "apiKey": "",
       "modelOrEngine": "cosyvoice-v3-flash",
       "voice": "longanyang",
@@ -70,6 +70,10 @@
       "startTime": 360,
       "endTime": 3680,
       "speed": 2,
+      "x": 68,
+      "y": 74,
+      "width": 220,
+      "height": 96,
       "imageUrl": "/team-assets/board-418-170-118.png",
       "imageNaturalWidth": 120,
       "imageNaturalHeight": 38,
@@ -84,6 +88,10 @@
       "startTime": 14490,
       "endTime": 17090,
       "speed": 2,
+      "x": 362,
+      "y": 182,
+      "width": 280,
+      "height": 112,
       "imageUrl": "/team-assets/board-418-118-170.png",
       "imageNaturalWidth": 182,
       "imageNaturalHeight": 50,
@@ -93,17 +101,21 @@
     },
     {
       "id": "board-3",
-      "label": "300-170",
-      "expression": "300-170",
+      "label": "288-(44+156)=288-200=88",
+      "expression": "288-(44+156)=288-200=88",
       "startTime": 18130,
       "endTime": 20690,
       "speed": 2,
-      "imageUrl": "/team-assets/board-300-170.png",
-      "imageNaturalWidth": 182,
-      "imageNaturalHeight": 41,
+      "x": 108,
+      "y": 334,
+      "width": 488,
+      "height": 120,
+      "imageUrl": "/team-assets/board-288-combined.png",
+      "imageNaturalWidth": 396,
+      "imageNaturalHeight": 45,
       "revealMode": "stroke-fade-segments",
-      "revealDurationMs": 2200,
-      "pausePoints": [0.18, 0.52, 0.86]
+      "revealDurationMs": 2600,
+      "pausePoints": [0.18, 0.46, 0.73, 0.9]
     }
   ]
 }

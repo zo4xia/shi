@@ -1,40 +1,40 @@
+import type { AgentRoleKey } from '../../shared/agentRoleConfig';
+import { isLegacyHiddenSession } from '../components/cowork/sessionRecordUtils';
 import { store } from '../store';
 import {
-  setSessions,
-  setCurrentSession,
-  setLoadingSessionId,
-  updateSessionStatus,
-  deleteSession as deleteSessionAction,
-  deleteSessions as deleteSessionsAction,
-  addMessage,
-  updateMessageContent,
-  setStreaming,
-  updateSessionPinned,
-  updateSessionTitle,
-  enqueuePendingPermission,
-  dequeuePendingPermission,
-  clearPendingPermissionsForSession,
-  setConfig,
-  clearCurrentSession,
+    addMessage,
+    clearCurrentSession,
+    clearPendingPermissionsForSession,
+    deleteSession as deleteSessionAction,
+    deleteSessions as deleteSessionsAction,
+    dequeuePendingPermission,
+    enqueuePendingPermission,
+    setConfig,
+    setCurrentSession,
+    setLoadingSessionId,
+    setSessions,
+    setStreaming,
+    updateMessageContent,
+    updateSessionPinned,
+    updateSessionStatus,
+    updateSessionTitle,
 } from '../store/slices/coworkSlice';
 import { setSelectedModel } from '../store/slices/modelSlice';
-import { webSocketClient } from './webSocketClient';
-import { buildCoworkRoomId } from './webApiContract';
-import { showGlobalToast } from './toast';
-import { isLegacyHiddenSession } from '../components/cowork/sessionRecordUtils';
 import type {
-  CoworkSession,
-  CoworkConfigUpdate,
-  CoworkApiConfig,
-  CoworkUserMemoryEntry,
-  CoworkMemoryStats,
-  CoworkBroadcastBoardSnapshot,
-  CoworkManualCompressionResult,
-  CoworkPermissionResult,
-  CoworkStartOptions,
-  CoworkContinueOptions,
+    CoworkApiConfig,
+    CoworkBroadcastBoardSnapshot,
+    CoworkConfigUpdate,
+    CoworkContinueOptions,
+    CoworkManualCompressionResult,
+    CoworkMemoryStats,
+    CoworkPermissionResult,
+    CoworkSession,
+    CoworkStartOptions,
+    CoworkUserMemoryEntry,
 } from '../types/cowork';
-import type { AgentRoleKey } from '../../shared/agentRoleConfig';
+import { showGlobalToast } from './toast';
+import { buildCoworkRoomId } from './webApiContract';
+import { webSocketClient } from './webSocketClient';
 
 // {路标} FLOW-SERVICE-COWORK
 // {标记} 兼容壳残留: 当前前端会话服务仍统一经由 window.electron.cowork.* 转接到 Web API。
@@ -102,6 +102,7 @@ class CoworkService {
       return;
     }
 
+    // {标记} P0-FIELD-SINGLE-RESPONSIBILITY: 前台同步时 role 决定“我是谁”，model 只决定“我当前挂哪台发动机”。
     const state = store.getState();
     const roleKey = session.agentRoleKey as AgentRoleKey;
     const availableModels = state.model.availableModels;
@@ -828,7 +829,11 @@ class CoworkService {
   async compressContext(sessionId: string): Promise<{ compression: CoworkManualCompressionResult | null; error?: string }> {
     const api = window.electron?.cowork?.compressContext;
     if (!api) return { compression: null, error: '压缩入口暂不可用' };
-    const result = await api({ sessionId });
+    const normalizedSessionId = typeof sessionId === 'string' ? sessionId.trim() : '';
+    if (!normalizedSessionId) {
+      return { compression: null, error: '会话标识缺失，请先选中有效会话后再试' };
+    }
+    const result = await api({ sessionId: normalizedSessionId });
     if (!result?.success || !result.compression) {
       return { compression: null, error: result?.error || '后端压缩暂不可用' };
     }

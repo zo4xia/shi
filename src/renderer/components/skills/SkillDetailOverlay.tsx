@@ -1,10 +1,10 @@
+import { XMarkIcon } from '@heroicons/react/24/outline';
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { XMarkIcon } from '@heroicons/react/24/outline';
-import PuzzleIcon from '../icons/PuzzleIcon';
-import TrashIcon from '../icons/TrashIcon';
 import { AGENT_ROLE_ORDER, AGENT_ROLE_SHORT_LABELS } from '../../../shared/agentRoleConfig';
 import { Skill, getSkillDisplayName } from '../../types/skill';
+import PuzzleIcon from '../icons/PuzzleIcon';
+import TrashIcon from '../icons/TrashIcon';
 
 export type RoleOptionKey = 'all' | typeof AGENT_ROLE_ORDER[number];
 
@@ -60,6 +60,7 @@ const SkillDetailOverlay: React.FC<SkillDetailOverlayProps> = ({
 
   return createPortal(
     <div
+      // {标记} Z-LAYER-SKILL-OVERLAY: 技能详情浮层 (z-50, 模态框层级)
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/36 backdrop-blur-sm px-4 py-6"
       onClick={onClose}
     >
@@ -84,7 +85,8 @@ const SkillDetailOverlay: React.FC<SkillDetailOverlayProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg dark:text-claude-darkTextSecondary text-claude-textSecondary dark:hover:text-claude-darkText hover:text-claude-text dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover transition-colors flex-shrink-0"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-lg dark:text-claude-darkTextSecondary text-claude-textSecondary dark:hover:text-claude-darkText hover:text-claude-text dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover transition-colors flex-shrink-0"
+            aria-label="关闭技能详情"
           >
             <XMarkIcon className="h-5 w-5" />
           </button>
@@ -209,7 +211,7 @@ const SkillDetailOverlay: React.FC<SkillDetailOverlayProps> = ({
           )}
         </div>
 
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3">
           {!skill.isBuiltIn ? (
             <button
               type="button"
@@ -222,18 +224,20 @@ const SkillDetailOverlay: React.FC<SkillDetailOverlayProps> = ({
           ) : (
             <div />
           )}
-          <div
-            className={`w-9 h-5 rounded-full flex items-center transition-colors cursor-pointer flex-shrink-0 ${
+          <button
+            type="button"
+            className={`inline-flex h-11 w-16 items-center rounded-full px-1 transition-colors cursor-pointer flex-shrink-0 ${
               skill.enabled ? 'bg-claude-accent' : 'dark:bg-claude-darkBorder bg-claude-border'
             }`}
             onClick={onToggleEnabled}
+            aria-label={skill.enabled ? '关闭技能' : '开启技能'}
           >
             <div
-              className={`w-3.5 h-3.5 rounded-full bg-white shadow-md transform transition-transform ${
-                skill.enabled ? 'translate-x-[18px]' : 'translate-x-[3px]'
+              className={`h-6 w-6 rounded-full bg-white shadow-md transform transition-transform ${
+                skill.enabled ? 'translate-x-[28px]' : 'translate-x-0'
               }`}
             />
-          </div>
+          </button>
         </div>
       </div>
     </div>,

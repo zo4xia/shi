@@ -163,6 +163,35 @@ UCLAW_DEFAULT_MODEL=gpt-5.4
 - 标准 env 模板见 `deploy/linux/uclaw.env.example`
 - 启动前可执行 `npm run deploy:check`
 
+## 部署预设生成器
+
+如果你不想每次手抄 env，可以直接生成平台预设：
+
+```bash
+npm run deploy:init -- --target linux --public-origin https://chat.example.com --api-base-url https://api.openai.com/v1 --api-key sk-demo --model gpt-5.4
+```
+
+支持目标：
+
+- `linux`
+- `render`
+- `railway`
+- `zeabur`
+- `frontend-static` / `vercel-static`
+
+输出默认放在：
+
+```text
+deploy/generated/<target>
+```
+
+其中：
+
+- 完整运行时目标会生成服务器 env + 平台说明
+- `frontend-static` 会生成静态前端构建用的 `.env.production.local`
+- 最推荐的静态前端变量只有一个：`VITE_BACKEND_ORIGIN`
+- 根仓库的 `vercel.json` 仍会阻止“完整 UCLAW 运行时”误投到 Vercel；`frontend-static` 只是给拆分后的静态前端用
+
 ## 传统 Linux 基线
 
 标准命令：
@@ -185,13 +214,4 @@ npm start
 ## 文档入口
 
 - `docs/DOCS_INDEX.md`
-- `docs/UCLAW_GUIDE_HANDBOOK_2026-03-27.md`
-- `docs/PROJECT_QUICK_GUIDE_2026-03-27.md`
-- `docs/PROJECT_RENOVATION_BLUEPRINT_2026-03-27.md`
-- `docs/AGENTS.md`
-- `docs/PAGE_SERVICE_ROUTE_MAP_2026-03-27.md`
-- `docs/DB_API_TRUNK_WALK_2026-03-27.md`
-- `docs/RUNBOOK_1.0.md`
-- `docs/DEPLOYMENT_STANDARD_LINUX.md`
-- `docs/MAINLINE_1.0_BOUNDARY.md`
-- `docs/PURE_PACKAGE_FILETREE.md`
+- `docs/DEPLOYMENT_AUTOGUIDE.md`

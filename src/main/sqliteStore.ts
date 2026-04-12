@@ -65,6 +65,8 @@ export class SqliteStore {
   }
 
   private initializeTables(basePath: string) {
+    // {标记} P0-KV-UPDATED-AT-ALIGN: kv 现在需要稳定的 updated_at 时间锚，
+    // 因为主进程 / Web / 迁移 / 观察都开始依赖这层时间信息，不能再让 schema 和写路径分叉。
     this.db.run(`
       CREATE TABLE IF NOT EXISTS kv (
         key TEXT PRIMARY KEY,
@@ -110,10 +112,14 @@ export class SqliteStore {
       CREATE INDEX IF NOT EXISTS idx_cowork_messages_session_id ON cowork_messages(session_id);
     `);
 
-    // {标记} P1-数据库字段补全：消息表身份索引
+    // {标记} P0-FIELD-SINGLE-RESPONSIBILITY: 这些索引里出现 model_id，只是为了兼容元信息与读写局部性，不代表 model_id 是身份边界。
     this.db.run(`
-      CREATE INDEX IF NOT EXISTS idx_cowork_messages_identity
+      CREATE INDEX IF NOT EXISTS idx_cowork_messages_role_model_created
       ON cowork_messages(agent_role_key, model_id, created_at DESC);
+    `);
+    this.db.run(`
+      CREATE INDEX IF NOT EXISTS idx_cowork_messages_role_created
+      ON cowork_messages(agent_role_key, created_at DESC);
     `);
 
     this.db.run(`
@@ -140,10 +146,14 @@ export class SqliteStore {
       );
     `);
 
-    // {标记} P1-BUG-FIX: 用户记忆身份隔离 - 添加索引
+    // {标记} P0-FIELD-SINGLE-RESPONSIBILITY: user_memories 的身份只认 agent_role_key；组合索引里的 model_id 仅保留为运行元信息局部性。
     this.db.run(`
-      CREATE INDEX IF NOT EXISTS idx_user_memories_identity
+      CREATE INDEX IF NOT EXISTS idx_user_memories_role_model_status_updated
       ON user_memories(agent_role_key, model_id, status, updated_at DESC);
+    `);
+    this.db.run(`
+      CREATE INDEX IF NOT EXISTS idx_user_memories_role_status_updated
+      ON user_memories(agent_role_key, status, updated_at DESC);
     `);
 
     this.db.run(`
@@ -154,17 +164,9 @@ export class SqliteStore {
         message_id TEXT,
         role TEXT NOT NULL DEFAULT 'system',
         is_active INTEGER NOT NULL DEFAULT 1,
-        agent_role_key TEXT DEFAULT 'organizer',
-        model_id TEXT DEFAULT '',
         created_at INTEGER NOT NULL,
         FOREIGN KEY (memory_id) REFERENCES user_memories(id) ON DELETE CASCADE
       );
-    `);
-
-    // {标记} P1-数据库字段补全：记忆来源表身份索引
-    this.db.run(`
-      CREATE INDEX IF NOT EXISTS idx_user_memory_sources_identity
-      ON user_memory_sources(agent_role_key, model_id, is_active);
     `);
 
     this.db.run(`
@@ -185,7 +187,7 @@ export class SqliteStore {
     `);
 
     // Create scheduled tasks tables
-    // {标记} P0-BUG-FIX: 添加 agent_role_key 和 model_id 字段用于身份绑定
+    // {标记} P0-IDENTITY-BOUNDARY: scheduled_tasks 里 agent_role_key 才是身份；model_id 只保留为运行时发动机元信息。
     this.db.run(`
       CREATE TABLE IF NOT EXISTS scheduled_tasks (
         id TEXT PRIMARY KEY,
@@ -226,10 +228,14 @@ export class SqliteStore {
         ON scheduled_tasks(enabled, next_run_at_ms);
     `);
 
-    // {标记} P1-数据库字段补全：定时任务身份索引
+    // {标记} P0-FIELD-SINGLE-RESPONSIBILITY: scheduled_tasks 的身份仍只认 agent_role_key；组合索引里的 model_id 只是运行发动机元信息。
     this.db.run(`
-      CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_identity
+      CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_role_model_enabled
         ON scheduled_tasks(agent_role_key, model_id, enabled);
+    `);
+    this.db.run(`
+      CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_role_enabled
+        ON scheduled_tasks(agent_role_key, enabled);
     `);
 
     this.db.run(`
@@ -262,7 +268,6 @@ export class SqliteStore {
         transport_type TEXT NOT NULL DEFAULT 'stdio',
         config_json TEXT NOT NULL DEFAULT '{}',
         agent_role_key TEXT DEFAULT 'all',
-        model_id TEXT DEFAULT '',
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL
       );
@@ -270,7 +275,7 @@ export class SqliteStore {
 
     // {标记} P1-技能隔离：MCP 服务器身份索引
     this.db.run(`
-      CREATE INDEX IF NOT EXISTS idx_mcp_servers_identity
+      CREATE INDEX IF NOT EXISTS idx_mcp_servers_role_enabled
       ON mcp_servers(agent_role_key, enabled);
     `);
 
@@ -317,9 +322,6 @@ export class SqliteStore {
       );
     `);
     this.db.run(`
-      CREATE INDEX IF NOT EXISTS idx_identity_thread_identity ON identity_thread_24h(agent_role_key, model_id);
-    `);
-    this.db.run(`
       CREATE INDEX IF NOT EXISTS idx_identity_thread_role_only ON identity_thread_24h(agent_role_key, updated_at DESC);
     `);
     this.db.run(`
@@ -331,6 +333,15 @@ export class SqliteStore {
 
     // Migrations - safely add columns if they don't exist
     try {
+      // {标记} P0-KV-UPDATED-AT-ALIGN: 旧主库如果还是两列表 kv，先补 updated_at，再统一落默认值。
+      const kvColsResult = this.db.exec("PRAGMA table_info(kv);");
+      const kvColumns = kvColsResult[0]?.values.map((row) => row[1]) || [];
+      if (!kvColumns.includes('updated_at')) {
+        this.db.run("ALTER TABLE kv ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0;");
+        this.save();
+      }
+      this.db.run('UPDATE kv SET updated_at = COALESCE(updated_at, 0);');
+
       // Check if execution_mode column exists
       const colsResult = this.db.exec("PRAGMA table_info(cowork_sessions);");
       const columns = colsResult[0]?.values.map((row) => row[1]) || [];
@@ -394,11 +405,9 @@ export class SqliteStore {
 
     try {
       this.db.run(`UPDATE cowork_sessions SET execution_mode = 'local' WHERE execution_mode IN ('container', 'sandbox', 'auto');`);
-      this.db.run(`
-        UPDATE cowork_config
-        SET value = 'local'
-        WHERE key = 'executionMode' AND value IN ('container', 'sandbox', 'auto');
-      `);
+      // {标记} P0-EXECUTION-MODE-KEY-RETIRED: executionMode 这个 cowork_config key 已退成 no-op；
+      // 现役固定值仍在 session/task 行里是 local，但配置键本身不再作为真相入口保留。
+      this.db.run(`DELETE FROM cowork_config WHERE key = 'executionMode';`);
     } catch (error) {
       console.warn('Failed to migrate cowork execution mode:', error);
     }
@@ -453,6 +462,8 @@ export class SqliteStore {
     this.migrateScheduledTasksAddIdentityColumns();  // P0 迁移
     this.migrateUserMemoriesAddIdentityColumns();    // P1 迁移
     this.migrateCreateSkillRoleConfigs();            // P1 技能隔离
+    this.migrateDropDeprecatedSchemaColumns();       // P0 旧库结构清洁
+    this.migrateRoleScopedIndexNames();             // P0 索引命名收口
     this.save();
   }
 
@@ -559,6 +570,150 @@ export class SqliteStore {
       console.log('[SQLite] skill_role_configs table created successfully');
     } catch (error) {
       console.warn('[SQLite] Failed to create skill_role_configs table:', error);
+    }
+  }
+
+  private migrateDropDeprecatedSchemaColumns(): void {
+    try {
+      // {标记} P0-MCP-SCHEMA-DRIFT-CUT: mcp_servers.model_id 已确认是 drift 残影；
+      // 新 schema 不再创建，旧库则在这里做一次保现役字段的数据搬运式清理。
+      this.rebuildTableDroppingColumns({
+        table: 'mcp_servers',
+        deprecatedColumns: ['model_id'],
+        createSql: `
+          CREATE TABLE IF NOT EXISTS mcp_servers (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL UNIQUE,
+            description TEXT NOT NULL DEFAULT '',
+            enabled INTEGER NOT NULL DEFAULT 1,
+            transport_type TEXT NOT NULL DEFAULT 'stdio',
+            config_json TEXT NOT NULL DEFAULT '{}',
+            agent_role_key TEXT DEFAULT 'all',
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL
+          )
+        `,
+        insertSql: `
+          INSERT INTO mcp_servers (
+            id, name, description, enabled, transport_type, config_json, agent_role_key, created_at, updated_at
+          )
+          SELECT
+            id,
+            name,
+            description,
+            enabled,
+            transport_type,
+            config_json,
+            agent_role_key,
+            created_at,
+            updated_at
+          FROM mcp_servers__legacy
+        `,
+      });
+      // {标记} P0-SOURCE-TABLE-SINGLE-RESPONSIBILITY: user_memory_sources 只保来源关系；
+      // role/model 元信息这轮正式退场，避免未来维护者误把它当现役身份边界。
+      this.rebuildTableDroppingColumns({
+        table: 'user_memory_sources',
+        deprecatedColumns: ['agent_role_key', 'model_id'],
+        createSql: `
+          CREATE TABLE IF NOT EXISTS user_memory_sources (
+            id TEXT PRIMARY KEY,
+            memory_id TEXT NOT NULL,
+            session_id TEXT,
+            message_id TEXT,
+            role TEXT NOT NULL DEFAULT 'system',
+            is_active INTEGER NOT NULL DEFAULT 1,
+            created_at INTEGER NOT NULL,
+            FOREIGN KEY (memory_id) REFERENCES user_memories(id) ON DELETE CASCADE
+          )
+        `,
+        insertSql: `
+          INSERT INTO user_memory_sources (
+            id, memory_id, session_id, message_id, role, is_active, created_at
+          )
+          SELECT
+            id,
+            memory_id,
+            session_id,
+            message_id,
+            role,
+            is_active,
+            created_at
+          FROM user_memory_sources__legacy
+        `,
+      });
+    } catch (error) {
+      console.warn('[SQLite] Failed to drop deprecated schema columns:', error);
+    }
+  }
+
+  private rebuildTableDroppingColumns(input: {
+    table: string;
+    deprecatedColumns: string[];
+    createSql: string;
+    insertSql: string;
+  }): void {
+    const info = this.db.exec(`PRAGMA table_info("${input.table}")`);
+    if (!info.length) {
+      return;
+    }
+
+    const columns = info[0].values.map((row) => String(row[1]));
+    const hasDeprecatedColumns = input.deprecatedColumns.some((column) => columns.includes(column));
+    if (!hasDeprecatedColumns) {
+      return;
+    }
+
+    const legacyTable = `${input.table}__legacy`;
+    console.log(`[SQLite] Rebuilding ${input.table} to drop deprecated columns: ${input.deprecatedColumns.filter((column) => columns.includes(column)).join(', ')}`);
+    // {标记} P0-DEPRECATED-COLUMN-REBUILD: 旧库结构清洁必须事务包裹；
+    // 失败时宁可整体回滚，也不能让现役表半建好、旧数据卡在 legacy 里。
+    this.db.run('BEGIN TRANSACTION');
+    try {
+      this.db.run(`DROP TABLE IF EXISTS "${legacyTable}"`);
+      this.db.run(`ALTER TABLE "${input.table}" RENAME TO "${legacyTable}"`);
+      this.db.run(input.createSql);
+      this.db.run(input.insertSql);
+      this.db.run(`DROP TABLE IF EXISTS "${legacyTable}"`);
+      this.db.run('COMMIT');
+      this.save();
+    } catch (error) {
+      this.db.run('ROLLBACK');
+      throw error;
+    }
+  }
+
+  private migrateRoleScopedIndexNames(): void {
+    try {
+      // {标记} P0-INDEX-NAME-TRUTH: 旧的 *_identity 名字会持续误导后来人把 model_id 当身份边界；
+      // 这里启动时统一 drop 旧名，再重建成 role_/role_model_ 口径。
+      this.db.run('DROP INDEX IF EXISTS idx_cowork_messages_identity');
+      this.db.run('DROP INDEX IF EXISTS idx_user_memories_identity');
+      this.db.run('DROP INDEX IF EXISTS idx_user_memory_sources_identity');
+      this.db.run('DROP INDEX IF EXISTS idx_user_memory_sources_role_model_active');
+      this.db.run('DROP INDEX IF EXISTS idx_user_memory_sources_role_active');
+      this.db.run('DROP INDEX IF EXISTS idx_scheduled_tasks_identity');
+      this.db.run('DROP INDEX IF EXISTS idx_mcp_servers_identity');
+      this.db.run('DROP INDEX IF EXISTS idx_identity_thread_identity');
+
+      this.db.run(`
+        CREATE INDEX IF NOT EXISTS idx_cowork_messages_role_model_created
+        ON cowork_messages(agent_role_key, model_id, created_at DESC)
+      `);
+      this.db.run(`
+        CREATE INDEX IF NOT EXISTS idx_user_memories_role_model_status_updated
+        ON user_memories(agent_role_key, model_id, status, updated_at DESC)
+      `);
+      this.db.run(`
+        CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_role_model_enabled
+        ON scheduled_tasks(agent_role_key, model_id, enabled)
+      `);
+      this.db.run(`
+        CREATE INDEX IF NOT EXISTS idx_mcp_servers_role_enabled
+        ON mcp_servers(agent_role_key, enabled)
+      `);
+    } catch (error) {
+      console.warn('[SQLite] Failed to normalize role-scoped index names:', error);
     }
   }
 
@@ -704,13 +859,13 @@ export class SqliteStore {
         this.db.run(`
           INSERT INTO user_memories (
             id, text, fingerprint, confidence, is_explicit, status, created_at, updated_at, last_used_at
-          ) VALUES (?, ?, ?, ?, 1, 'created', ?, ?, NULL)
-        `, [memoryId, text, fingerprint, 0.9, now, now]);
+          ) VALUES (?, ?, ?, ?, 1, 'created', ?, ?, ?)
+        `, [memoryId, text, fingerprint, 0.9, now, now, now]);
 
         this.db.run(`
-          INSERT INTO user_memory_sources (id, memory_id, session_id, message_id, role, is_active, created_at, agent_role_key, model_id)
-          VALUES (?, ?, NULL, NULL, 'system', 1, ?, ?, ?)
-        `, [crypto.randomUUID(), memoryId, now, 'organizer', '']);
+          INSERT INTO user_memory_sources (id, memory_id, session_id, message_id, role, is_active, created_at)
+          VALUES (?, ?, NULL, NULL, 'system', 1, ?)
+        `, [crypto.randomUUID(), memoryId, now]);
       }
 
       this.db.run('COMMIT;');

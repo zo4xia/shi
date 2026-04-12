@@ -3,7 +3,7 @@
  * {标记} 来源: web架构迁移 + 二开改造
  * {标记} 用途: REST接口暴露4身份Agent配置、模型验证、设置保存
  * {标记} 端点: GET/PUT /api/api-config / GET /api/api-config/check
- * {标记} 集成: Settings.tsx保存逻辑 / CoworkRunner初始化
+ * {标记} 集成: Settings.tsx 保存逻辑 / 运行时 API 配置读取链
  * {标记} 状态: 源代码完整✅ / 但身份切换逻辑缺失❌
  */
 

@@ -74,7 +74,7 @@ export function loadYesterdayMemories(
   }
 
   return {
-    loadedFrom: 'memory-db',
+    loadedFrom: 'durable-memory',
     summary: summarizeMemories(memories),
     memoryIds: memories.map((item) => item.id),
   };

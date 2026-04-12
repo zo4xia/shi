@@ -31,6 +31,18 @@ code {
   font-family: 'SF Mono', 'Fira Code', Menlo, Monaco, 'Courier New', monospace;
 }
 
+@font-face {
+  font-family: 'TeamHandwriteQiaomu';
+  src: url('/平方乔木体.ttf') format('truetype');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'TeamHandwriteChen';
+  src: url('/ChenYuluoyan-Thin-Monospaced.ttf') format('truetype');
+  font-display: swap;
+}
+
 /* Improve table styles */
 table {
   border-collapse: collapse;
@@ -87,7 +99,7 @@ blockquote {
   --uclaw-shell-max-width: 1200px;
   --uclaw-app-max-width: 1200px;
   --uclaw-home-max-width: 1080px;
-
+  --z-popover: 160;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -261,6 +273,13 @@ select::-ms-expand {
   user-select: none;
 }
 
+.touch-history-scroll-guard {
+  overscroll-behavior-y: contain;
+  overscroll-behavior-x: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+}
+
 /* 选中文字颜色 */
 ::selection {
   background: rgba(167, 139, 250, 0.25);
@@ -299,10 +318,16 @@ select::-ms-expand {
   font-weight: 600;
 }
 
-/* 输入框聚焦时不产生布局偏移 */
-textarea:focus,
-input:focus {
+/* 输入框聚焦样式：仅隐藏鼠标焦点，保留键盘可见焦点 */
+textarea:focus:not(:focus-visible),
+input:focus:not(:focus-visible) {
   outline: none;
+}
+
+textarea:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--brand-purple);
+  outline-offset: 2px;
 }
 
 /* Button styles - 温暖渐变按钮 */
@@ -330,8 +355,8 @@ input:focus {
 
 .btn-secondary {
   background: linear-gradient(135deg, var(--frost-pearl-light) 0%, var(--frost-pearl) 100%);
-  backdrop-filter: blur(10px) saturate(170%);
   -webkit-backdrop-filter: blur(10px) saturate(170%);
+  backdrop-filter: blur(10px) saturate(170%);
   color: var(--text-pearl-primary);
   border: 1px solid var(--border-pearl);
   font-weight: 500;
@@ -504,11 +529,11 @@ input:focus {
 /* 主容器 - 珍珠白渐变 + 磨砂 + 弥散阴影 */
 .pearl-container {
   background: linear-gradient(135deg, var(--frost-pearl) 0%, var(--frost-pearl-light) 100%);
-  backdrop-filter: blur(16px) saturate(200%);
   -webkit-backdrop-filter: blur(16px) saturate(200%);
+  backdrop-filter: blur(16px) saturate(200%);
   border: 1px solid var(--border-pearl);
   border-radius: 24px;
-  box-shadow: 
+  box-shadow:
     0 1px 2px var(--shadow-warm-1),
     0 4px 12px var(--shadow-warm-2),
     0 12px 32px var(--shadow-warm-3),
@@ -519,11 +544,11 @@ input:focus {
 /* 深磨砂容器 */
 .pearl-container-deep {
   background: linear-gradient(135deg, var(--frost-pearl-deep) 0%, var(--frost-pearl) 100%);
-  backdrop-filter: blur(20px) saturate(220%);
   -webkit-backdrop-filter: blur(20px) saturate(220%);
+  backdrop-filter: blur(20px) saturate(220%);
   border: 1px solid var(--border-pearl-strong);
   border-radius: 28px;
-  box-shadow: 
+  box-shadow:
     0 2px 4px var(--shadow-warm-2),
     0 8px 24px var(--shadow-warm-3),
     0 24px 64px var(--shadow-warm-4),
@@ -533,11 +558,11 @@ input:focus {
 /* 轻磨砂容器 - 用于卡片/按钮 */
 .pearl-container-light {
   background: linear-gradient(135deg, rgba(255, 254, 252, 0.9) 0%, rgba(251, 248, 245, 0.85) 100%);
-  backdrop-filter: blur(10px) saturate(180%);
   -webkit-backdrop-filter: blur(10px) saturate(180%);
+  backdrop-filter: blur(10px) saturate(180%);
   border: 1px solid var(--border-pearl);
   border-radius: 16px;
-  box-shadow: 
+  box-shadow:
     0 1px 2px var(--shadow-warm-1),
     0 4px 12px var(--shadow-warm-2);
 }
@@ -561,20 +586,20 @@ input:focus {
 
 /* 弥散阴影 - 柔和光晕感 */
 .shadow-diffuse {
-  box-shadow: 
+  box-shadow:
     0 2px 4px var(--shadow-warm-1),
     0 8px 24px var(--shadow-warm-2),
     0 16px 48px var(--shadow-warm-3);
 }
 
 .shadow-diffuse-sm {
-  box-shadow: 
+  box-shadow:
     0 1px 2px var(--shadow-warm-1),
     0 4px 12px var(--shadow-warm-2);
 }
 
 .shadow-diffuse-lg {
-  box-shadow: 
+  box-shadow:
     0 4px 8px var(--shadow-warm-2),
     0 16px 48px var(--shadow-warm-3),
     0 32px 80px var(--shadow-warm-4);
@@ -582,13 +607,13 @@ input:focus {
 
 /* 挤压感边缘 - 内阴影模拟粘土挤压效果 */
 .clay-edge {
-  box-shadow: 
+  box-shadow:
     inset 0 1px 2px rgba(255, 255, 255, 0.8),
     inset 0 -1px 2px rgba(180, 170, 160, 0.1);
 }
 
 .clay-edge-strong {
-  box-shadow: 
+  box-shadow:
     inset 0 2px 4px rgba(255, 255, 255, 0.9),
     inset 0 -2px 4px rgba(180, 170, 160, 0.15);
 }
@@ -600,12 +625,12 @@ input:focus {
 /* 基础气泡 */
 .message-bubble {
   background: linear-gradient(135deg, var(--frost-pearl-light) 0%, var(--frost-pearl) 100%);
-  backdrop-filter: blur(12px) saturate(180%);
   -webkit-backdrop-filter: blur(12px) saturate(180%);
+  backdrop-filter: blur(12px) saturate(180%);
   border: 1px solid var(--border-pearl);
   border-radius: 20px;
   padding: 12px 16px;
-  box-shadow: 
+  box-shadow:
     0 1px 2px var(--shadow-warm-1),
     0 4px 12px var(--shadow-warm-2),
     inset 0 1px 0 rgba(255, 255, 255, 0.5);
@@ -616,7 +641,7 @@ input:focus {
 .message-bubble-user {
   background: linear-gradient(135deg, rgba(249, 246, 243, 0.95) 0%, rgba(245, 241, 238, 0.9) 100%);
   border-color: var(--border-pearl-strong);
-  box-shadow: 
+  box-shadow:
     0 2px 6px var(--shadow-warm-2),
     0 8px 24px var(--shadow-warm-3),
     inset 0 1px 0 rgba(255, 255, 255, 0.6);
@@ -625,7 +650,7 @@ input:focus {
 /* 助手气泡 - 纯净珍珠 */
 .message-bubble-assistant {
   background: linear-gradient(135deg, rgba(255, 254, 252, 0.92) 0%, rgba(251, 248, 245, 0.88) 100%);
-  box-shadow: 
+  box-shadow:
     0 1px 3px var(--shadow-warm-1),
     0 4px 12px var(--shadow-warm-2),
     inset 0 1px 0 rgba(255, 255, 255, 0.5);
@@ -637,12 +662,12 @@ input:focus {
 
 .input-pearl {
   background: linear-gradient(135deg, rgba(255, 254, 252, 0.95) 0%, rgba(251, 248, 245, 0.9) 100%);
-  backdrop-filter: blur(12px) saturate(180%);
   -webkit-backdrop-filter: blur(12px) saturate(180%);
+  backdrop-filter: blur(12px) saturate(180%);
   border: 1px solid var(--border-pearl);
   border-radius: 20px;
   padding: 12px 16px;
-  box-shadow: 
+  box-shadow:
     0 1px 2px var(--shadow-warm-1),
     0 4px 12px var(--shadow-warm-2),
     inset 0 1px 0 rgba(255, 255, 255, 0.6);
@@ -652,7 +677,7 @@ input:focus {
 .input-pearl:focus,
 .input-pearl:focus-within {
   border-color: var(--border-pearl-strong);
-  box-shadow: 
+  box-shadow:
     0 2px 6px var(--shadow-warm-2),
     0 8px 24px var(--shadow-warm-3),
     inset 0 1px 0 rgba(255, 255, 255, 0.7);
@@ -666,10 +691,10 @@ input:focus {
   background:
     radial-gradient(circle at top left, rgba(255, 255, 255, 0.82), transparent 28%),
     linear-gradient(180deg, rgba(255, 254, 252, 0.96) 0%, rgba(247, 242, 237, 0.92) 100%);
-  backdrop-filter: blur(16px) saturate(200%);
   -webkit-backdrop-filter: blur(16px) saturate(200%);
+  backdrop-filter: blur(16px) saturate(200%);
   border: 1px solid rgba(238, 226, 216, 0.82);
-  box-shadow: 
+  box-shadow:
     14px 0 32px rgba(183, 152, 126, 0.12),
     4px 0 16px rgba(183, 152, 126, 0.08),
     inset -10px 0 18px rgba(229, 214, 199, 0.28),
@@ -695,11 +720,11 @@ input:focus {
 
 .card-pearl {
   background: linear-gradient(135deg, var(--frost-pearl-light) 0%, var(--frost-pearl) 100%);
-  backdrop-filter: blur(14px) saturate(190%);
   -webkit-backdrop-filter: blur(14px) saturate(190%);
+  backdrop-filter: blur(14px) saturate(190%);
   border: 1px solid var(--border-pearl);
   border-radius: 20px;
-  box-shadow: 
+  box-shadow:
     0 2px 4px var(--shadow-warm-1),
     0 8px 24px var(--shadow-warm-2),
     inset 0 1px 0 rgba(255, 255, 255, 0.5);
@@ -709,7 +734,7 @@ input:focus {
 .card-pearl:hover {
   background: linear-gradient(135deg, rgba(255, 254, 252, 0.95) 0%, rgba(251, 248, 245, 0.9) 100%);
   border-color: var(--border-pearl-strong);
-  box-shadow: 
+  box-shadow:
     0 4px 8px var(--shadow-warm-2),
     0 12px 32px var(--shadow-warm-3),
     inset 0 1px 0 rgba(255, 255, 255, 0.6);
@@ -722,14 +747,14 @@ input:focus {
 
 .btn-pearl {
   background: linear-gradient(135deg, var(--frost-pearl-light) 0%, var(--frost-pearl) 100%);
-  backdrop-filter: blur(10px) saturate(170%);
   -webkit-backdrop-filter: blur(10px) saturate(170%);
+  backdrop-filter: blur(10px) saturate(170%);
   border: 1px solid var(--border-pearl);
   border-radius: 14px;
   padding: 10px 18px;
   font-weight: 500;
   color: var(--text-pearl-primary);
-  box-shadow: 
+  box-shadow:
     0 1px 2px var(--shadow-warm-1),
     0 4px 8px var(--shadow-warm-2),
     inset 0 1px 0 rgba(255, 255, 255, 0.6);
@@ -740,7 +765,7 @@ input:focus {
 .btn-pearl:hover {
   background: linear-gradient(135deg, rgba(255, 254, 252, 0.95) 0%, rgba(251, 248, 245, 0.9) 100%);
   border-color: var(--border-pearl-strong);
-  box-shadow: 
+  box-shadow:
     0 2px 6px var(--shadow-warm-2),
     0 8px 20px var(--shadow-warm-3),
     inset 0 1px 0 rgba(255, 255, 255, 0.7);
@@ -749,7 +774,7 @@ input:focus {
 
 .btn-pearl:active {
   transform: translateY(0);
-  box-shadow: 
+  box-shadow:
     0 1px 2px var(--shadow-warm-1),
     inset 0 1px 2px rgba(180, 170, 160, 0.1);
 }
@@ -759,7 +784,7 @@ input:focus {
   background: linear-gradient(135deg, var(--clay-soft) 0%, var(--clay-warm) 100%);
   border: 1px solid rgba(200, 160, 140, 0.5);
   color: white;
-  box-shadow: 
+  box-shadow:
     0 2px 4px rgba(200, 160, 140, 0.3),
     0 4px 12px rgba(200, 160, 140, 0.2);
   transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
@@ -768,7 +793,7 @@ input:focus {
 
 .btn-pearl-primary:hover {
   background: linear-gradient(135deg, #E5C0B0 0%, #DDB09A 100%);
-  box-shadow: 
+  box-shadow:
     0 3px 8px rgba(200, 160, 140, 0.4),
     0 6px 16px rgba(200, 160, 140, 0.25);
 }
@@ -779,15 +804,15 @@ input:focus {
 
 .quick-action-pearl {
   background: linear-gradient(135deg, var(--frost-pearl-light) 0%, var(--frost-pearl) 100%);
-  backdrop-filter: blur(10px) saturate(170%);
   -webkit-backdrop-filter: blur(10px) saturate(170%);
+  backdrop-filter: blur(10px) saturate(170%);
   border: 1px solid var(--border-pearl);
   border-radius: 14px;
   padding: 10px 14px;
   font-size: 13px;
   font-weight: 500;
   color: var(--text-pearl-primary);
-  box-shadow: 
+  box-shadow:
     0 1px 2px var(--shadow-warm-1),
     0 4px 8px var(--shadow-warm-2);
   transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
@@ -797,7 +822,7 @@ input:focus {
 .quick-action-pearl:hover {
   background: linear-gradient(135deg, rgba(255, 254, 252, 0.95) 0%, rgba(251, 248, 245, 0.9) 100%);
   border-color: var(--border-pearl-strong);
-  box-shadow: 
+  box-shadow:
     0 2px 6px var(--shadow-warm-2),
     0 8px 20px var(--shadow-warm-3);
   transform: translateY(-1px);
@@ -824,10 +849,10 @@ input:focus {
 
 .session-item-pearl-active {
   background: linear-gradient(135deg, var(--frost-pearl-light) 0%, var(--frost-pearl) 100%);
-  backdrop-filter: blur(10px) saturate(170%);
   -webkit-backdrop-filter: blur(10px) saturate(170%);
+  backdrop-filter: blur(10px) saturate(170%);
   border-color: var(--border-pearl-strong);
-  box-shadow: 
+  box-shadow:
     0 2px 4px var(--shadow-warm-1),
     0 4px 12px var(--shadow-warm-2),
     inset 0 1px 0 rgba(255, 255, 255, 0.5);
@@ -839,11 +864,11 @@ input:focus {
 
 .modal-pearl {
   background: linear-gradient(135deg, var(--frost-pearl-deep) 0%, var(--frost-pearl) 100%);
-  backdrop-filter: blur(24px) saturate(220%);
   -webkit-backdrop-filter: blur(24px) saturate(220%);
+  backdrop-filter: blur(24px) saturate(220%);
   border: 1px solid var(--border-pearl-strong);
   border-radius: 28px;
-  box-shadow: 
+  box-shadow:
     0 8px 32px var(--shadow-warm-3),
     0 16px 64px var(--shadow-warm-4),
     inset 0 1px 0 rgba(255, 255, 255, 0.8);
@@ -851,8 +876,8 @@ input:focus {
 
 .modal-header-pearl {
   background: linear-gradient(180deg, rgba(255, 254, 252, 0.7) 0%, transparent 100%);
-  backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
   border-bottom: 1px solid rgba(220, 215, 210, 0.3);
   padding: 20px 24px;
   border-radius: 28px 28px 0 0;
@@ -860,8 +885,8 @@ input:focus {
 
 .modal-footer-pearl {
   background: linear-gradient(0deg, rgba(249, 246, 243, 0.4) 0%, transparent 100%);
-  backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
   border-top: 1px solid rgba(220, 215, 210, 0.3);
   padding: 20px 24px;
   border-radius: 0 0 28px 28px;
@@ -870,8 +895,8 @@ input:focus {
 /*  backdrop - 柔焦黑 */
 .modal-backdrop-pearl {
   background: rgba(80, 70, 60, 0.4);
-  backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
 }
 
 /* =========================================
@@ -931,8 +956,8 @@ input:focus {
     0 6px 18px rgba(184, 152, 125, 0.1),
     inset 0 1px 0 rgba(255, 255, 255, 0.82),
     inset 0 -10px 24px rgba(227, 213, 199, 0.18);
-  backdrop-filter: blur(18px) saturate(160%);
   -webkit-backdrop-filter: blur(18px) saturate(160%);
+  backdrop-filter: blur(18px) saturate(160%);
 }
 
 .dark .app-shell-frame {
@@ -959,8 +984,8 @@ input:focus {
   border-radius: 28px;
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.92) 0%, rgba(252, 250, 247, 0.88) 52%, rgba(243, 232, 222, 0.92) 100%);
   padding: 0.5rem;
-  backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
   box-shadow: 0 12px 32px rgba(140, 116, 96, 0.12);
 }
 
@@ -1035,27 +1060,27 @@ input:focus {
    ========================================= */
 
 .shadow-clay-sm {
-  box-shadow: 
+  box-shadow:
     0 1px 2px var(--shadow-warm-1),
     0 2px 4px var(--shadow-warm-2);
 }
 
 .shadow-clay {
-  box-shadow: 
+  box-shadow:
     0 2px 4px var(--shadow-warm-1),
     0 6px 12px var(--shadow-warm-2),
     0 12px 24px var(--shadow-warm-3);
 }
 
 .shadow-clay-md {
-  box-shadow: 
+  box-shadow:
     0 4px 8px var(--shadow-warm-2),
     0 10px 20px var(--shadow-warm-3),
     0 20px 40px var(--shadow-warm-4);
 }
 
 .shadow-clay-lg {
-  box-shadow: 
+  box-shadow:
     0 6px 12px var(--shadow-warm-2),
     0 15px 30px var(--shadow-warm-3),
     0 30px 60px var(--shadow-warm-4);
@@ -1280,8 +1305,8 @@ input:focus {
 .card-light {
   position: relative;
   background: linear-gradient(135deg, rgba(255, 254, 252, 0.7) 0%, rgba(251, 248, 245, 0.6) 100%);
-  backdrop-filter: blur(12px) saturate(180%);
   -webkit-backdrop-filter: blur(12px) saturate(180%);
+  backdrop-filter: blur(12px) saturate(180%);
   border: 1px solid rgba(255, 255, 255, 0.4);
   border-radius: 20px;
   padding: 16px 20px;
@@ -1324,8 +1349,8 @@ input:focus {
 /* 超轻卡片 - 极简风格 */
 .card-ultralight {
   background: rgba(255, 254, 252, 0.5);
-  backdrop-filter: blur(8px) saturate(160%);
   -webkit-backdrop-filter: blur(8px) saturate(160%);
+  backdrop-filter: blur(8px) saturate(160%);
   border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: 16px;
   padding: 12px 16px;
@@ -1364,8 +1389,8 @@ input:focus {
 /* 玻璃卡片 - 高透明磨砂 (P0-1: 提高亮色模式对比度) */
 .card-glass {
   background: rgba(255, 254, 252, 0.95);  /* 从 0.4 提升至 0.95，确保内容清晰可读 */
-  backdrop-filter: blur(20px) saturate(220%);
   -webkit-backdrop-filter: blur(20px) saturate(220%);
+  backdrop-filter: blur(20px) saturate(220%);
   border: 1px solid rgba(255, 255, 255, 0.6);
   border-radius: 24px;
   padding: 20px 24px;
@@ -1408,8 +1433,8 @@ input:focus {
 /* 悬浮卡片 - 强悬浮感 */
 .card-float {
   background: linear-gradient(135deg, rgba(255, 254, 252, 0.85) 0%, rgba(251, 248, 245, 0.75) 100%);
-  backdrop-filter: blur(16px) saturate(200%);
   -webkit-backdrop-filter: blur(16px) saturate(200%);
+  backdrop-filter: blur(16px) saturate(200%);
   border: 1px solid rgba(255, 255, 255, 0.4);
   border-radius: 20px;
   padding: 16px 20px;
@@ -1509,7 +1534,7 @@ input:focus {
 
 /* 激活状态的光晕 */
 .glow-active {
-  box-shadow: 
+  box-shadow:
     0 0 0 2px rgba(224, 184, 168, 0.15),
     0 2px 8px rgba(224, 184, 168, 0.2),
     inset 0 1px 0 rgba(255, 255, 255, 0.5);
@@ -1525,20 +1550,21 @@ input:focus {
 
 /* 焦点环精致化 */
 .focus-ring-refined {
-  outline: none;
-  box-shadow: 
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  box-shadow:
     0 0 0 2px rgba(224, 184, 168, 0.1),
     0 0 0 4px rgba(224, 184, 168, 0.15);
 }
 
 /* 表格/列表行悬停 */
 .row-hover {
-  transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background 150ms cubic-bezier(0.4, 0, 0.2, 1), box-shadow 150ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .row-hover:hover {
   background: linear-gradient(90deg, rgba(249, 246, 243, 0.8) 0%, rgba(249, 246, 243, 0.4) 100%);
-  box-shadow: 
+  box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.5),
     0 1px 3px rgba(180, 170, 160, 0.08);
 }
@@ -1547,7 +1573,7 @@ input:focus {
 .badge-glow {
   background: linear-gradient(135deg, rgba(224, 184, 168, 0.15), rgba(212, 168, 148, 0.1));
   border: 1px solid rgba(224, 184, 168, 0.3);
-  box-shadow: 
+  box-shadow:
     0 1px 2px rgba(224, 184, 168, 0.15),
     inset 0 1px 0 rgba(255, 255, 255, 0.4);
 }
@@ -1555,7 +1581,7 @@ input:focus {
 /* 输入框聚焦精致化 */
 .input-focus-refined {
   border-color: rgba(224, 184, 168, 0.5);
-  box-shadow: 
+  box-shadow:
     0 0 0 3px rgba(224, 184, 168, 0.1),
     0 2px 8px rgba(180, 170, 160, 0.1);
 }
@@ -1570,7 +1596,7 @@ input:focus {
 .progress-refined .progress-bar {
   background: linear-gradient(90deg, var(--clay-soft) 0%, var(--clay-warm) 100%);
   border-radius: 9999px;
-  box-shadow: 
+  box-shadow:
     0 1px 3px rgba(224, 184, 168, 0.4),
     inset 0 1px 0 rgba(255, 255, 255, 0.3);
   transition: width 300ms cubic-bezier(0.4, 0, 0.2, 1);
@@ -1585,7 +1611,7 @@ input:focus {
 
 .toggle-refined-active {
   background: linear-gradient(135deg, var(--clay-soft), var(--clay-warm));
-  box-shadow: 
+  box-shadow:
     0 2px 4px rgba(224, 184, 168, 0.3),
     inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
@@ -1619,7 +1645,7 @@ input:focus {
   padding: 10px 18px;
   font-weight: 500;
   color: #5A5248;
-  box-shadow: 
+  box-shadow:
     0 1px 2px rgba(180, 170, 160, 0.1),
     0 2px 4px rgba(180, 170, 160, 0.15),
     inset 0 1px 0 rgba(255, 255, 255, 0.8),
@@ -1639,7 +1665,7 @@ input:focus {
 .btn-premium:hover {
   background: linear-gradient(135deg, #FFFFFF 0%, #FBF8F5 100%);
   border-color: rgba(200, 190, 180, 0.6);
-  box-shadow: 
+  box-shadow:
     0 2px 6px rgba(180, 170, 160, 0.15),
     0 4px 12px rgba(180, 170, 160, 0.2),
     inset 0 1px 0 rgba(255, 255, 255, 0.9),
@@ -1649,7 +1675,7 @@ input:focus {
 
 .btn-premium:active {
   transform: translateY(0);
-  box-shadow: 
+  box-shadow:
     0 1px 2px rgba(180, 170, 160, 0.1),
     inset 0 2px 4px rgba(180, 170, 160, 0.15);
 }
@@ -1659,7 +1685,7 @@ input:focus {
   background: linear-gradient(135deg, #A78BFA 0%, #8B5CF6 100%);
   border: 1px solid rgba(167, 139, 250, 0.5);
   color: white;
-  box-shadow: 
+  box-shadow:
     0 2px 4px rgba(167, 139, 250, 0.3),
     0 4px 12px rgba(167, 139, 250, 0.2),
     inset 0 1px 0 rgba(255, 255, 255, 0.4),
@@ -1668,7 +1694,7 @@ input:focus {
 
 .btn-premium-primary:hover {
   background: linear-gradient(135deg, #B69BFB 0%, #9B6CF7 100%);
-  box-shadow: 
+  box-shadow:
     0 3px 8px rgba(167, 139, 250, 0.4),
     0 6px 16px rgba(167, 139, 250, 0.25),
     inset 0 1px 0 rgba(255, 255, 255, 0.5),
@@ -1712,11 +1738,11 @@ input:focus {
   position: relative;
   z-index: 1;
   background: linear-gradient(135deg, var(--frost-pearl-light) 0%, var(--frost-pearl) 100%);
-  backdrop-filter: blur(14px) saturate(190%);
   -webkit-backdrop-filter: blur(14px) saturate(190%);
+  backdrop-filter: blur(14px) saturate(190%);
   border-radius: 19px;
   margin: 1px;
-  box-shadow: 
+  box-shadow:
     0 2px 4px rgba(180, 170, 160, 0.1),
     0 8px 24px rgba(180, 170, 160, 0.15),
     inset 0 1px 0 rgba(255, 255, 255, 0.6);
@@ -1724,7 +1750,7 @@ input:focus {
 }
 
 .card-premium:hover .card-premium-content {
-  box-shadow: 
+  box-shadow:
     0 4px 8px rgba(180, 170, 160, 0.15),
     0 12px 32px rgba(180, 170, 160, 0.2),
     inset 0 1px 0 rgba(255, 255, 255, 0.7);
@@ -1737,7 +1763,7 @@ input:focus {
   border: 1px solid rgba(220, 215, 210, 0.5);
   border-radius: 14px;
   padding: 10px 14px;
-  box-shadow: 
+  box-shadow:
     inset 0 1px 2px rgba(180, 170, 160, 0.1),
     0 1px 1px rgba(255, 255, 255, 0.8);
   transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
@@ -1745,7 +1771,7 @@ input:focus {
 
 .input-premium:focus {
   border-color: rgba(200, 190, 180, 0.6);
-  box-shadow: 
+  box-shadow:
     inset 0 1px 2px rgba(180, 170, 160, 0.15),
     0 0 0 3px rgba(224, 184, 168, 0.1),
     0 2px 8px rgba(180, 170, 160, 0.1);
@@ -1754,11 +1780,11 @@ input:focus {
 /* 分隔线精致化 */
 .divider-premium {
   height: 1px;
-  background: linear-gradient(90deg, 
-    transparent 0%, 
-    rgba(220, 215, 210, 0.3) 20%, 
-    rgba(220, 215, 210, 0.5) 50%, 
-    rgba(220, 215, 210, 0.3) 80%, 
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(220, 215, 210, 0.3) 20%,
+    rgba(220, 215, 210, 0.5) 50%,
+    rgba(220, 215, 210, 0.3) 80%,
     transparent 100%);
 }
 
@@ -1772,7 +1798,7 @@ input:focus {
   border-radius: 9999px;
   background: linear-gradient(135deg, rgba(224, 184, 168, 0.15), rgba(212, 168, 148, 0.1));
   border: 1px solid rgba(224, 184, 168, 0.3);
-  box-shadow: 
+  box-shadow:
     0 1px 2px rgba(224, 184, 168, 0.15),
     inset 0 1px 0 rgba(255, 255, 255, 0.5);
 }
@@ -1791,7 +1817,7 @@ input:focus {
   border-radius: 9999px;
   background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%);
   color: white;
-  box-shadow: 
+  box-shadow:
     0 1px 3px rgba(239, 68, 68, 0.4),
     inset 0 1px 0 rgba(255, 255, 255, 0.3);
 }
@@ -1802,8 +1828,8 @@ input:focus {
 
 .frost-overlay {
   background: var(--frost-pearl);
-  backdrop-filter: blur(16px) saturate(200%);
   -webkit-backdrop-filter: blur(16px) saturate(200%);
+  backdrop-filter: blur(16px) saturate(200%);
 }
 
 /* =========================================

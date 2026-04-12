@@ -20,6 +20,7 @@ export function isLegacyHiddenSession(session: Pick<CoworkSessionSummary, 'syste
 }
 
 export function inferSessionSource(session: Pick<CoworkSessionSummary, 'title' | 'systemPrompt' | 'sourceType'>): Exclude<SessionSourceFilter, 'all'> {
+  // {标记} DISPLAY_ONLY: sourceType 存在时它才是后端真相；下面这些 systemPrompt/title 分支只是 legacy 数据的展示/筛选启发式。
   if (session.sourceType === 'desktop' || session.sourceType === 'external') {
     return session.sourceType;
   }

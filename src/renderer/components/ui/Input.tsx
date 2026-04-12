@@ -5,9 +5,8 @@
  * {标记} 状态：新建✅
  */
 
+import { EyeIcon, EyeSlashIcon, XCircleIcon } from '@heroicons/react/20/solid';
 import React, { forwardRef, useState } from 'react';
-import { EyeIcon, EyeSlashIcon } from '@heroicons/react/20/solid';
-import { XCircleIcon } from '@heroicons/react/20/solid';
 
 export interface InputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'size'> {
   /** 输入框变体 */
@@ -131,6 +130,8 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
               <button
                 type="button"
                 onClick={handleClear}
+                aria-label="清空输入"
+                title="清空输入"
                 className="text-claude-textTertiary hover:text-claude-text dark:text-claude-darkTextTertiary dark:hover:text-claude-darkText transition-colors"
               >
                 <XCircleIcon className="h-4 w-4" />
@@ -140,6 +141,8 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
+                aria-label={showPassword ? '隐藏密码' : '显示密码'}
+                title={showPassword ? '隐藏密码' : '显示密码'}
                 className="text-claude-textTertiary hover:text-claude-text dark:text-claude-darkTextTertiary dark:hover:text-claude-darkText transition-colors"
               >
                 {showPassword ? (

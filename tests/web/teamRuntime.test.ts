@@ -1,15 +1,18 @@
-import test from 'node:test';
 import assert from 'node:assert/strict';
+import test from 'node:test';
 
-import exampleTask from '../../src/renderer/mock/teamTask.example.json';
 import {
-  buildTeamRuntime,
-  getBoardRevealProgress,
-  getActiveBoardBlocks,
+    buildTeamRuntime,
+    getActiveBoardBlocks,
+    getBoardRevealProgress,
 } from '../../src/renderer/lib/handwriteAdapter';
+import exampleTask from '../../src/renderer/mock/teamTask.example.json';
+import type { TeamTaskDefinition } from '../../src/renderer/types/teamRuntime';
+
+const teamTaskDefinition = exampleTask as TeamTaskDefinition;
 
 test('buildTeamRuntime wires the 418-170-118 example from audio axis to canvas timeline', () => {
-  const runtime = buildTeamRuntime(exampleTask);
+  const runtime = buildTeamRuntime(teamTaskDefinition);
 
   assert.equal(runtime.taskId, '2332');
   assert.equal(runtime.currentMs, 360);
@@ -21,7 +24,7 @@ test('buildTeamRuntime wires the 418-170-118 example from audio axis to canvas t
       'speech:418-170-118',
       'board:418-170-118',
       'board:418-118-170',
-      'board:300-170',
+      'board:288-(44+156)=288-200=88',
     ],
   );
   assert.deepEqual(
@@ -36,7 +39,7 @@ test('buildTeamRuntime wires the 418-170-118 example from audio axis to canvas t
 });
 
 test('getActiveBoardBlocks exposes the current board step for the canvas', () => {
-  const runtime = buildTeamRuntime(exampleTask);
+  const runtime = buildTeamRuntime(teamTaskDefinition);
 
   assert.deepEqual(
     getActiveBoardBlocks(runtime.boardTimeline, 360).map((block) => block.label),
@@ -50,7 +53,7 @@ test('getActiveBoardBlocks exposes the current board step for the canvas', () =>
 });
 
 test('getBoardRevealProgress returns a usable reveal percentage for the active board block', () => {
-  const runtime = buildTeamRuntime(exampleTask);
+  const runtime = buildTeamRuntime(teamTaskDefinition);
   const firstBlock = runtime.boardTimeline[0];
 
   assert.equal(getBoardRevealProgress(firstBlock, firstBlock.startTime), 0);

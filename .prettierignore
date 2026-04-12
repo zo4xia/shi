@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+dist/
+build/
+coverage/
+
+# Outputs
+server/public/
+server/dist/
+
+# Files
+*.lock
+*.log
+CHANGELOG.md
+
+# Directories
+.next/
+.venv/
+.env
+
+# Team related (don't format)
+team.html
+src/renderer/team-main.tsx
+src/renderer/components/team/
+
+# Build outputs
+*.min.js
+*.min.css

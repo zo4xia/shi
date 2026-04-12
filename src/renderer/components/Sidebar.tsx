@@ -1,21 +1,19 @@
+import { HeartIcon, LinkIcon, PhotoIcon, ShoppingBagIcon } from '@heroicons/react/24/outline';
+import { StarIcon } from '@heroicons/react/24/solid';
 import React from 'react';
+import {
+    getTouchButtonClass,
+    UI_MARK_ICON_CLASS,
+    UI_MENU_ICON_CLASS,
+    UI_SECTION_PADDING_CLASS,
+} from '../../shared/mobileUi';
 import { getPlatform } from '../utils/platform';
+import ClockIcon from './icons/ClockIcon';
 import ComposeIcon from './icons/ComposeIcon';
 import ConnectorIcon from './icons/ConnectorIcon';
-import SearchIcon from './icons/SearchIcon';
-import ClockIcon from './icons/ClockIcon';
 import PuzzleIcon from './icons/PuzzleIcon';
+import SearchIcon from './icons/SearchIcon';
 import SidebarToggleIcon from './icons/SidebarToggleIcon';
-import { ShoppingBagIcon, PhotoIcon, LinkIcon, HeartIcon } from '@heroicons/react/24/outline';
-import { StarIcon } from '@heroicons/react/24/solid';
-import {
-  getTouchButtonClass,
-  UI_LABEL_TEXT_CLASS,
-  UI_MARK_ICON_CLASS,
-  UI_MENU_ICON_CLASS,
-  UI_SECTION_PADDING_CLASS,
-} from '../../shared/mobileUi';
-import { useIsMobileViewport } from '../hooks/useIsMobileViewport';
 import SidebarCompactGrid from './SidebarCompactGrid';
 import type { SidebarCompactTileItem } from './SidebarCompactTile';
 
@@ -58,7 +56,6 @@ const Sidebar: React.FC<SidebarProps> = ({
   updateBadge,
 }) => {
   const isMac = getPlatform() === 'darwin';
-  const isMobileViewport = useIsMobileViewport();
   const compactQuickItems: SidebarCompactTileItem[] = [
     {
       key: 'cowork-compact',
@@ -68,8 +65,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       onClick: onNewChat,
       shellClass: 'border-[#ffd7d7] bg-[#fff0ef] text-[#8a5751] hover:bg-[#ffe8e5]',
       iconWrapClass: 'bg-[#ffdede] text-[#d9786c]',
-    },
-    {
+    },    {
       key: 'sessionHistory-compact',
       active: activeView === 'sessionHistory',
       label: '频道',
@@ -157,14 +153,8 @@ const Sidebar: React.FC<SidebarProps> = ({
       className={`sidebar-pearl dark:bg-claude-darkSurfaceMuted flex flex-col overflow-hidden shrink-0 sidebar-transition ${
         isCollapsed
           ? 'w-0 min-w-0'
-          : isMobileViewport
-            ? 'm-1.5 mr-0 w-[228px] min-w-[228px] max-w-[228px]'
-            : 'm-1.5 mr-0 w-[248px] min-w-[248px] max-w-[248px]'
+          : 'm-0 w-[248px] min-w-[248px] max-w-[248px]'
       }`}
-      style={isCollapsed ? undefined : {
-        borderTopRightRadius: 'var(--uclaw-shell-radius)',
-        borderBottomRightRadius: 'var(--uclaw-shell-radius)',
-      }}
     >
       <div className={UI_SECTION_PADDING_CLASS}>
         <div className="draggable sidebar-header-drag flex items-center justify-between gap-3">

@@ -27,7 +27,7 @@ export interface OptionButtonProps {
 /**
  * OptionButton组件
  * 用于显示可选择的选项,支持单选和多选模式
- * 
+ *
  * @example
  * // 单选模式
  * <OptionButton
@@ -36,7 +36,7 @@ export interface OptionButtonProps {
  *   isSelected={selected === 'option1'}
  *   onClick={() => setSelected('option1')}
  * />
- * 
+ *
  * @example
  * // 多选模式
  * <OptionButton
@@ -56,27 +56,34 @@ export const OptionButton: React.FC<OptionButtonProps> = ({
   disabled = false,
   className = '',
 }) => {
+  const buttonClasses = [
+    'w-full text-left rounded-xl border px-4 py-2.5 transition-colors',
+    isSelected
+      ? 'border-claude-accent bg-claude-accent/15 text-claude-text dark:text-claude-darkText shadow-sm'
+      : 'border-claude-border dark:border-claude-darkBorder dark:text-claude-darkTextSecondary text-claude-textSecondary hover:bg-claude-surfaceHover dark:hover:bg-claude-darkSurfaceHover',
+    disabled ? 'opacity-50 cursor-not-allowed' : '',
+    className
+  ].filter(Boolean).join(' ');
+
+  const checkboxClasses = [
+    'mt-0.5 flex-shrink-0 w-4 h-4 rounded border-2 transition-colors',
+    isSelected
+      ? 'bg-claude-accent border-claude-accent'
+      : 'border-claude-border dark:border-claude-darkBorder'
+  ].filter(Boolean).join(' ');
+
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`w-full text-left rounded-xl border px-4 py-2.5 transition-colors ${
-        isSelected
-          ? 'border-claude-accent bg-claude-accent/15 text-claude-text dark:text-claude-darkText shadow-sm'
-          : 'border-claude-border dark:border-claude-darkBorder dark:text-claude-darkTextSecondary text-claude-textSecondary hover:bg-claude-surfaceHover dark:hover:bg-claude-darkSurfaceHover'
-      } ${disabled ? 'opacity-50 cursor-not-allowed' : ''} ${className}`}
-      aria-selected={isSelected}
-      aria-disabled={disabled}
+      className={buttonClasses}
+      aria-pressed={isSelected ? 'true' : 'false'}
     >
       <div className="flex items-start gap-3">
         {multiSelect && (
           <div
-            className={`mt-0.5 flex-shrink-0 w-4 h-4 rounded border-2 transition-colors ${
-              isSelected
-                ? 'bg-claude-accent border-claude-accent'
-                : 'border-claude-border dark:border-claude-darkBorder'
-            }`}
+            className={checkboxClasses}
             aria-hidden="true"
           >
             {isSelected && (

@@ -1,14 +1,14 @@
-import React from 'react';
-import { SignalIcon } from '@heroicons/react/24/outline';
 import { EyeIcon, EyeSlashIcon, XCircleIcon as XCircleIconSolid } from '@heroicons/react/20/solid';
-import ThemedSelect from '../ui/ThemedSelect';
-import { renderAgentRoleAvatar } from '../../utils/agentRoleDisplay';
+import { SignalIcon } from '@heroicons/react/24/outline';
+import React from 'react';
 import {
-  getAgentRoleDisplayAvatar,
-  getDesignerImageApiTypeOptions,
-  type AgentRoleConfigEntry,
-  type CompatibleApiFormat,
+    getAgentRoleDisplayAvatar,
+    getDesignerImageApiTypeOptions,
+    type AgentRoleConfigEntry,
+    type CompatibleApiFormat,
 } from '../../../shared/agentRoleConfig';
+import { renderAgentRoleAvatar } from '../../utils/agentRoleDisplay';
+import ThemedSelect from '../ui/ThemedSelect';
 
 const AgentRoleCardShell: React.FC<{
   title: string;

@@ -2,10 +2,11 @@
  * {祖传勿改} Scheduler - 定时任务调度引擎
  * {标记} 功能：定时轮询 + 任务执行 + CoworkSession 启动
  * {标记} 用途：按计划自动执行 AI 任务（每日记忆抽取等）
- * {验证} 2026-03-17 复查：调度逻辑正常，身份绑定已修复 ✅
- * {警告} 修改此文件会影响所有定时任务的执行时机和身份绑定
+ * {验证} 2026-03-17 复查：调度逻辑正常，角色身份边界已修复 ✅
+ * {警告} 修改此文件会影响所有定时任务的执行时机，以及角色身份/运行模型元信息的传递方式
  * {标记} 旧污染残留: CoworkRunner 兼容代码仍在本文件里，但当前 server runtime 已优先改走轻执行器。
  * {标记} 重构边界-待确认: 后续若继续切轻链，必须成组核对 scheduledTask run/history/status/stop
+ * {标记} PHASE1-SCHEDULER-SCOPE: 一期定时任务只保角色正确、定时正确、执行正确；更复杂的通知/编排/扩展能力放二期。
  */
 import { BrowserWindow } from '../electron';
 import { ScheduledTaskStore, ScheduledTask, ScheduledTaskRun, Schedule, NotifyPlatform } from '../scheduledTaskStore';

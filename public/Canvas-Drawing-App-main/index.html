@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Paint</title>
+    <link rel="stylesheet" href="style.css" />
+    <script src="script.js" defer></script>
+</head>
+
+<body>
+    <div class="toolbar">
+        <ul>
+            <li>
+                <span>Instrumente</span>
+                <ul class="instrumenteDesen">
+                    <li><img class="ellipse" src="media/ellipse.png" alt="Elipsă" title="Elipsă" /></li>
+                    <li><img class="line" src="media/line.png" alt="Linie" title="Linie" /></li>
+                    <li><img class="rectangle" src="media/rectangle.png" alt="Dreptunghi" title="Dreptunghi" /></li>
+                </ul>
+            </li>
+            <li>
+                <label for="lineColor">Culoare contur</label>
+                <input type="color" id="lineColor">
+            </li>
+            <li>
+                <label for="lineSize">Grosime linie</label>
+                <select id="lineSize">
+                    <option value="1">1 px</option>
+                    <option value="2">2 px</option>
+                    <option value="3">3 px</option>
+                    <option value="4">4 px</option>
+                    <option value="5">5 px</option>
+                </select>
+            </li>
+            <li>
+                <label for="bgColor">Culoare fundal</label>
+                <input type="color" id="bgColor">
+            </li>
+            <li>
+                <input type="button" value="Export PNG" id="exportRaster">
+            </li>
+            <li>
+                <input type="button" value="Export SVG" id="exportSVG">
+            </li>
+        </ul>
+    </div>
+
+    <canvas width="960" height="640"></canvas>
+
+</body>
+</html>

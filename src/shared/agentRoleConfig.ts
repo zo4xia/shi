@@ -1,7 +1,7 @@
 /**
  * {标记} 功能: 4身份Agent配置系统
  * {标记} 来源: 二开需求总表#2.2
- * {标记} 用途: 统一选模型为选身份，支持organizer/writer/designer/analyst四个固定角色槽位
+ * {标记} 用途: 统一四个固定角色槽位的运行配置；身份仍由 role/agent_role_key 定义，模型只是运行时发动机元信息
  * {标记} 集成: Settings.tsx#2700-2764 / CoworkRunner / IM路由
  * {标记} 状态: 源代码完整✅ / 共享线程逻辑缺失❌ / 跨渠道一体化缺失❌
  */
@@ -254,6 +254,47 @@ export function findPrimaryAgentRole(
     return firstRole;
   }
   return null;
+}
+
+export function resolveDefaultAgentRoleKey(config?: AppConfigLike | null): AgentRoleKey | null {
+  if (!config) {
+    return null;
+  }
+
+  const explicitProvider = config.model?.defaultModelProvider;
+  if (explicitProvider && roleProviderKeys.has(explicitProvider as AgentRoleKey)) {
+    return explicitProvider as AgentRoleKey;
+  }
+
+  const roles = normalizeAgentRolesForSave(resolveAgentRolesFromConfig(config));
+  const defaultApiUrl = config.api?.baseUrl?.trim().replace(/\/+$/, '') || '';
+  const defaultApiKey = config.api?.key?.trim() || '';
+  const defaultModelId = config.model?.defaultModel?.trim() || '';
+
+  if (!defaultApiUrl && !defaultApiKey && !defaultModelId) {
+    return null;
+  }
+
+  const matchingRole = AGENT_ROLE_ORDER.find((roleKey) => {
+    const role = roles[roleKey];
+    if (!role.enabled) {
+      return false;
+    }
+
+    const normalizedRoleApiUrl = role.apiUrl.trim().replace(/\/+$/, '');
+    if (defaultApiUrl && normalizedRoleApiUrl !== defaultApiUrl) {
+      return false;
+    }
+    if (defaultApiKey && role.apiKey.trim() !== defaultApiKey) {
+      return false;
+    }
+    if (defaultModelId && role.modelId.trim() !== defaultModelId) {
+      return false;
+    }
+    return true;
+  });
+
+  return matchingRole ?? null;
 }
 
 function inferApiFormat(config: AppConfigLike): CompatibleApiFormat {

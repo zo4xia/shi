@@ -58,6 +58,74 @@ export function normalizeAssistantMessageContent(value: unknown): string | null 
   return text ? text : null;
 }
 
+const INVOKE_MARKUP_PREFIXES = [
+  // {标记} P0-MINIMAX-NATIVE-TOOL-SYNTAX:
+  // 某些 provider，尤其 MiniMax，会在未真正走通 executor tool loop 时，
+  // 先吐自己家的工具调用标记。
+  // 这些标记只能当“模型自带 tool 语法痕迹”，不能直接等价成
+  // “我们的现役工具链已经真实完成了一次 tool use”。
+  '<invoke',
+  '</invoke',
+  '<minimax:tool_call',
+  '</minimax:tool_call',
+];
+
+export function containsInvokeMarkupSignal(value: string | null | undefined): boolean {
+  const text = String(value || '');
+  if (!text.trim()) {
+    return false;
+  }
+
+  if (/<\/?(?:invoke|minimax:tool_call)\b/i.test(text)) {
+    return true;
+  }
+
+  const lastAngleIndex = text.lastIndexOf('<');
+  if (lastAngleIndex < 0) {
+    return false;
+  }
+
+  const trailingFragment = text.slice(lastAngleIndex).replace(/\s+/g, '').toLowerCase();
+  if (trailingFragment.length < 4 || trailingFragment.includes('>')) {
+    return false;
+  }
+
+  return INVOKE_MARKUP_PREFIXES.some((prefix) => prefix.startsWith(trailingFragment));
+}
+
+export function stripInvokeMarkupFromAssistantContent(value: string | null | undefined): string | null {
+  const text = String(value || '');
+  if (!text.trim()) {
+    return null;
+  }
+
+  let stripped = text
+    .replace(/<invoke\b[^>]*>[\s\S]*?<\/invoke>/gi, ' ')
+    .replace(/<minimax:tool_call[\s\S]*?<\/minimax:tool_call>/gi, ' ')
+    .trim();
+
+  const unmatchedInvokeIndex = stripped.search(/<\/?(?:invoke\b|minimax:tool_call\b)/i);
+  if (unmatchedInvokeIndex >= 0) {
+    stripped = stripped.slice(0, unmatchedInvokeIndex);
+  }
+
+  const lastAngleIndex = stripped.lastIndexOf('<');
+  if (lastAngleIndex >= 0) {
+    const trailingFragment = stripped.slice(lastAngleIndex).replace(/\s+/g, '').toLowerCase();
+    if (
+      trailingFragment.length >= 4
+      && !trailingFragment.includes('>')
+      && INVOKE_MARKUP_PREFIXES.some((prefix) => prefix.startsWith(trailingFragment))
+    ) {
+      stripped = stripped.slice(0, lastAngleIndex);
+    }
+  }
+
+  stripped = stripped.replace(/\s+/g, ' ').trim();
+
+  return stripped ? stripped : null;
+}
+
 export function extractAssistantToolCalls(payload: any): OpenAIToolCallCompat[] {
   const firstChoice = payload?.choices?.[0];
   const message = firstChoice?.message;
@@ -113,6 +181,11 @@ export function extractAssistantToolCalls(payload: any): OpenAIToolCallCompat[] 
   const contentBasedToolCalls = extractToolCallsFromMessageContent(message?.content);
   if (contentBasedToolCalls.length > 0) {
     return contentBasedToolCalls;
+  }
+
+  const invokeMarkupToolCalls = extractToolCallsFromInvokeMarkup(message?.content);
+  if (invokeMarkupToolCalls.length > 0) {
+    return invokeMarkupToolCalls;
   }
 
   const responsesToolCalls = extractToolCallsFromResponsesOutput(payload?.output);
@@ -252,6 +325,61 @@ function extractToolCallsFromMessageContent(content: unknown): OpenAIToolCallCom
     .filter((item): item is OpenAIToolCallCompat => Boolean(item));
 }
 
+function extractToolCallsFromInvokeMarkup(content: unknown): OpenAIToolCallCompat[] {
+  const rawText = flattenContentToText(content).trim();
+  if (!rawText || !/<invoke\b/i.test(rawText)) {
+    return [];
+  }
+
+  const toolCalls: OpenAIToolCallCompat[] = [];
+  const invokeRe = /<invoke\b[^>]*\bname=(['"])([^'"]+)\1[^>]*>([\s\S]*?)<\/invoke>/gi;
+  let invokeMatch: RegExpExecArray | null = null;
+  let index = 0;
+
+  while ((invokeMatch = invokeRe.exec(rawText)) !== null) {
+    const name = String(invokeMatch[2] || '').trim();
+    if (!name) {
+      continue;
+    }
+
+    const inner = String(invokeMatch[3] || '');
+    const argsObject: Record<string, unknown> = {};
+    const parameterRe = /<parameter\b[^>]*\bname=(['"])([^'"]+)\1[^>]*>([\s\S]*?)<\/parameter>/gi;
+    let parameterMatch: RegExpExecArray | null = null;
+
+    while ((parameterMatch = parameterRe.exec(inner)) !== null) {
+      const key = String(parameterMatch[2] || '').trim();
+      if (!key) {
+        continue;
+      }
+      argsObject[key] = decodeInvokeMarkupText(parameterMatch[3] || '');
+    }
+
+    const hasParameters = Object.keys(argsObject).length > 0;
+    let argumentsText = '{}';
+    if (hasParameters) {
+      argumentsText = JSON.stringify(argsObject);
+    } else {
+      const fallback = decodeInvokeMarkupText(inner).trim();
+      if (fallback.startsWith('{') || fallback.startsWith('[')) {
+        argumentsText = fallback;
+      }
+    }
+
+    toolCalls.push({
+      id: `invoke_markup_${index}`,
+      type: 'function',
+      function: {
+        name,
+        arguments: argumentsText,
+      },
+    });
+    index += 1;
+  }
+
+  return toolCalls;
+}
+
 function extractToolCallsFromResponsesOutput(output: unknown): OpenAIToolCallCompat[] {
   if (!Array.isArray(output)) {
     return [];
@@ -289,4 +417,50 @@ function extractToolCallsFromResponsesOutput(output: unknown): OpenAIToolCallCom
       };
     })
     .filter((item): item is OpenAIToolCallCompat => Boolean(item));
+}
+
+function flattenContentToText(content: unknown): string {
+  if (typeof content === 'string') {
+    return content;
+  }
+  if (Array.isArray(content)) {
+    return content
+      .map((part) => {
+        if (typeof part === 'string') {
+          return part;
+        }
+        if (typeof part?.text === 'string') {
+          return part.text;
+        }
+        if (typeof part?.text?.value === 'string') {
+          return part.text.value;
+        }
+        if (typeof part?.content === 'string') {
+          return part.content;
+        }
+        return '';
+      })
+      .join('\n');
+  }
+  if (content && typeof content === 'object') {
+    const record = content as Record<string, any>;
+    if (typeof record.text === 'string') {
+      return record.text;
+    }
+    if (typeof record.content === 'string') {
+      return record.content;
+    }
+  }
+  return '';
+}
+
+function decodeInvokeMarkupText(value: string): string {
+  return String(value || '')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, '&')
+    .replace(/\r?\n\s*/g, ' ')
+    .trim();
 }

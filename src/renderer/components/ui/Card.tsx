@@ -1,10 +1,3 @@
-/**
- * {标记} 功能：通用卡片容器组件
- * {标记} 用途：统一卡片样式，用于设置项、内容区块等
- * {标记} 集成：Settings.tsx, IMSettings.tsx, 等所有页面
- * {标记} 状态：新建✅
- */
-
 import React from 'react';
 
 export interface CardProps {
@@ -60,8 +53,22 @@ export const Card: React.FC<CardProps> = ({
     }
   };
 
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!clickable || !onClick) return;
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      onClick();
+    }
+  };
+
   return (
-    <div className={baseClasses} onClick={handleClick}>
+    <div
+      className={baseClasses}
+      onClick={handleClick}
+      onKeyDown={handleKeyDown}
+      role={clickable ? 'button' : undefined}
+      tabIndex={clickable ? 0 : undefined}
+    >
       {(title || action) && (
         <div className="flex items-start justify-between mb-3">
           <div className="flex-1 min-w-0">

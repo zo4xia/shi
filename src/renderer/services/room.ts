@@ -287,6 +287,8 @@ export async function invokeRoomParticipant(
   room: RoomSessionRecord,
   participant: RoomParticipant
 ): Promise<string> {
+  // {标记} P0-AGENT-ROOM-SYNC: Room 参与者当前走的是轻量直连聊天旁路，不会自动吃到主执行器里的 role-home doorplate、continuity rules、role_home_* tools。
+  // {标记} DISPLAY_ONLY: 如果主链边界更新，这里的唤醒提示也必须同步，不然 Room 里的小家伙会和主家园吃到两套不同规则。
   const config = configService.getConfig();
   const roles = normalizeAgentRolesForSave(resolveAgentRolesFromConfig(config));
   const role = roles[participant.roleKey];

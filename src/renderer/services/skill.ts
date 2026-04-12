@@ -121,12 +121,53 @@ export interface RoleCapabilitySnapshotFile {
 export interface RoleRuntimePayload {
   success: boolean;
   roleKey: string;
+  paths?: {
+    roleRoot: string;
+    settingsPath: string;
+    capabilitySnapshotPath: string;
+    skillsIndexPath: string;
+    skillConfigsRoot: string;
+    skillSecretsRoot: string;
+    notesRoot: string;
+    roleNotesPath: string;
+    pitfallsPath: string;
+  };
+  settingsView?: unknown;
+  notes?: {
+    roleNotes: string;
+    pitfalls: string;
+  };
   capabilitySnapshot?: RoleCapabilitySnapshotFile;
+  health?: {
+    ready: boolean;
+    enabled: boolean;
+    apiKeyConfigured: boolean;
+    capabilitySyncStatus: 'ok' | 'warning';
+    capabilityWarnings: string[];
+    runtimeFileWarnings: string[];
+    runtimeFileChecks: unknown[];
+    invalidSkillBindings: unknown[];
+    truthSources: {
+      roleSettings: string;
+      roleSettingsPath: string;
+      skillsIndex: string;
+      capabilitySnapshot: string;
+    };
+  };
   summary?: {
+    sessionsTotal?: number;
+    runningSessions?: number;
+    lastSessionAt?: number | null;
+    tasksTotal?: number;
+    enabledTasks?: number;
+    runningTasks?: number;
+    taskErrors?: number;
     skillBindings: number;
     mcpBindings: number;
     invalidSkillBindings: number;
+    memories?: number;
     capabilityWarnings: number;
+    runtimeFileWarnings?: number;
   };
 }
 
@@ -515,6 +556,7 @@ class SkillService {
   async getRoleRuntime(roleKey: string): Promise<RoleRuntimePayload | null> {
     // {路标} FLOW-SERVICE-SKILL-RUNTIME
     // {FLOW} SKILL-RUNTIME-SNAPSHOT: 角色运行态快照当前直接走 /api/role-runtime/:roleKey，不经过 window.electron.skillRoleConfigs。
+    // {标记} ROLE-RUNTIME-RENDER-SOURCE: 前端房间/技能/MCP 相关展示统一从 /api/role-runtime/:roleKey 取数，不要各自拼第二套来源。
     try {
       const response = await fetch(`/api/role-runtime/${encodeURIComponent(roleKey)}`);
       const raw = await response.text();

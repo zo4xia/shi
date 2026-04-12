@@ -8,95 +8,93 @@ import DataBackup from './DataBackup';
  * {标记} 状态: Agent配置UI完整✅ / 跨渠道一体化缺失❌
  */
 
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { configService } from '../services/config';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { apiService } from '../services/api';
 import type { AppUpdateInfo } from '../services/appUpdate';
+import { configService } from '../services/config';
 import { themeService } from '../services/theme';
 // i18n removed — hardcoded Chinese
-import { coworkService } from '../services/cowork';
-import { localStore } from '../services/store';
-import ErrorMessage from './ErrorMessage';
-import { XMarkIcon, SignalIcon, CheckCircleIcon, XCircleIcon, CubeIcon, EnvelopeIcon, InformationCircleIcon } from '@heroicons/react/24/outline';
-import { EyeIcon, EyeSlashIcon, XCircleIcon as XCircleIconSolid } from '@heroicons/react/20/solid';
-import PlusCircleIcon from './icons/PlusCircleIcon';
-import IMSettings from './im/IMSettings';
-import NativeCapabilitiesSettings from './settings/NativeCapabilitiesSettings';
-import {
-  AgentRoleApiConfigCard,
-  AgentRoleIdentityCard,
-  AgentRoleStatusCard,
-} from './settings/AgentRoleModelCards';
-import EmbeddedIframeView from './EmbeddedIframeView';
+import { CheckCircleIcon, CubeIcon, EnvelopeIcon, InformationCircleIcon, SignalIcon, XCircleIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { useDispatch, useSelector } from 'react-redux';
-import { setAvailableModels } from '../store/slices/modelSlice';
-import { RootState } from '../store';
-import ThemedSelect from './ui/ThemedSelect';
 import {
-  AGENT_ROLE_LABELS,
   AGENT_ROLE_ORDER,
-  CONFIRMED_DESIGNER_IMAGE_MODEL_HINTS,
   buildAvailableModelsFromAgentRoles,
   buildProviderConfigsFromAgentRoles,
   createDefaultAgentRoles,
   getAgentRoleDisplayAvatar,
-  getDesignerImageApiTypeOptions,
   isAgentRoleProviderKey,
   normalizeAgentRolesForSave,
   pickNextApiKey,
   resolveAgentRolesFromConfig,
+  resolveDefaultAgentRoleKey,
+  type AppConfigLike,
   type AgentRoleConfigMap,
   type AgentRoleKey,
   type CompatibleApiFormat,
 } from '../../shared/agentRoleConfig';
 import {
   buildConversationFileCacheUpdate,
+  normalizeConversationFileCacheDirectory,
   resolveConversationFileCacheConfig,
 } from '../../shared/conversationFileCacheConfig';
-import type {
-  CoworkUserMemoryEntry,
-  CoworkMemoryStats,
-  CoworkBroadcastBoardSnapshot,
-} from '../types/cowork';
-import { defaultConfig, type AppConfig, getVisibleProviders } from '../config';
 import {
   normalizeNativeCapabilitiesConfig,
   type NativeCapabilitiesConfig,
 } from '../../shared/nativeCapabilities/config';
+import { defaultConfig, getVisibleProviders, type AppConfig } from '../config';
+import { coworkService } from '../services/cowork';
+import { localStore } from '../services/store';
+import { RootState } from '../store';
+import { setAvailableModels } from '../store/slices/modelSlice';
+import type {
+  CoworkBroadcastBoardSnapshot,
+  CoworkMemoryStats,
+  CoworkUserMemoryEntry,
+} from '../types/cowork';
+import { hasAutoLaunch } from '../utils/platform';
+import EmbeddedIframeView from './EmbeddedIframeView';
+import ErrorMessage from './ErrorMessage';
+import PlusCircleIcon from './icons/PlusCircleIcon';
 import {
-  OpenAIIcon,
+  AnthropicIcon,
+  CustomProviderIcon,
   DeepSeekIcon,
   GeminiIcon,
-  AnthropicIcon,
-  MoonshotIcon,
-  ZhipuIcon,
   MiniMaxIcon,
-  YouDaoZhiYunIcon,
+  MoonshotIcon,
+  OllamaIcon,
+  OpenAIIcon,
+  OpenRouterIcon,
   QwenIcon,
-  XiaomiIcon,
   StepfunIcon,
   VolcengineIcon,
-  OpenRouterIcon,
-  OllamaIcon,
-  CustomProviderIcon,
+  XiaomiIcon,
+  YouDaoZhiYunIcon,
+  ZhipuIcon,
 } from './icons/providers';
-import { hasAutoLaunch } from '../utils/platform';
-// Settings helpers and constants
+import IMSettings from './im/IMSettings';
 import {
-  getEffectiveApiFormat,
-  buildOpenAICompatibleChatCompletionsUrl,
-  CONNECTIVITY_TEST_TOKEN_BUDGET,
-  isVolcengineV3BaseUrl,
-} from './settings/settingsHelpers';
+  AgentRoleApiConfigCard,
+  AgentRoleIdentityCard,
+} from './settings/AgentRoleModelCards';
+import NativeCapabilitiesSettings from './settings/NativeCapabilitiesSettings';
+import ThemedSelect from './ui/ThemedSelect';
+// Settings helpers and constants
+import { useIsMobileViewport } from '../hooks/useIsMobileViewport';
+import { renderAgentRoleAvatar } from '../utils/agentRoleDisplay';
+import CoworkMemorySettingsPanel from './settings/CoworkMemorySettingsPanel';
 import {
   resolveBaseUrl,
 } from './settings/settingsConstants';
-import CoworkMemorySettingsPanel from './settings/CoworkMemorySettingsPanel';
+import SettingsFieldGroup from './settings/SettingsFieldGroup';
+import {
+  buildOpenAICompatibleChatCompletionsUrl,
+  CONNECTIVITY_TEST_TOKEN_BUDGET,
+  getEffectiveApiFormat,
+  isVolcengineV3BaseUrl,
+} from './settings/settingsHelpers';
 import SettingsSectionCard from './settings/SettingsSectionCard';
 import SettingsTabShell from './settings/SettingsTabShell';
-import SettingsFieldGroup from './settings/SettingsFieldGroup';
-import { useIsMobileViewport } from '../hooks/useIsMobileViewport';
-import { renderAgentRoleAvatar } from '../utils/agentRoleDisplay';
 import ModalWrapper from './ui/ModalWrapper';
 
 // 特价 API 套餐卡片 — 珍珠白风格
@@ -335,25 +333,25 @@ const SYSTEM_API_PRESETS: Record<AgentRoleKey, {
 }> = {
   organizer: {
     apiUrl: 'https://api2.penguinsaichat.dpdns.org/v1',
-    apiKey: 'sk-LirGm42ajDl40AW078ilXv4vlVPPwIgyXPq4jHLqL9V7mGjL',
+    apiKey: '',
     modelId: 'MiniMax-M2.7',
     apiFormat: 'openai',
   },
   writer: {
     apiUrl: 'https://api2.penguinsaichat.dpdns.org/v1',
-    apiKey: 'sk-LirGm42ajDl40AW078ilXv4vlVPPwIgyXPq4jHLqL9V7mGjL',
+    apiKey: '',
     modelId: 'MiniMax-M2.7',
     apiFormat: 'openai',
   },
   designer: {
     apiUrl: 'https://api2.penguinsaichat.dpdns.org/v1',
-    apiKey: 'sk-LirGm42ajDl40AW078ilXv4vlVPPwIgyXPq4jHLqL9V7mGjL',
+    apiKey: '',
     modelId: 'MiniMax-M2.7',
     apiFormat: 'openai',
   },
   analyst: {
     apiUrl: 'https://api2.penguinsaichat.dpdns.org/v1',
-    apiKey: 'sk-LirGm42ajDl40AW078ilXv4vlVPPwIgyXPq4jHLqL9V7mGjL',
+    apiKey: '',
     modelId: 'MiniMax-M2.7',
     apiFormat: 'openai',
   },
@@ -394,15 +392,16 @@ const isAgentRoleReady = (role: AgentRoleConfigMap[AgentRoleKey]): boolean => (
 const resolveExplicitDefaultRole = (
   roles: AgentRoleConfigMap,
   activeRole: AgentRoleKey,
-  currentDefaultProvider?: string,
+  currentConfig?: AppConfigLike,
 ): AgentRoleConfigMap[AgentRoleKey] | null => {
   const activeRoleConfig = roles[activeRole];
   if (isAgentRoleReady(activeRoleConfig)) {
     return activeRoleConfig;
   }
 
-  if (currentDefaultProvider && AGENT_ROLE_ORDER.includes(currentDefaultProvider as AgentRoleKey)) {
-    const existingDefaultRole = roles[currentDefaultProvider as AgentRoleKey];
+  const currentDefaultRoleKey = resolveDefaultAgentRoleKey(currentConfig);
+  if (currentDefaultRoleKey) {
+    const existingDefaultRole = roles[currentDefaultRoleKey];
     if (isAgentRoleReady(existingDefaultRole)) {
       return existingDefaultRole;
     }
@@ -436,6 +435,7 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
   // Add state for active provider
   const [activeProvider, setActiveProvider] = useState<ProviderType>(getDefaultActiveProvider());
   const [showApiKey, setShowApiKey] = useState(false);
+  const showApiKeyTimerRef = useRef<number | null>(null);
   const [showConversationCacheHint, setShowConversationCacheHint] = useState(false);
   const [conversationBackupStamp, setConversationBackupStamp] = useState<string | null>(null);
   const [showCoworkContinuityNote, setShowCoworkContinuityNote] = useState(false);
@@ -516,6 +516,26 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
     setShowApiKey(false);
   }, [activeProvider]);
 
+  useEffect(() => {
+    if (showApiKeyTimerRef.current) {
+      window.clearTimeout(showApiKeyTimerRef.current);
+      showApiKeyTimerRef.current = null;
+    }
+    if (!showApiKey) {
+      return;
+    }
+    showApiKeyTimerRef.current = window.setTimeout(() => {
+      setShowApiKey(false);
+      showApiKeyTimerRef.current = null;
+    }, 5000);
+    return () => {
+      if (showApiKeyTimerRef.current) {
+        window.clearTimeout(showApiKeyTimerRef.current);
+        showApiKeyTimerRef.current = null;
+      }
+    };
+  }, [showApiKey]);
+
   const coworkConfig = useSelector((state: RootState) => state.cowork.config);
 
   const [coworkMemoryEnabled, setCoworkMemoryEnabled] = useState<boolean>(coworkConfig.memoryEnabled ?? true);
@@ -543,6 +563,18 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
   const conversationBackupManifestPath = useMemo(() => (
     conversationBackupDir ? joinDisplayPath(conversationBackupDir, 'manifest.json') : ''
   ), [conversationBackupDir]);
+
+  const activeRoleConversationAttachmentDir = useMemo(() => (
+    conversationCacheDirectory.trim()
+      ? joinDisplayPath(joinDisplayPath(conversationCacheDirectory, activeRole), 'manual')
+      : ''
+  ), [activeRole, conversationCacheDirectory]);
+
+  const activeRoleConversationExportDir = useMemo(() => (
+    conversationCacheDirectory.trim()
+      ? joinDisplayPath(joinDisplayPath(conversationCacheDirectory, activeRole), 'exports')
+      : ''
+  ), [activeRole, conversationCacheDirectory]);
 
   useEffect(() => {
     setCoworkMemoryEnabled(coworkConfig.memoryEnabled ?? true);
@@ -973,7 +1005,7 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
       }
       resetCoworkMemoryEditor();
       await loadCoworkMemoryData();
-      
+
       // 显示保存成功提示
       showGlobalToast('设置已保存');
     } catch (saveError) {
@@ -1067,7 +1099,9 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
   const handleApplySystemApiPreset = useCallback((roleKey: AgentRoleKey) => {
     const preset = SYSTEM_API_PRESETS[roleKey];
     handleAgentRoleChange(roleKey, 'apiUrl', preset.apiUrl);
-    handleAgentRoleChange(roleKey, 'apiKey', preset.apiKey);
+    if (preset.apiKey.trim()) {
+      handleAgentRoleChange(roleKey, 'apiKey', preset.apiKey);
+    }
     handleAgentRoleChange(roleKey, 'modelId', preset.modelId);
     handleAgentRoleChange(roleKey, 'apiFormat', preset.apiFormat);
     handleAgentRoleChange(roleKey, 'enabled', true);
@@ -1167,7 +1201,7 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
     try {
       const result = await window.electron?.dialog?.selectDirectory();
       if (result?.success && result.path) {
-        setConversationCacheDirectory(result.path);
+        setConversationCacheDirectory(normalizeConversationFileCacheDirectory(result.path));
       }
     } catch {
       // ignore
@@ -1225,7 +1259,7 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
       const explicitDefaultRole = resolveExplicitDefaultRole(
         normalizedAgentRoles,
         activeRole,
-        currentConfig.model.defaultModelProvider,
+        currentConfig,
       );
       const persistedDefaultProvider = (
         currentConfig.model.defaultModelProvider
@@ -1294,7 +1328,7 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
       }
 
       didSaveRef.current = true;
-      
+
       // 显示保存成功提示
       showGlobalToast('设置已保存');
     } catch (error) {
@@ -1534,8 +1568,6 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
                   </span>
                   <button
                     type="button"
-                    role="switch"
-                    aria-checked={autoLaunch}
                     onClick={async () => {
                       if (isUpdatingAutoLaunch) return;
                       const next = !autoLaunch;
@@ -1583,8 +1615,6 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
                 </span>
                 <button
                   type="button"
-                  role="switch"
-                  aria-checked={useSystemProxy}
                   onClick={() => {
                     setUseSystemProxy((prev) => !prev);
                   }}
@@ -1747,7 +1777,7 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
               )}
             >
               <SettingsFieldGroup
-                label="对话文件缓存目录"
+                label="对话文件总根目录"
                 labelFor="conversation-cache-directory"
               >
                 <div className="flex items-center gap-2">
@@ -1756,7 +1786,8 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
                     type="text"
                     value={conversationCacheDirectory}
                     onChange={(event) => setConversationCacheDirectory(event.target.value)}
-                    placeholder={'输入缓存目录，例如 ./conversation-cache 或 /data/uclaw/conversation-cache'}
+                    onBlur={(event) => setConversationCacheDirectory(normalizeConversationFileCacheDirectory(event.target.value))}
+                    placeholder={'填写总根目录；不要填 writer/manual 或 exports'}
                     className="flex-1 rounded-lg border dark:border-claude-darkBorder border-claude-border dark:bg-claude-darkSurface bg-white px-3 py-2 text-sm dark:text-claude-darkText text-claude-text focus:outline-none focus:ring-2 focus:ring-claude-accent/50"
                   />
                   <button
@@ -1771,7 +1802,18 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
 
               {showConversationCacheHint && (
                 <div className="rounded-lg dark:bg-claude-darkSurfaceInset bg-claude-surfaceInset px-3 py-3 text-xs leading-5 dark:text-claude-darkTextSecondary text-claude-textSecondary">
-                  {'系统会把每日对话快照写到这里；浏览器端上传的暂存文件、Markdown 导出和图片导出也会优先往这里归档。运行中的 skills/workspace 仍会优先保留工作目录内的真实路径，避免打断 OpenClaw skills 读文件。'}
+                  {'这里填“总根目录”。系统会自动分出 organizer/writer/designer/analyst 四个角色目录，并在每个角色下继续分 manual 与 exports。不要手填 writer、manual、exports 这些叶子层。'}
+                </div>
+              )}
+
+              {conversationCacheDirectory.trim() && (
+                <div className="mt-3 space-y-2 rounded-lg border dark:border-claude-darkBorder border-claude-border px-3 py-3 text-xs leading-5 dark:text-claude-darkTextSecondary text-claude-textSecondary">
+                  <div className="font-medium dark:text-claude-darkText text-claude-text">
+                    {`当前设置角色 ${activeRole} 的派生目录`}
+                  </div>
+                  <div>{`附件家目录：${activeRoleConversationAttachmentDir}`}</div>
+                  <div>{`导出目录：${activeRoleConversationExportDir}`}</div>
+                  <div>{'规则：总根目录 -> 角色目录 -> manual / exports。这里不再手填角色叶子层。'}</div>
                 </div>
               )}
             </SettingsSectionCard>
@@ -1784,16 +1826,16 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
                 <div className="min-w-0">
                   {!conversationCacheDirectory.trim() ? (
                     <div className="text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary">
-                      {'请先配置缓存目录，系统才会写入每日归档。'}
+                      {'请先配置总根目录，系统才会写入每日归档。'}
                     </div>
                   ) : conversationBackupStamp ? (
                     <div className="space-y-1 text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary">
                       <div>{`日期目录：${conversationBackupStamp}`}</div>
-                      <div>{'需要时可用下方按钮打开归档目录或定位清单文件。'}</div>
+                      <div>{'每日归档走总根目录/date；附件与导出走总根目录/role/manual|exports。'}</div>
                     </div>
                   ) : (
                     <div className="text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary">
-                      {'暂未检测到已写入的每日归档，等本轮对话收口后系统会生成今日快照。'}
+                      {'暂未检测到已写入的每日归档；附件与导出目录已可按当前设置角色直接打开。'}
                     </div>
                   )}
                 </div>
@@ -1806,21 +1848,39 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
                 </button>
               </div>
 
-              {conversationBackupStamp && conversationCacheDirectory.trim() && (
+              {conversationCacheDirectory.trim() && (
                 <div className="mt-3 flex flex-wrap items-center gap-2">
+                  {conversationBackupStamp && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => { void handleOpenShellPath(conversationBackupDir, 'open'); }}
+                        className="px-3 py-1.5 text-xs rounded-lg border dark:border-claude-darkBorder border-claude-border dark:text-claude-darkTextSecondary text-claude-textSecondary hover:bg-claude-surfaceHover dark:hover:bg-claude-darkSurfaceHover transition-colors"
+                      >
+                        {'打开归档目录'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { void handleOpenShellPath(conversationBackupManifestPath, 'reveal'); }}
+                        className="px-3 py-1.5 text-xs rounded-lg border dark:border-claude-darkBorder border-claude-border dark:text-claude-darkTextSecondary text-claude-textSecondary hover:bg-claude-surfaceHover dark:hover:bg-claude-darkSurfaceHover transition-colors"
+                      >
+                        {'定位 manifest'}
+                      </button>
+                    </>
+                  )}
                   <button
                     type="button"
-                    onClick={() => { void handleOpenShellPath(conversationBackupDir, 'open'); }}
+                    onClick={() => { void handleOpenShellPath(activeRoleConversationAttachmentDir, 'open'); }}
                     className="px-3 py-1.5 text-xs rounded-lg border dark:border-claude-darkBorder border-claude-border dark:text-claude-darkTextSecondary text-claude-textSecondary hover:bg-claude-surfaceHover dark:hover:bg-claude-darkSurfaceHover transition-colors"
                   >
-                    {'打开归档目录'}
+                    {'打开当前角色附件目录'}
                   </button>
                   <button
                     type="button"
-                    onClick={() => { void handleOpenShellPath(conversationBackupManifestPath, 'reveal'); }}
+                    onClick={() => { void handleOpenShellPath(activeRoleConversationExportDir, 'open'); }}
                     className="px-3 py-1.5 text-xs rounded-lg border dark:border-claude-darkBorder border-claude-border dark:text-claude-darkTextSecondary text-claude-textSecondary hover:bg-claude-surfaceHover dark:hover:bg-claude-darkSurfaceHover transition-colors"
                   >
-                    {'定位 manifest'}
+                    {'打开当前角色导出目录'}
                   </button>
                 </div>
               )}
@@ -1893,7 +1953,6 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
         const activeRolePreset = SYSTEM_API_PRESETS[activeRole];
         const isUsingSystemPreset = activeRoleConfig.apiUrl.trim() === activeRolePreset.apiUrl
           && activeRoleConfig.modelId.trim() === activeRolePreset.modelId
-          && activeRoleConfig.apiKey.trim() === activeRolePreset.apiKey
           && activeRoleConfig.apiFormat === activeRolePreset.apiFormat
           && !apiUrlManualModeByRole[activeRole];
 
@@ -2066,15 +2125,7 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
       onClick={onClose}
     >
       <div
-        className={`relative ${isMobileViewport ? 'flex-col' : 'flex'} w-full modal-pearl overflow-hidden modal-content`}
-        style={{
-          width: isMobileViewport ? '100vw' : 'min(90vw, var(--uclaw-app-max-width), calc(90vh * 1.6))',
-          minWidth: isMobileViewport ? '100vw' : 'min(var(--uclaw-shell-min-width), 90vw)',
-          minHeight: isMobileViewport ? '100dvh' : 'min(var(--uclaw-shell-min-height), 90vh)',
-          maxHeight: isMobileViewport ? '100dvh' : '90vh',
-          borderRadius: isMobileViewport ? '0' : 'var(--uclaw-shell-radius)',
-          aspectRatio: isMobileViewport ? 'auto' : 'var(--uclaw-shell-aspect-ratio)',
-        }}
+        className={`relative ${isMobileViewport ? 'flex-col w-screen min-w-screen min-h-dvh max-h-dvh rounded-none' : 'flex w-[min(90vw,var(--uclaw-app-max-width),calc(90vh*1.6))] min-w-[min(var(--uclaw-shell-min-width),90vw)] min-h-[min(var(--uclaw-shell-min-height),90vh)] max-h-[90vh] rounded-[var(--uclaw-shell-radius)] aspect-[var(--uclaw-shell-aspect-ratio)]'} w-full modal-pearl overflow-hidden modal-content`}
         onClick={handleSettingsClick}
       >
         <button
@@ -2090,11 +2141,7 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
 
         {/* Left sidebar */}
         <div
-          className={`${isMobileViewport ? 'w-full flex-none border-b dark:border-claude-darkBorder border-claude-border' : 'w-[clamp(248px,22%,296px)] shrink-0'} flex flex-col sidebar-pearl overflow-y-auto`}
-          style={{
-            borderTopLeftRadius: isMobileViewport ? '0' : 'var(--uclaw-shell-radius)',
-            borderBottomLeftRadius: isMobileViewport ? '0' : 'var(--uclaw-shell-radius)',
-          }}
+          className={`${isMobileViewport ? 'w-full flex-none border-b dark:border-claude-darkBorder border-claude-border rounded-none' : 'w-[clamp(248px,22%,296px)] shrink-0 rounded-l-[var(--uclaw-shell-radius)]'} flex flex-col sidebar-pearl overflow-y-auto`}
         >
           {isMobileViewport ? (
             <div className="px-4 pt-3 pb-2">
@@ -2152,15 +2199,10 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
                         : 'dark:text-claude-darkTextSecondary text-claude-textSecondary dark:hover:text-claude-darkText hover:text-claude-text dark:hover:bg-claude-darkSurfaceHover/50 hover:bg-claude-surfaceHover/50'
                     }`}
                   >
-                    <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] rounded-r-full transition-colors duration-200 ease-out"
-                      style={{
-                        height: activeTab === tab.key ? '60%' : '0%',
-                        opacity: activeTab === tab.key ? 1 : 0,
-                        background: activeTab === tab.key 
-                          ? 'linear-gradient(180deg, #E0B8A8 0%, #D4A894 100%)'
-                          : 'linear-gradient(180deg, rgba(59,130,246,0.6) 0%, rgba(59,130,246,0.4) 100%)',
-                        transform: `translateY(-50%) scale(${activeTab === tab.key ? 1 : 0})`,
-                      }}
+                    <div
+                      className={activeTab === tab.key
+                        ? 'settings-tab-indicator settings-tab-indicator-active'
+                        : 'settings-tab-indicator settings-tab-indicator-inactive'}
                     />
                     <span className={`relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border ${
                       activeTab === tab.key
@@ -2187,11 +2229,7 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
 
         {/* Right content */}
         <div
-          className={`relative flex-1 flex flex-col min-w-0 ${isMobileViewport ? 'min-h-0 w-full' : ''} overflow-hidden bg-gradient-pearl`}
-          style={{
-            borderTopRightRadius: isMobileViewport ? '0' : 'var(--uclaw-shell-radius)',
-            borderBottomRightRadius: isMobileViewport ? '0' : 'var(--uclaw-shell-radius)',
-          }}
+          className={`relative flex-1 flex flex-col min-w-0 ${isMobileViewport ? 'min-h-0 w-full rounded-none' : 'rounded-r-[var(--uclaw-shell-radius)]'} overflow-hidden bg-gradient-pearl`}
         >
           {/* Content header */}
           <div className={`flex items-center ${isMobileViewport ? 'px-4 pt-3 pb-2 pr-14' : 'px-8 pt-6 pb-4 pr-16'} shrink-0`}>
@@ -2225,8 +2263,7 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
                 {/* Tab content */}
                 <div
                   ref={contentRef}
-                  className="px-4 py-3 flex-1 overflow-y-auto"
-                  style={{ scrollbarGutter: 'stable' }}
+                  className="px-4 py-3 flex-1 overflow-y-auto scrollbar-gutter-stable"
                 >
                   {settingsLoaded ? (
                     settingsLoadFailed ? (
@@ -2290,8 +2327,7 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
                 {/* Tab content */}
                 <div
                   ref={contentRef}
-                  className="flex-1 overflow-y-auto py-6"
-                  style={{ scrollbarGutter: 'stable' }}
+                  className="flex-1 overflow-y-auto py-6 scrollbar-gutter-stable"
                 >
                   {settingsLoaded ? (
                     settingsLoadFailed ? (
@@ -2554,6 +2590,4 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
   );
 };
 
-export default Settings; 
-
-
+export default Settings;

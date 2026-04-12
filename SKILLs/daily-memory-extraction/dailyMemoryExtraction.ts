@@ -99,15 +99,23 @@ export async function extractDailyMemory(config: ExtractionConfig): Promise<Extr
 
   const { identityMemoryManager } = await import('../../src/main/memory/identityMemoryManager');
   identityMemoryManager.setDatabase(config.db, config.saveDb);
-  const { clearIdentityThreadForRole, cleanupExpiredIdentityThreads } = await import('../../server/libs/identityThreadHelper');
+  const {
+    clearIdentityThreadForRole,
+    cleanupExpiredIdentityThreads,
+    listIdentityThreadBoardSnapshots,
+  } = await import('../../server/libs/identityThreadHelper');
   cleanupExpiredIdentityThreads(config.db);
 
   // ── Step 1: 扫描活跃身份 ──
-  const identities = scanActiveIdentities(config.db);
-  if (identities.length === 0) {
+  const boards = listIdentityThreadBoardSnapshots(config.db, { limit: 1000 });
+  if (boards.length === 0) {
     console.log(`${TAG} identity_thread_24h 中无活跃身份，跳过`);
     return result;
   }
+  const identities = boards.map((board) => ({
+    agentRoleKey: board.agentRoleKey,
+    modelId: '',
+  }));
   console.log(`${TAG} 发现 ${identities.length} 个活跃身份`);
 
   // ── Step 2: 逐身份处理 ──
@@ -115,7 +123,17 @@ export async function extractDailyMemory(config: ExtractionConfig): Promise<Extr
     const idLabel = identity.agentRoleKey;
     try {
       // 2a. 读取该身份的 24h 对话
-      const messages = readThreadMessages(config.db, identity);
+      const board = boards.find((item) => item.agentRoleKey === identity.agentRoleKey);
+      const messages: ThreadMessage[] = (board?.entries ?? [])
+        .filter((message: any) => (message.role === 'user' || message.role === 'assistant') && message.content)
+        .map((message: any) => ({
+          role: message.role as 'user' | 'assistant',
+          content: String(message.content),
+          timestamp: message.timestamp ?? undefined,
+          channel_hint: message.channelHint ?? undefined,
+          channel_seq: typeof message.channelSeq === 'number' ? message.channelSeq : undefined,
+        }))
+        .sort((a, b) => normalizeThreadTimestampMs(a.timestamp) - normalizeThreadTimestampMs(b.timestamp));
       if (messages.length === 0) {
         console.log(`${TAG} [${idLabel}] 无对话消息，跳过`);
         result.skippedCount++;

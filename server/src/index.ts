@@ -1,11 +1,30 @@
-import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
+import dotenv from 'dotenv';
+import express, { NextFunction, Request, Response } from 'express';
+import fs from 'fs';
 import http from 'http';
 import net from 'net';
 import path from 'path';
-import fs from 'fs';
 import { fileURLToPath } from 'url';
-import dotenv from 'dotenv';
+import { setupApiConfigRoutes } from '../routes/apiConfig';
+import { setupApiProxyRoutes } from '../routes/apiProxy';
+import { setupAppRoutes } from '../routes/app';
+import { setupCoworkRoutes } from '../routes/cowork';
+import { setupDailyMemoryRoutes } from '../routes/dailyMemory';
+import { setupDialogRoutes } from '../routes/dialog';
+import { setupDingTalkWebhookRoutes } from '../routes/dingtalkWebhook';
+import { setupFeishuWebhookRoutes } from '../routes/feishuWebhook';
+import { setupFilesRoutes } from '../routes/files';
+import { setupLogRoutes } from '../routes/log';
+import { setupMcpRoutes } from '../routes/mcp';
+import { setupPermissionsRoutes } from '../routes/permissions';
+import { setupRoleRuntimeRoutes } from '../routes/roleRuntime';
+import { setupScheduledTaskRoutes } from '../routes/scheduledTasks';
+import { setupShellRoutes } from '../routes/shell';
+import { setupSkillsRoutes } from '../routes/skills';
+import { setupStoreRoutes } from '../routes/store';
+import { setupWechatBotBridgeRoutes } from '../routes/wechatbotBridge';
+import { broadcastToAll, broadcastToRoom, flushPendingMessageUpdates, initWebSocketServer } from '../websocket';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -53,72 +72,51 @@ if (!process.env.UCLAW_APP_ROOT?.trim()) process.env.UCLAW_APP_ROOT = bootstrapP
 if (!process.env.LOBSTERAI_APP_ROOT?.trim()) process.env.LOBSTERAI_APP_ROOT = bootstrapProjectRoot;
 if (!process.env.UCLAW_WORKSPACE?.trim()) process.env.UCLAW_WORKSPACE = bootstrapProjectRoot;
 if (!process.env.LOBSTERAI_WORKSPACE?.trim()) process.env.LOBSTERAI_WORKSPACE = bootstrapProjectRoot;
-import { initWebSocketServer, broadcastToAll, broadcastToRoom, flushPendingMessageUpdates } from '../websocket';
-import { setupStoreRoutes } from '../routes/store';
-import { setupSkillsRoutes } from '../routes/skills';
-import { setupMcpRoutes } from '../routes/mcp';
-import { setupDailyMemoryRoutes } from '../routes/dailyMemory';
-import { setupCoworkRoutes } from '../routes/cowork';
-import { setupScheduledTaskRoutes } from '../routes/scheduledTasks';
-import { setupPermissionsRoutes } from '../routes/permissions';
-import { setupAppRoutes } from '../routes/app';
-import { setupApiConfigRoutes } from '../routes/apiConfig';
-import { setupLogRoutes } from '../routes/log';
-import { setupApiProxyRoutes } from '../routes/apiProxy';
-import { setupDialogRoutes } from '../routes/dialog';
-import { setupShellRoutes } from '../routes/shell';
-import { setupFilesRoutes } from '../routes/files';
-import { setupRoleRuntimeRoutes } from '../routes/roleRuntime';
-import { setupFeishuWebhookRoutes } from '../routes/feishuWebhook';
-import { setupDingTalkWebhookRoutes } from '../routes/dingtalkWebhook';
-import { setupWechatBotBridgeRoutes } from '../routes/wechatbotBridge';
 // {标记} P1-技能隔离：导入角色技能配置路由
-import { setupSkillRoleConfigRoutes } from '../routes/skillRoleConfigs';
 import { setupBackupRoutes } from '../routes/backup';
+import { setupSkillRoleConfigRoutes } from '../routes/skillRoleConfigs';
 import { setupSkillsMcpHelperRoutes } from '../routes/skillsMcpHelper';
 
 // Import existing main process modules
-import { SqliteStore } from '../sqliteStore.web';
+import { dedupeRuntimeFeishuApps } from '../../clean-room/spine/modules/feishuRuntime';
+import { APP_NAME } from '../../src/main/appConstants';
 import { CoworkStore, type CoworkSession } from '../../src/main/coworkStore';
+import { setStoreGetter } from '../../src/main/libs/claudeSettings';
+import { startCoworkOpenAICompatProxy, stopCoworkOpenAICompatProxy } from '../../src/main/libs/coworkOpenAICompatProxy';
 import { CoworkRunner } from '../../src/main/libs/coworkRunner';
-import { SkillManager } from '../../src/main/skillManager';
+import { Scheduler } from '../../src/main/libs/scheduler';
+import { initLogger } from '../../src/main/logger';
 import { McpStore } from '../../src/main/mcpStore';
 import { ScheduledTaskStore, type ScheduledTask } from '../../src/main/scheduledTaskStore';
-import { Scheduler } from '../../src/main/libs/scheduler';
-import { initLogger, getLogFilePath } from '../../src/main/logger';
-import { setStoreGetter } from '../../src/main/libs/claudeSettings';
-import { getCoworkLogPath } from '../../src/main/libs/coworkLogger';
-import { exportLogsZip } from '../../src/main/libs/logExport';
-import { APP_NAME } from '../../src/main/appConstants';
+import { SkillManager } from '../../src/main/skillManager';
 import { CoworkSessionId } from '../../src/renderer/types/cowork';
 import { resolveAgentRolesFromConfig, type AgentRoleKey as SharedAgentRoleKey } from '../../src/shared/agentRoleConfig';
-import {
-  ensureDirectory,
-  getProjectRoot,
-  setProjectRoot,
-  resolveRuntimeRoot,
-  resolveRuntimeUserDataPath,
-} from '../../src/shared/runtimeDataPaths';
 import { ENV_ALIAS_PAIRS, assignEnvAlias, readEnvAliasPair } from '../../src/shared/envAliases';
-import { startCoworkOpenAICompatProxy, stopCoworkOpenAICompatProxy } from '../../src/main/libs/coworkOpenAICompatProxy';
+import {
+    ensureDirectory,
+    getProjectRoot,
+    resolveRuntimeRoot,
+    resolveRuntimeUserDataPath,
+    setProjectRoot,
+} from '../../src/shared/runtimeDataPaths';
 import { FeishuGateway } from '../libs/feishuGateway';
 import { getOrCreateWebSessionExecutor } from '../libs/httpSessionExecutor';
-import { dedupeRuntimeFeishuApps } from '../../clean-room/spine/modules/feishuRuntime';
 import {
-  ensureRoleRuntimeDirs,
-  getRoleSkillConfigPath,
-  getRoleSkillSecretPath,
-  syncRoleSkillIndexes,
-} from '../libs/roleSkillFiles';
-import {
-  buildBuiltinPlaywrightArgs,
-  resolvePlaywrightBrowsersPath,
+    buildBuiltinPlaywrightArgs,
+    resolvePlaywrightBrowsersPath,
 } from '../libs/playwrightRuntime';
-import { syncRoleCapabilitySnapshots, syncRoleSettingsViews } from '../libs/roleRuntimeViews';
 import { runRoleRuntimeHealthCheck } from '../libs/roleRuntimeHealthCheck';
+import { syncRoleSettingsViews } from '../libs/roleRuntimeViews';
+import {
+    ensureRoleRuntimeDirs,
+    getRoleSkillConfigPath,
+    getRoleSkillSecretPath,
+    syncRoleSkillIndexes,
+} from '../libs/roleSkillFiles';
 import { recoverSkillBindingsFromRuntimeTruth } from '../libs/skillBindingRecovery';
 import { mergeWechatBotConfigWithRuntime } from '../libs/wechatbotBridgeRuntime';
 import { startWechatBotGateway, stopWechatBotGateway } from '../libs/wechatbotGateway';
+import { SqliteStore } from '../sqliteStore.web';
 
 // Types for context passed to routes
 export interface RequestContext {
@@ -176,6 +174,8 @@ const findAvailablePort = async (host: string, preferredPort: number, maxAttempt
 
 // User data directory (web version uses a different path than Electron)
 const getUserDataPath = (customDataDir?: string): string => {
+  // userDataPath is runtime storage under the project-scoped runtime root.
+  // It is not the task working directory and not the project root itself.
   const userDataPath = resolveRuntimeUserDataPath(customDataDir, getProjectRoot());
   ensureDirectory(userDataPath);
   return userDataPath;
@@ -209,8 +209,9 @@ let staleSessionSweepTimer: ReturnType<typeof setInterval> | null = null;
 let unlistenStoreChanges: (() => void) | null = null;
 let deferredStartupWarmupTimer: ReturnType<typeof setTimeout> | null = null;
 
-const STALE_RUNNING_SESSION_TIMEOUT_MS = 5 * 60 * 1000;
-const STALE_RUNNING_SESSION_SWEEP_INTERVAL_MS = 60 * 1000;
+const STALE_RUNNING_SESSION_TIMEOUT_MS = 24 * 60 * 60 * 1000;
+const STALE_RUNNING_SESSION_SWEEP_INTERVAL_MS = 5 * 60 * 1000;
+const STALE_RUNNING_SESSION_TIMEOUT_MINUTES = Math.round(STALE_RUNNING_SESSION_TIMEOUT_MS / 60_000);
 const DAILY_MEMORY_CRON_TASK_TITLE = '每日记忆抽取与文件归档';
 const WEB_DIRECT_NATIVE_SKILL_IDS = new Set([
   'blingbling-little-eye',
@@ -370,56 +371,13 @@ const initializeSkillManager = (manager: SkillManager): void => {
   }
 };
 
-const syncRoleSkillIndexesForRuntime = (): void => {
-  try {
-    const userDataPath = getUserDataPath(serverOptions.dataDir);
-    ensureRoleRuntimeDirs(userDataPath);
-    syncRoleSkillIndexes(userDataPath, getStore(), getSkillManager());
-  } catch (error) {
-    console.error('[roles] Failed to sync role skill indexes:', error);
-  }
-};
-
 const syncRoleSettingsViewsForRuntime = (): void => {
   try {
     const userDataPath = getUserDataPath(serverOptions.dataDir);
     const appConfig = getStore().get('app_config');
     syncRoleSettingsViews(userDataPath, appConfig as any);
-    syncRoleCapabilitySnapshots(userDataPath, getStore(), getSkillManager(), getMcpStore());
   } catch (error) {
     console.error('[roles] Failed to sync role settings views:', error);
-  }
-};
-
-const repairSkillBindingsForRuntime = (): void => {
-  try {
-    const userDataPath = getUserDataPath(serverOptions.dataDir);
-    const result = recoverSkillBindingsFromRuntimeTruth(
-      userDataPath,
-      getProjectRoot(),
-      getStore(),
-      getSkillManager(),
-    );
-
-    if (!result.recovered) {
-      return;
-    }
-
-    console.warn(
-      `[roles] P0-SKILL-BINDING-RECOVERY recovered ${result.bindingsWritten} binding(s) from ${result.sourceRoot}`
-    );
-    if (result.deletedArtifacts.length > 0) {
-      console.warn(
-        `[roles] P0-SKILL-BINDING-RECOVERY pruned ${result.deletedArtifacts.length} stale role skill artifact(s)`
-      );
-    }
-    if (result.restoredArtifacts.length > 0) {
-      console.warn(
-        `[roles] P0-SKILL-BINDING-RECOVERY restored ${result.restoredArtifacts.length} role skill artifact(s)`
-      );
-    }
-  } catch (error) {
-    console.error('[roles] Failed to recover skill bindings from runtime truth:', error);
   }
 };
 
@@ -441,11 +399,11 @@ const scheduleDeferredStartupWarmup = (): void => {
     return;
   }
 
-  // 非核心的 Skills / 角色运行态修复放到 listen 之后静默执行，减少弱设备启动阻塞。
+  // 默认启动只保留轻量运行态动作。
+  // 不再在这里顺手做技能仓修复 / 角色索引重建 / capability snapshot 重算，
+  // 避免用户仓库候选层和 frontmatter 解析贴进启动主链。
   deferredStartupWarmupTimer = setTimeout(() => {
     deferredStartupWarmupTimer = null;
-    repairSkillBindingsForRuntime();
-    syncRoleSkillIndexesForRuntime();
     syncRoleSettingsViewsForRuntime();
     logRoleRuntimeHealthCheck();
     ensureRuntimeViewSyncSubscriptions();
@@ -503,6 +461,11 @@ const getCoworkStore = (): CoworkStore => {
 
 const getCoworkRunner = (): CoworkRunner => {
   if (!coworkRunner) {
+    // ##混淆点注意：
+    // 1. 这里保留 CoworkRunner 单例，只是为了旧入口不直接炸掉。
+    // 2. 这不代表当前 Web/Cowork 主链还应该继续围着它修。
+    // 3. 现役主链优先级：HttpSessionExecutor > CoworkRunner 兼容残留。
+    // 4. 修角色连续性、附件家目录、广播板、轻链工具、Web 会话执行时，请先查 HttpSessionExecutor。
     // {BREAKPOINT} LEGACY-RUNNER-SINGLETON
     // {FLOW} PHASE1-LEGACY-SHELL: 该单例仍可被遗留入口按需构造，但已不是 Web / Feishu / scheduler / daily-memory 的现役主执行器。
     // {标记} 旧污染活口: server/src/index.ts 仍在服务端主入口构造 CoworkRunner 单例。
@@ -529,7 +492,7 @@ const ensureStaleRunningSessionSweep = (): void => {
     return;
   }
 
-  // {标记} P0-SESSION-STATE-FIX: 失联中的运行态会话 5 分钟后自动关状态，避免前端永远显示“运行中”
+  // {标记} P0-SESSION-STATE-FIX: 失联中的运行态会话超时后自动关状态，避免前端永远显示“运行中”。
   staleSessionSweepTimer = setInterval(() => {
     try {
       const store = getCoworkStore();
@@ -560,7 +523,7 @@ const ensureStaleRunningSessionSweep = (): void => {
           type: 'cowork:stream:error',
           data: {
             sessionId: session.id,
-            error: '会话已失联超过 5 分钟，状态已自动关闭。',
+            error: `会话已失联超过 ${STALE_RUNNING_SESSION_TIMEOUT_MINUTES} 分钟，状态已自动关闭。`,
           },
         });
         broadcastToAll({
@@ -621,6 +584,8 @@ const runDailyMemoryExtractionNow = async (): Promise<void> => {
 const runScheduledTaskThroughWebExecutor = async (
   task: ScheduledTask
 ): Promise<{ handled: boolean; sessionId?: string | null }> => {
+  // {标记} PHASE1-SCHEDULER-SCOPE: 当前主家园对定时任务的一期目标只有三件事——角色正确、定时正确、执行正确。
+  // 其他增强能力（复杂通知、更多编排、额外体验层）不在这一轮主线里继续膨胀。
   if (task.name === DAILY_MEMORY_CRON_TASK_TITLE) {
     await runDailyMemoryExtractionNow();
     return { handled: true, sessionId: null };
@@ -637,7 +602,7 @@ const runScheduledTaskThroughWebExecutor = async (
   );
   if (unsupportedRuntimeSkillIds.length > 0) {
     throw new Error(
-      `当前定时任务轻链已禁止回退旧 CoworkRunner；以下技能仍依赖未桥接的 runtime config/secret：${unsupportedRuntimeSkillIds.join(', ')}`
+      `当前定时任务轻链已禁止回退旧执行壳；以下技能仍依赖未桥接的 runtime config/secret：${unsupportedRuntimeSkillIds.join(', ')}`
     );
   }
 
@@ -810,6 +775,40 @@ const BUILTIN_MCP_SERVERS = [
     agentRoleKey: 'all',
   },
 ];
+
+const resolveDesktopControlCommand = (): string => {
+  const preferred = 'C:\\Program Files\\PowerShell\\7\\pwsh.exe';
+  return fs.existsSync(preferred) ? preferred : 'pwsh';
+};
+
+const resolveDesktopControlServerScript = (): string | null => {
+  const userProfile = String(process.env.USERPROFILE || process.env.HOME || '').trim();
+  if (!userProfile) {
+    return null;
+  }
+  const scriptPath = path.join(userProfile, '.codex', 'vendor_imports', 'desktop-control-mcp', 'server.ps1');
+  return fs.existsSync(scriptPath) ? scriptPath : null;
+};
+
+const appendOptionalBuiltinDesktopControlServer = (): void => {
+  const scriptPath = resolveDesktopControlServerScript();
+  if (!scriptPath) {
+    return;
+  }
+
+  BUILTIN_MCP_SERVERS.push({
+    name: 'Desktop Control',
+    description: 'Local Windows desktop-control MCP：读屏截图、鼠标键盘控制，适合自我保护和桌面观察，不只活在 CLI 里。',
+    transportType: 'stdio' as const,
+    command: resolveDesktopControlCommand(),
+    args: ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', scriptPath],
+    isBuiltIn: true,
+    registryId: 'desktop-control',
+    agentRoleKey: 'organizer',
+  });
+};
+
+appendOptionalBuiltinDesktopControlServer();
 
 const ensureBuiltinMcpServers = (): void => {
   try {
@@ -1196,7 +1195,8 @@ setupBackupRoutes(app);
 // {标记} P0-SKILLS-MCP-HELPER: 注册独立外挂式 Skills / MCP 小助手路由
 setupSkillsMcpHelperRoutes(app);
 
-// Store workspace path in app for files routes to access
+// Store project workspace root in app for routes that need the code root.
+// This is not the same as per-task workingDirectory and not the runtime userDataPath.
 app.set('workspace', serverOptions.workspace);
 
 // Serve static files from web build (server/public)
@@ -1218,8 +1218,19 @@ if (!isDev) {
 
   if (staticRoot) {
     const indexTemplate = fs.readFileSync(path.join(staticRoot, 'index.html'), 'utf8');
+    const teamEntryPath = path.join(staticRoot, 'team.html');
+    const hasTeamEntry = fs.existsSync(teamEntryPath);
 
     app.use(express.static(staticRoot, { index: false }));
+
+    if (hasTeamEntry) {
+      app.get('/team', (_req: Request, res: Response) => {
+        res.sendFile(teamEntryPath);
+      });
+      app.get('/test', (_req: Request, res: Response) => {
+        res.sendFile(teamEntryPath);
+      });
+    }
 
     const shouldBypassSpaFallback = (requestPath: string): boolean => (
       requestPath.startsWith('/api')
@@ -1391,7 +1402,7 @@ process.on('SIGINT', () => {
 });
 
 // Export for testing
-export { app, startServer, getStore, getCoworkStore, getCoworkRunner, broadcastToAll, broadcastToRoom, getFeishuGateway };
+export { app, broadcastToAll, broadcastToRoom, getCoworkRunner, getCoworkStore, getFeishuGateway, getStore, startServer };
 
 // Extend Express Request type
 declare global {

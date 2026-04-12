@@ -1,31 +1,29 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useSelector } from 'react-redux';
 import { CheckIcon, ComputerDesktopIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
-import SearchIcon from '../icons/SearchIcon';
-import PuzzleIcon from '../icons/PuzzleIcon';
-import Cog6ToothIcon from '../icons/Cog6ToothIcon';
+import React, { useEffect, useRef, useState } from 'react';
+import { useSelector } from 'react-redux';
+import {
+    BROWSER_EYES_CURRENT_PAGE_STORE_KEY,
+    type BrowserEyesCurrentPageState,
+} from '../../../shared/browserEyesState';
+import {
+    UI_BADGE_TEXT_CLASS,
+    UI_LABEL_TEXT_CLASS,
+    UI_MENU_ICON_CLASS,
+    UI_META_TEXT_CLASS
+} from '../../../shared/mobileUi';
+import {
+    NATIVE_CAPABILITY_LABELS,
+    type NativeCapabilityId,
+} from '../../../shared/nativeCapabilities/config';
+import { requestEmbeddedBrowserOpen } from '../../services/embeddedBrowser';
 import { skillService, type RoleSkillIndexFile } from '../../services/skill';
 import { localStore } from '../../services/store';
 import { showGlobalToast } from '../../services/toast';
-import { requestEmbeddedBrowserOpen } from '../../services/embeddedBrowser';
 import { RootState } from '../../store';
 import { Skill, getSkillDisplayName } from '../../types/skill';
-import {
-  BROWSER_EYES_CURRENT_PAGE_STORE_KEY,
-  type BrowserEyesCurrentPageState,
-} from '../../../shared/browserEyesState';
-import {
-  NATIVE_CAPABILITY_LABELS,
-  type NativeCapabilityId,
-} from '../../../shared/nativeCapabilities/config';
-import {
-  UI_BADGE_ICON_CLASS,
-  UI_BADGE_TEXT_CLASS,
-  UI_LABEL_TEXT_CLASS,
-  UI_MENU_ICON_CLASS,
-  UI_META_TEXT_CLASS,
-  UI_MARK_ICON_CLASS,
-} from '../../../shared/mobileUi';
+import Cog6ToothIcon from '../icons/Cog6ToothIcon';
+import PuzzleIcon from '../icons/PuzzleIcon';
+import SearchIcon from '../icons/SearchIcon';
 
 interface SkillsPopoverProps {
   isOpen: boolean;
@@ -103,10 +101,10 @@ const SkillsPopover: React.FC<SkillsPopoverProps> = ({
   const filteredSkills = indexEntries
     .map((entry) => {
       const skill = skills.find((candidate) => candidate.id === entry.id && candidate.enabled);
-      return skill ? { skill, entry } : null;
+      return skill ?? null;
     })
-    .filter((item): item is { skill: Skill; entry: RoleSkillIndexFile['skills'][number] } => item !== null)
-    .filter(({ skill, entry }) =>
+    .filter((item): item is Skill => item !== null)
+    .filter((skill) =>
       getSkillDisplayName(skill).toLowerCase().includes(searchQuery.toLowerCase()) ||
       skillService.getLocalizedSkillDescription(skill.id, skill.name, skill.description).toLowerCase().includes(searchQuery.toLowerCase())
     );
@@ -224,7 +222,8 @@ const SkillsPopover: React.FC<SkillsPopoverProps> = ({
   return (
     <div
       ref={popoverRef}
-      className="absolute bottom-full left-0 mb-2 w-[min(18rem,calc(100vw-1.5rem))] max-w-[calc(100vw-1.5rem)] rounded-xl border dark:border-claude-darkBorder border-claude-border dark:bg-claude-darkSurface bg-claude-surface shadow-xl z-50"
+      className="absolute bottom-full left-0 mb-2 w-[min(18rem,calc(100vw-1.5rem))] max-w-[calc(100vw-1.5rem)] rounded-xl border dark:border-claude-darkBorder border-claude-border dark:bg-claude-darkSurface bg-claude-surface shadow-xl z-popover"
+      style={{ zIndex: 'var(--z-popover)' }}
     >
       {/* Search input */}
       <div className="p-3 border-b dark:border-claude-darkBorder border-claude-border">
@@ -309,7 +308,7 @@ const SkillsPopover: React.FC<SkillsPopoverProps> = ({
             {roleSkillIndex ? '当前角色暂无可用技能或外挂能力' : '当前角色技能索引未就绪'}
           </div>
         ) : (
-          filteredSkills.map(({ skill, entry }) => {
+          filteredSkills.map((skill) => {
             const isActive = activeSkillIds.includes(skill.id);
             return (
               <button

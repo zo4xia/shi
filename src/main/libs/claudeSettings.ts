@@ -8,7 +8,7 @@ import {
   getCoworkOpenAICompatProxyStatus,
 } from './coworkOpenAICompatProxy';
 import { normalizeProviderApiFormat, type AnthropicApiFormat } from './coworkFormatTransform';
-import { AGENT_ROLE_ORDER, pickNextApiKey } from '../../shared/agentRoleConfig';
+import { AGENT_ROLE_ORDER, pickNextApiKey, resolveDefaultAgentRoleKey } from '../../shared/agentRoleConfig';
 import { getBundledNodeModuleEntry } from './runtimeLayout';
 import {
   ENV_ALIAS_PAIRS,
@@ -191,7 +191,7 @@ function resolveAgentRoleConfig(
   agentRoleKey?: string,
 ): ApiConfigResolution | null {
   const requestedRoleKey = agentRoleKey?.trim();
-  const preferredRoleKey = appConfig.model?.defaultModelProvider?.trim();
+  const preferredRoleKey = resolveDefaultAgentRoleKey(appConfig);
   const fallbackRoleKey = AGENT_ROLE_ORDER.find((roleKey) => {
     const role = appConfig.agentRoles?.[roleKey];
     return Boolean(role?.enabled && role.apiUrl?.trim() && role.modelId?.trim());

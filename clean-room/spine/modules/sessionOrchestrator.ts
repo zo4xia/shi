@@ -4,8 +4,6 @@ import { getOrCreateFeishuSession } from './feishuSessionSpine';
 import type { InboundRequest } from './inbound';
 import { formatTraceLog, type RequestTrace } from './requestTrace';
 import { prepareContinueSession, prepareNewSession } from './sessionIngress';
-import { getIdentityThreadContext } from './identityThread';
-import { loadYesterdayMemories } from './yesterdayFallback';
 
 export interface SessionExecutor {
   startSession(
@@ -51,7 +49,7 @@ export interface SessionExecutor {
 }
 
 export interface ContinuityBootstrap {
-  source: 'shared-thread' | 'memory-db' | 'none';
+  source: 'shared-thread' | 'durable-memory' | 'none';
   text: string;
 }
 
@@ -91,29 +89,22 @@ function launchDetachedTurn(
 }
 
 export function resolveContinuityBootstrap(
-  sessionStore: SessionStore,
-  agentRoleKey: string,
-  now: Date = new Date()
+  _sessionStore: SessionStore,
+  _agentRoleKey: string,
+  _now: Date = new Date()
 ): ContinuityBootstrap {
-  const sharedThread = getIdentityThreadContext(sessionStore.getDatabase() as any, agentRoleKey);
-  if (sharedThread?.historyText) {
-    return {
-      source: 'shared-thread',
-      text: sharedThread.historyText,
-    };
-  }
-
-  const yesterday = loadYesterdayMemories(sessionStore.getDatabase() as any, agentRoleKey, now);
-  if (yesterday.loadedFrom === 'memory-db' && yesterday.summary) {
-    return {
-      source: 'memory-db',
-      text: `昨日摘要：${yesterday.summary}`,
-    };
-  }
-
+  // {标记} P0-CONTINUITY-SINGLE-SOURCE: 编排层不再拥有 continuity 真相逻辑。
+  // {标记} DISPLAY_ONLY: 这里保留的只是无副作用占位壳，避免 route/orchestrator 再提前 seed/shared-thread。
+  // Web/Feishu live continuity bootstrap must be executed only inside the real executor.
+  // The orchestrator keeps a zero-side-effect placeholder to avoid duplicate seeding and
+  // source drift before the actual turn begins.
+  const continuity = {
+    source: 'none' as const,
+    promptText: '',
+  };
   return {
-    source: 'none',
-    text: '',
+    source: continuity.source,
+    text: continuity.promptText,
   };
 }
 
@@ -126,6 +117,7 @@ export async function orchestrateWebTurn(params: {
 }): Promise<OrchestratedTurn> {
   const { sessionStore, executor, trace, request, defaultCwd } = params;
   const continuity = resolveContinuityBootstrap(sessionStore, request.agentRoleKey);
+  // {标记} DISPLAY_ONLY: orchestrator.traceLog 里的 continuity source 不是执行器最终真相，只是当前入口层占位信息。
   const messageMetadata = buildMessageMetadata(request);
 
   let sessionId = request.sessionId;
@@ -220,6 +212,7 @@ export async function orchestrateFeishuTurn(params: {
   }
 
   const continuity = resolveContinuityBootstrap(sessionStore, request.agentRoleKey);
+  // {标记} DISPLAY_ONLY: 这里的 continuity source 不能替代执行器真正写入 assistant metadata 的 continuitySource。
   traceLog.push(formatTraceLog(trace, 'continuity', `source=${continuity.source}`));
 
   await executor.runChannelFastTurn(session.id, request.text, {

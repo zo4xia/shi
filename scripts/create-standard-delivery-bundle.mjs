@@ -30,6 +30,9 @@ const rootFiles = [
   'tsconfig.node.json',
   'vite.config.web.ts',
   'index.html',
+  'team.html',
+  'team_page.html',
+  'team_bundle.js',
   'zbpack.json',
 ];
 
@@ -61,6 +64,9 @@ async function copyFileRelative(relativePath) {
 
 async function copyDirRelative(relativePath) {
   const sourcePath = path.join(projectRoot, relativePath);
+  if (!fsSync.existsSync(sourcePath)) {
+    return;
+  }
   const targetPath = path.join(bundleRoot, relativePath);
   await fs.cp(sourcePath, targetPath, {
     recursive: true,
@@ -92,9 +98,10 @@ async function writeManifest() {
 - Install: \`npm ci\`
 - Build: \`npm run build\`
 - Preflight: \`npm run deploy:check\`
+- Preset init: \`npm run deploy:init -- --target linux ...\`
 - Start: \`npm start\`
 - Zeabur: \`zbpack.json\`
-- Linux guide: \`docs/DEPLOYMENT_STANDARD_LINUX.md\`
+- Linux guide: \`docs/DEPLOYMENT_AUTOGUIDE.md\`
 - Env template: \`deploy/linux/uclaw.env.example\`
 - Systemd unit: \`deploy/linux/uclaw.service\`
 `;

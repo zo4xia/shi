@@ -12,6 +12,10 @@ import {
   type IMPlatform,
 } from '../types/im';
 
+// IM config is a runtime config concept, not a loose local draft key:
+// - main truth: SQLite kv(im_config)
+// - frontend mirror: store/local hydrate path
+// - env only exists as deployment/bootstrap fallback plus sync mirror
 const IM_CONFIG_STORAGE_KEY = 'im_config';
 
 // {路标} FLOW-FRONTEND-IM

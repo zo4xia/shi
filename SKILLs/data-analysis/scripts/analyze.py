@@ -18,11 +18,11 @@ logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
 
 try:
-    import duckdb
+    import duckdb  # pyright: ignore[reportMissingImports]
 except ImportError:
     logger.error("duckdb is not installed. Installing...")
     os.system(f"{sys.executable} -m pip install duckdb openpyxl -q")
-    import duckdb
+    import duckdb  # pyright: ignore[reportMissingImports]
 
 try:
     import openpyxl  # noqa: F401

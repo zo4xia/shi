@@ -24,6 +24,7 @@ import type {
   CoworkUserMemoryEntry,
   CoworkMemoryStats,
   CoworkBroadcastBoardSnapshot,
+  CoworkManualCompressionResult,
   CoworkPermissionRequest,
   CoworkPermissionResult,
   CoworkApiConfig,
@@ -744,7 +745,7 @@ const dialog = {
   },
 
   // {标记} P1-ATTACHMENT-CWD-UNIFY: Web selectFile 透传 cwd，避免手选文件绕开工作目录/缓存分流。
-  async selectFile(options?: { title?: string; filters?: { name: string; extensions: string[] }[]; cwd?: string }): Promise<{ success: boolean; path: string | null }> {
+  async selectFile(options?: { title?: string; filters?: { name: string; extensions: string[] }[]; cwd?: string; agentRoleKey?: string }): Promise<{ success: boolean; path: string | null }> {
     return new Promise((resolve) => {
       const input = document.createElement('input');
       input.type = 'file';
@@ -777,6 +778,7 @@ const dialog = {
             fileName: file.name,
             mimeType: file.type,
             cwd: options?.cwd,
+            agentRoleKey: options?.agentRoleKey,
           });
           if (saveResult.success && saveResult.path) {
             resolve({ success: true, path: saveResult.path });
@@ -793,7 +795,7 @@ const dialog = {
     });
   },
 
-  async saveInlineFile(options: { dataBase64: string; fileName?: string; mimeType?: string; cwd?: string; purpose?: 'attachment' | 'export' }): Promise<{ success: boolean; path: string | null; error?: string }> {
+  async saveInlineFile(options: { dataBase64: string; fileName?: string; mimeType?: string; cwd?: string; purpose?: 'attachment' | 'export'; agentRoleKey?: string }): Promise<{ success: boolean; path: string | null; error?: string }> {
     try {
       const result = await apiClient.post<{ success: boolean; path?: string; error?: string }>('/dialog/saveInlineFile', {
         dataBase64: options.dataBase64,
@@ -801,6 +803,7 @@ const dialog = {
         mimeType: options.mimeType,
         cwd: options.cwd,
         purpose: options.purpose,
+        agentRoleKey: options.agentRoleKey,
       });
       if (result.success && result.data?.success && result.data.path) {
         return { success: true, path: result.data.path };

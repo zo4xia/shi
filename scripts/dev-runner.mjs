@@ -12,6 +12,13 @@ const runtimeFile = path.join(root, '.dev-runtime.json');
 const host = '127.0.0.1';
 const pnpmStoreDir = path.join(root, 'node_modules', '.pnpm');
 
+/**
+ * 修复: 在某些环境下，process.cwd() 可能会返回错误的路径。
+ * 显式计算相对于脚本位置的 root 路径以确保稳定性。
+ */
+const scriptDir = path.dirname(new URL(import.meta.url).pathname).replace(/^\/([A-Z]:)/, '$1');
+const absoluteRoot = path.normalize(path.join(scriptDir, '..'));
+
 const isPortAvailable = (port) =>
   new Promise((resolve) => {
     const tester = net.createServer();
@@ -81,7 +88,7 @@ const findPackageDirInPnpmStore = (packageName) => {
 };
 
 const resolvePackageEntry = (packageName, relativeEntry) => {
-  const directPath = path.join(root, 'node_modules', ...packageName.split('/'), relativeEntry);
+  const directPath = path.join(absoluteRoot, 'node_modules', ...packageName.split('/'), relativeEntry);
   if (fs.existsSync(directPath)) {
     return directPath;
   }
@@ -95,6 +102,8 @@ const resolvePackageEntry = (packageName, relativeEntry) => {
     }
   }
 
+  // 兜底逻辑：尝试使用 require.resolve (如果是 .cjs 或支持的环境)
+  // 或者直接在系统中寻找，但在工作中心化的脚本通常还是依赖 node_modules
   throw new Error(
     `Unable to resolve local entry for ${packageName}/${relativeEntry}. ` +
       `If this repo was moved, rebuild local dependencies first.`

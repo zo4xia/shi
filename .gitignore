@@ -22,6 +22,7 @@ SKILLs/**/node_modules/
 .playwright-browsers/
 .uclaw/
 release/
+deploy/generated/
 
 # Temp files
 .cowork-temp/

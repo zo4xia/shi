@@ -1,5 +1,5 @@
 import type { YesterdayFallbackResult } from './contracts';
-import { clearIdentityThreadForRole, getIdentityThreadContext } from './identityThread';
+import { clearIdentityThreadForRole, getIdentityThreadContext } from '../../../server/libs/identityThreadHelper';
 
 type SqlDatabase = {
   exec(sql: string, params?: Array<string | number | null>): Array<{ values: unknown[][] }>;
@@ -84,7 +84,7 @@ export async function runDailyMemoryForRole(params: {
 }
 
 export function buildFirstWakeYesterdayHint(result: YesterdayFallbackResult): string {
-  if (result.loadedFrom !== 'memory-db' || !result.summary) {
+  if (result.loadedFrom !== 'durable-memory' || !result.summary) {
     return '';
   }
   return `昨日摘要：${result.summary}`;

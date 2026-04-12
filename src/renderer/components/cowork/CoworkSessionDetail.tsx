@@ -1,50 +1,49 @@
-import { showGlobalToast } from '../../services/toast';
-import React, { useRef, useEffect, useState, useCallback, useMemo, useDeferredValue, startTransition } from 'react';
-import { useSelector } from 'react-redux';
-import { RootState } from '../../store';
-import type { CoworkMessage, CoworkMessageMetadata, CoworkImageAttachment, CoworkRenderableMedia } from '../../types/cowork';
-import { getSkillDisplayName, type Skill } from '../../types/skill';
-import CoworkPromptInput from './CoworkPromptInput';
-import MarkdownContent from '../MarkdownContent';
 import {
   CheckIcon,
+  ChevronRightIcon,
+  ExclamationTriangleIcon,
   InformationCircleIcon,
   SignalIcon,
-  ExclamationTriangleIcon,
-  ChevronRightIcon,
 } from '@heroicons/react/24/outline';
 import { FolderIcon } from '@heroicons/react/24/solid';
-import { coworkService } from '../../services/cowork';
-import SidebarToggleIcon from '../icons/SidebarToggleIcon';
-import ComposeIcon from '../icons/ComposeIcon';
-import PuzzleIcon from '../icons/PuzzleIcon';
-import EllipsisHorizontalIcon from '../icons/EllipsisHorizontalIcon';
-import WindowTitleBar from '../window/WindowTitleBar';
-import { getCompactFolderName } from '../../utils/path';
-import { WebFileOperations } from '../../utils/fileOperations';
-import { isWebBuild } from '../../utils/platform';
-import { configService } from '../../services/config';
-import { renderAgentRoleAvatar } from '../../utils/agentRoleDisplay';
+import React, { startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { useSelector } from 'react-redux';
 import {
   getAgentRoleDisplayAvatar,
   getAgentRoleDisplayLabel,
   resolveAgentRolesFromConfig,
   type AgentRoleKey,
 } from '../../../shared/agentRoleConfig';
-import * as SessionDetailHelpers from './sessionDetailHelpers';
-import CoworkMediaGallery from './CoworkMediaGallery';
-import CoworkSessionActionMenu from './CoworkSessionActionMenu';
-import { inferSessionSource } from './sessionRecordUtils';
 import {
   UI_LABEL_TEXT_CLASS,
   UI_MENU_ICON_CLASS,
-  UI_META_TEXT_CLASS,
-  getTouchButtonClass,
+  getTouchButtonClass
 } from '../../../shared/mobileUi';
-import type { CoworkRightDockAction } from './rightDock';
-import { useIsMobileViewport } from '../../hooks/useIsMobileViewport';
 import { useIsMediumViewport } from '../../hooks/useIsMediumViewport';
+import { useIsMobileViewport } from '../../hooks/useIsMobileViewport';
 import { useTimedConversationActionStatus } from '../../hooks/useTimedConversationActionStatus';
+import { configService } from '../../services/config';
+import { coworkService } from '../../services/cowork';
+import { showGlobalToast } from '../../services/toast';
+import { RootState } from '../../store';
+import type { CoworkImageAttachment, CoworkMessage, CoworkMessageMetadata, CoworkRenderableMedia } from '../../types/cowork';
+import { getSkillDisplayName, type Skill } from '../../types/skill';
+import { renderAgentRoleAvatar } from '../../utils/agentRoleDisplay';
+import { WebFileOperations } from '../../utils/fileOperations';
+import { getCompactFolderName } from '../../utils/path';
+import { isWebBuild } from '../../utils/platform';
+import ComposeIcon from '../icons/ComposeIcon';
+import EllipsisHorizontalIcon from '../icons/EllipsisHorizontalIcon';
+import PuzzleIcon from '../icons/PuzzleIcon';
+import SidebarToggleIcon from '../icons/SidebarToggleIcon';
+import MarkdownContent from '../MarkdownContent';
+import WindowTitleBar from '../window/WindowTitleBar';
+import CoworkMediaGallery from './CoworkMediaGallery';
+import CoworkPromptInput from './CoworkPromptInput';
+import CoworkSessionActionMenu from './CoworkSessionActionMenu';
+import type { CoworkRightDockAction } from './rightDock';
+import * as SessionDetailHelpers from './sessionDetailHelpers';
+import { inferSessionSource } from './sessionRecordUtils';
 
 
 interface CoworkSessionDetailProps {
@@ -674,13 +673,14 @@ const ToolCallGroup: React.FC<{
 
 // Copy button component
 const CopyButton: React.FC<{
-  content: string;
+  content?: string | null;
   visible: boolean;
 }> = ({ content, visible }) => {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (!content) return;
     try {
       await navigator.clipboard.writeText(content);
       setCopied(true);
@@ -689,6 +689,8 @@ const CopyButton: React.FC<{
       console.error('Failed to copy:', err);
     }
   };
+
+  if (!content?.trim()) return null;
 
   return (
     <button
@@ -773,11 +775,11 @@ const UserMessageItem: React.FC<{
               <div className="mb-1 text-[11px] font-medium text-claude-textSecondary dark:text-claude-darkTextSecondary">
                 {userLabel}
               </div>
-              <div className="w-fit max-w-[42rem] rounded-2xl px-4 py-2.5 dark:bg-claude-darkSurface bg-claude-surface dark:text-claude-darkText text-claude-text shadow-subtle">
+              <div className="w-fit max-w-[42rem] select-text rounded-2xl px-4 py-2.5 dark:bg-claude-darkSurface bg-claude-surface dark:text-claude-darkText text-claude-text shadow-subtle">
                 {message.content?.trim() && (
                   <MarkdownContent
                     content={message.content}
-                    className="max-w-none whitespace-pre-wrap break-words"
+                    className="max-w-none whitespace-pre-wrap break-words select-text"
                   />
                 )}
                 {imageAttachments.length > 0 && <CoworkMediaGallery mediaItems={imageAttachments} compact={!message.content?.trim()} />}
@@ -884,7 +886,7 @@ const AssistantMessageItem: React.FC<{
         detail={badgeDetail}
         pulse={Boolean(message.metadata?.isStreaming) && isFormalReply}
       />
-      <div className="dark:text-claude-darkText text-claude-text">
+      <div className="select-text dark:text-claude-darkText text-claude-text">
         {(cacheHit || continuitySource || Number.isFinite(promptTokens) || Number.isFinite(completionTokens) || Number.isFinite(totalTokens)) && (
           <div className="mb-2 flex flex-wrap items-center gap-2">
             {cacheHit && <CacheHitBadge source={cacheSource} />}
@@ -920,7 +922,7 @@ const AssistantMessageItem: React.FC<{
               <MarkdownContent
                 key={`markdown-${message.id}-${index}`}
                 content={block.content}
-                className="prose prose-sm dark:prose-invert max-w-none"
+                className="prose prose-sm dark:prose-invert max-w-none select-text"
                 resolveLocalFilePath={resolveLocalFilePath}
                 deferMarkdown={deferMarkdown}
               />
@@ -928,7 +930,7 @@ const AssistantMessageItem: React.FC<{
           }) : (
             <MarkdownContent
               content={displayContent}
-              className="prose prose-sm dark:prose-invert max-w-none"
+              className="prose prose-sm dark:prose-invert max-w-none select-text"
               resolveLocalFilePath={resolveLocalFilePath}
               deferMarkdown={deferMarkdown}
             />
@@ -997,9 +999,9 @@ const StreamingActivityBar: React.FC<{ messages: CoworkMessage[] }> = ({ message
 
 const TypingDots: React.FC = () => (
   <div className="flex items-center space-x-1.5 py-1">
-    <div className="w-2 h-2 rounded-full bg-claude-accent animate-bounce" style={{ animationDelay: '0ms' }} />
-    <div className="w-2 h-2 rounded-full bg-claude-accent animate-bounce" style={{ animationDelay: '150ms' }} />
-    <div className="w-2 h-2 rounded-full bg-claude-accent animate-bounce" style={{ animationDelay: '300ms' }} />
+    <div className="w-2 h-2 rounded-full bg-claude-accent animate-bounce [animation-delay:0ms]" />
+    <div className="w-2 h-2 rounded-full bg-claude-accent animate-bounce [animation-delay:150ms]" />
+    <div className="w-2 h-2 rounded-full bg-claude-accent animate-bounce [animation-delay:300ms]" />
   </div>
 );
 
@@ -1306,18 +1308,13 @@ const AssistantTurnBlock: React.FC<{
                     />
                   );
                 }
-                // Check if there are any tool_group items after this assistant message
-                const hasToolGroupAfter = visibleAssistantItems
-                  .slice(index + 1)
-                  .some(laterItem => laterItem.type === 'tool_group');
-
                 return (
                   <AssistantMessageItem
                     key={item.message.id}
                     message={item.message}
                     resolveLocalFilePath={resolveLocalFilePath}
                     mapDisplayText={mapDisplayText}
-                    showCopyButton={showCopyButtons && !hasToolGroupAfter}
+                    showCopyButton={showCopyButtons}
                     roleLabel={roleLabel}
                     roleAvatar={roleAvatar}
                   />
@@ -1609,8 +1606,23 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
     try {
       showGlobalToast('正在手工压缩上下文，请稍等…');
       const { compression, error } = await coworkService.compressContext(currentSession.id);
+      console.log('[CoworkSessionDetail] manual compression response', {
+        sessionId: currentSession.id,
+        hasCompression: Boolean(compression),
+        error,
+        source: compression?.source,
+        modelId: compression?.modelId,
+        conversationSummaryLength: compression?.conversationSummary?.length ?? 0,
+        broadcastSummaryLength: compression?.broadcastSummary?.length ?? 0,
+        combinedSummaryLength: compression?.combinedSummary?.length ?? 0,
+      });
       if (!compression?.combinedSummary?.trim()) {
         const fallbackSummary = buildManualCompressionSummary(currentSession, turns);
+        console.warn('[CoworkSessionDetail] manual compression fallback', {
+          sessionId: currentSession.id,
+          error,
+          fallbackSummaryLength: fallbackSummary.length,
+        });
         await navigator.clipboard.writeText(fallbackSummary);
         manualCompressStatus.showSuccess({
           label: '已复制接力草稿',
@@ -1806,6 +1818,7 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
                 mimeType: 'image/png',
                 cwd: currentSession.cwd,
                 purpose: 'export',
+                agentRoleKey: currentSession.agentRoleKey,
               });
               if (saveResult.success && (!('canceled' in saveResult) || !saveResult.canceled)) {
                 return true;
@@ -1993,6 +2006,7 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
         mimeType: 'text/markdown',
         cwd: sessionForExport.cwd,
         purpose: 'export',
+        agentRoleKey: sessionForExport.agentRoleKey,
       });
 
       if (!result.success) {
@@ -2165,11 +2179,16 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
   const totalMessageCount = currentSession?.historyMeta?.totalMessageCount ?? loadedMessageCount;
   const hasEarlierHistoryOnServer = Boolean(currentSession?.historyMeta?.hasEarlierMessages);
   const remainingHistoryMessageCount = Math.max(0, totalMessageCount - loadedMessageCount);
+  const [historyTopReached, setHistoryTopReached] = useState(false);
   const currentViewportHeight = scrollContainerRef.current?.clientHeight ?? 0;
   const requiredHistoryPullDistancePx = currentViewportHeight > 0
     ? currentViewportHeight * AUTO_LOAD_REQUIRED_PULL_SCREENS
     : Number.POSITIVE_INFINITY;
-  const canLoadEarlierHistory = hasEarlierHistoryOnServer && historyPullDistancePx >= requiredHistoryPullDistancePx;
+  const canLoadEarlierHistory = hasEarlierHistoryOnServer && (
+    isMobileViewport
+      ? historyTopReached
+      : historyPullDistancePx >= requiredHistoryPullDistancePx
+  );
   const remainingPullScreens = currentViewportHeight > 0
     ? Math.max(0, (requiredHistoryPullDistancePx - historyPullDistancePx) / currentViewportHeight)
     : AUTO_LOAD_REQUIRED_PULL_SCREENS;
@@ -2248,8 +2267,19 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
     const distanceToBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
     const isNearBottom = distanceToBottom <= SessionDetailHelpers.AUTO_SCROLL_THRESHOLD;
     setShouldAutoScroll((prev) => (prev === isNearBottom ? prev : isNearBottom));
+    const isNearTop = container.scrollTop <= AUTO_LOAD_TOP_THRESHOLD_PX;
+    setHistoryTopReached((prev) => (prev === isNearTop ? prev : isNearTop));
 
     if (areEarlyTurnsCollapsed || !hasEarlierHistoryOnServer || isLoadingEarlierHistory) {
+      lastScrollTopRef.current = container.scrollTop;
+      if (historyPullDistancePxRef.current !== 0) {
+        historyPullDistancePxRef.current = 0;
+        setHistoryPullDistancePx(0);
+      }
+      return;
+    }
+
+    if (isMobileViewport) {
       lastScrollTopRef.current = container.scrollTop;
       if (historyPullDistancePxRef.current !== 0) {
         historyPullDistancePxRef.current = 0;
@@ -2285,7 +2315,7 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
     historyPullDistancePxRef.current = 0;
     setHistoryPullDistancePx(0);
     handleLoadEarlierHistory();
-  }, [areEarlyTurnsCollapsed, handleLoadEarlierHistory, hasEarlierHistoryOnServer, isLoadingEarlierHistory]);
+  }, [areEarlyTurnsCollapsed, handleLoadEarlierHistory, hasEarlierHistoryOnServer, isLoadingEarlierHistory, isMobileViewport]);
   const scrollToTop = useCallback(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
@@ -2434,7 +2464,7 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
             turnRefs.current[actualIndex] = node;
           }}
           data-turn-id={turn.id}
-          style={{ contentVisibility: 'auto', containIntrinsicSize: '720px' }}
+          className="[content-visibility:auto] [contain-intrinsic-size:720px]"
         >
           {turn.userMessage && (
             <div data-export-role="user-message">
@@ -2479,6 +2509,8 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
             <div className={`non-draggable flex items-center gap-1 ${isMac ? 'pl-[68px]' : ''}`}>
               <button
                 type="button"
+                title="Toggle Sidebar"
+                aria-label="Toggle Sidebar"
                 onClick={onToggleSidebar}
                 className={getTouchButtonClass('inline-flex items-center justify-center rounded-lg dark:text-claude-darkTextSecondary text-claude-textSecondary hover:bg-claude-surfaceHover dark:hover:bg-claude-darkSurfaceHover transition-colors')}
               >
@@ -2486,6 +2518,8 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
               </button>
               <button
                 type="button"
+                title="New Chat"
+                aria-label="New Chat"
                 onClick={onNewChat}
                 className={getTouchButtonClass('inline-flex items-center justify-center rounded-lg dark:text-claude-darkTextSecondary text-claude-textSecondary hover:bg-claude-surfaceHover dark:hover:bg-claude-darkSurfaceHover transition-colors')}
               >
@@ -2509,6 +2543,9 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
                 }
               }}
               onBlur={handleRenameBlur}
+              aria-label="会话标题"
+              title="编辑会话标题"
+              placeholder="请输入会话标题"
               className="non-draggable min-w-0 max-w-[300px] rounded-xl border border-white/55 bg-white/88 px-2.5 py-1.5 text-sm font-medium text-claude-text shadow-sm focus:outline-none focus:ring-2 focus:ring-claude-accent/35 dark:border-white/10 dark:bg-claude-darkBg/90 dark:text-claude-darkText"
             />
           ) : (
@@ -2634,7 +2671,7 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
       <div
         ref={scrollContainerRef}
         onScroll={handleMessagesScroll}
-        className="flex-1 overflow-y-auto min-h-0 px-4 pt-4"
+        className="touch-history-scroll-guard flex-1 overflow-y-auto min-h-0 px-4 pt-4"
       >
         <div className="mx-auto w-full max-w-[920px]">
           {!areEarlyTurnsCollapsed && hasEarlierHistoryOnServer && (
@@ -2650,7 +2687,9 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
                     ? '正在加载更早对话...'
                     : canLoadEarlierHistory
                       ? `已满足上拉两屏条件，点击继续加载更早内容${remainingHistoryMessageCount > 0 ? `（约 ${remainingHistoryMessageCount} 条消息）` : ''}`
-                      : `继续上拉约 ${remainingPullScreens.toFixed(1)} 屏后，才会加载更早内容${remainingHistoryMessageCount > 0 ? `（约 ${remainingHistoryMessageCount} 条消息）` : ''}`}
+                      : isMobileViewport
+                        ? `移动端已改成到顶后点按加载更早内容${remainingHistoryMessageCount > 0 ? `（约 ${remainingHistoryMessageCount} 条消息）` : ''}`
+                        : `继续上拉约 ${remainingPullScreens.toFixed(1)} 屏后，才会加载更早内容${remainingHistoryMessageCount > 0 ? `（约 ${remainingHistoryMessageCount} 条消息）` : ''}`}
                 </button>
               </div>
             </div>
@@ -2658,6 +2697,11 @@ const CoworkSessionDetail: React.FC<CoworkSessionDetailProps> = ({
           {hiddenTurnCount > 0 && (
             <div className="px-4 pb-2">
               <div className="mx-auto max-w-3xl">
+                {hasEarlierHistoryOnServer && (
+                  <div className="mb-2 text-xs leading-5 text-claude-textSecondary dark:text-claude-darkTextSecondary">
+                    {'如需回忆更早内容，可直接让 agent 查记忆数据库/历史；不是所有更早原文都会默认整段带进当前轮。'}
+                  </div>
+                )}
                 {areEarlyTurnsCollapsed ? (
                   <button
                     type="button"

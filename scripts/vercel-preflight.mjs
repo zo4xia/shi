@@ -15,7 +15,9 @@ const lines = [
   '  build:   npm run build',
   '  start:   npm start',
   '',
-  '[deploy] If you only need a static shell, that is a separate deployment mode and must be split intentionally.'
+  '[deploy] If you only need a static shell, that is a separate deployment mode and must be split intentionally.',
+  '[deploy] Preset helper:',
+  '  npm run deploy:init -- --target vercel-static --backend-origin https://your-backend.example.com'
 ];
 
 for (const line of lines) {

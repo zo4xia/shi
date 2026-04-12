@@ -1,0 +1,125 @@
+{
+    "root": true,
+    "env": {
+        "browser": true,
+        "es2021": true,
+        "node": true
+    },
+    "extends": [
+        "eslint:recommended",
+        "plugin:@typescript-eslint/strict",
+        "plugin:@typescript-eslint/stylistic",
+        "plugin:react-hooks/recommended",
+        "plugin:react-refresh/recommended"
+    ],
+    "ignorePatterns": [
+        "dist",
+        "build",
+        "server/public",
+        "server/dist",
+        "coverage",
+        ".eslintrc.json",
+        "node_modules",
+        "team.html",
+        "src/renderer/team-main.tsx",
+        "src/renderer/components/team/**"
+    ],
+    "parser": "@typescript-eslint/parser",
+    "parserOptions": {
+        "ecmaVersion": "latest",
+        "sourceType": "module",
+        "ecmaFeatures": {
+            "jsx": true
+        },
+        "project": [
+            "./tsconfig.json",
+            "./tsconfig.node.json"
+        ]
+    },
+    "plugins": [
+        "@typescript-eslint",
+        "react-hooks",
+        "react-refresh"
+    ],
+    "rules": {
+        "react-refresh/only-export-components": [
+            "warn",
+            {
+                "allowConstantExport": true
+            }
+        ],
+        "@typescript-eslint/no-explicit-any": "warn",
+        "@typescript-eslint/no-unused-vars": [
+            "error",
+            {
+                "argsIgnorePattern": "^_",
+                "varsIgnorePattern": "^_"
+            }
+        ],
+        "@typescript-eslint/no-floating-promises": "error",
+        "@typescript-eslint/no-misused-promises": "error",
+        "@typescript-eslint/await-thenable": "error",
+        "@typescript-eslint/no-unnecessary-type-assertion": "warn",
+        "@typescript-eslint/consistent-type-imports": [
+            "warn",
+            {
+                "prefer": "type-only"
+            }
+        ],
+        "@typescript-eslint/naming-convention": [
+            "error",
+            {
+                "selector": "variable",
+                "format": [
+                    "camelCase",
+                    "PascalCase",
+                    "UPPER_CASE"
+                ],
+                "leadingUnderscore": "allow"
+            },
+            {
+                "selector": "typeLike",
+                "format": [
+                    "PascalCase"
+                ]
+            },
+            {
+                "selector": "enumMember",
+                "format": [
+                    "PascalCase",
+                    "UPPER_CASE"
+                ]
+            }
+        ],
+        "no-console": [
+            "warn",
+            {
+                "allow": [
+                    "warn",
+                    "error"
+                ]
+            }
+        ],
+        "no-debugger": "warn",
+        "prefer-const": "warn",
+        "eqeqeq": [
+            "error",
+            "always",
+            {
+                "null": "ignore"
+            }
+        ],
+        "no-var": "error"
+    },
+    "overrides": [
+        {
+            "files": [
+                "*.tsx",
+                "*.ts"
+            ],
+            "rules": {
+                "react-hooks/rules-of-hooks": "error"
+            }
+        }
+    ]
+}

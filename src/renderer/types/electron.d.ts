@@ -386,7 +386,7 @@ interface IElectronAPI {
   dialog: {
     selectDirectory: () => Promise<{ success: boolean; path: string | null; error?: string }>;
     selectFile: (options?: { title?: string; filters?: { name: string; extensions: string[] }[]; cwd?: string }) => Promise<{ success: boolean; path: string | null }>;
-    saveInlineFile: (options: { dataBase64: string; fileName?: string; mimeType?: string; cwd?: string; purpose?: 'attachment' | 'export' }) => Promise<{ success: boolean; path: string | null; error?: string }>;
+    saveInlineFile: (options: { dataBase64: string; fileName?: string; mimeType?: string; cwd?: string; purpose?: 'attachment' | 'export'; agentRoleKey?: string }) => Promise<{ success: boolean; path: string | null; error?: string }>;
     parseInlineFile: (options: { path: string; maxCharacters?: number }) => Promise<{
       success: boolean;
       path?: string;

@@ -35,7 +35,7 @@ export interface TaskState {
 export type NotifyPlatform = 'dingtalk' | 'feishu' | 'qq' | 'telegram' | 'discord' | 'nim' | 'xiaomifeng' | 'wecom';
 
 // 定时任务
-// {标记} P0-BUG-FIX: 添加身份绑定字段
+// {标记} P0-IDENTITY-BOUNDARY: 定时任务里 agentRoleKey 才是身份；modelId 只是当前运行时模型元信息。
 export interface ScheduledTask {
   id: string;
   name: string;
@@ -53,8 +53,7 @@ export interface ScheduledTask {
   feishuNotifyAgentRoleKey?: string | null;
   feishuAppId?: string | null;
   feishuChatId?: string | null;
-  // {标记} P0-新增：身份绑定字段
-  // The stored identity key may be any preserved agentRoleKey. Runtime execution can still map to the 4 main role slots.
+  // {标记} P0-IDENTITY-BOUNDARY: 持久化保留的是角色身份键；运行时可映射到 4 主角色槽位，但不能让 modelId 取代身份。
   agentRoleKey?: string;
   modelId?: string;
   state: TaskState;
@@ -81,7 +80,7 @@ export interface ScheduledTaskRunWithName extends ScheduledTaskRun {
 }
 
 // 表单输入
-// {标记} P0-BUG-FIX: 添加身份绑定字段
+// {标记} P0-IDENTITY-BOUNDARY: 定时任务表单里的角色身份和运行模型元信息必须分层，不能混成一个概念。
 export interface ScheduledTaskInput {
   name: string;
   description: string;
@@ -98,8 +97,7 @@ export interface ScheduledTaskInput {
   feishuAppId?: string | null;
   feishuChatId?: string | null;
   enabled: boolean;
-  // {标记} P0-新增：身份绑定字段
-  // The stored identity key may be any preserved agentRoleKey. Runtime execution can still map to the 4 main role slots.
+  // {标记} P0-IDENTITY-BOUNDARY: agentRoleKey 是身份；modelId 只是执行时当前挂的发动机。
   agentRoleKey?: string;
   modelId?: string;
 }

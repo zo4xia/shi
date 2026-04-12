@@ -2,8 +2,8 @@
 // API: ModalWrapper - 统一的模态框UI
 // CHECKPOINT: 验证模态框交互逻辑
 
-import React from 'react';
 import { XMarkIcon } from '@heroicons/react/24/outline';
+import React from 'react';
 import { useIsMobileViewport } from '../../hooks/useIsMobileViewport';
 
 /**
@@ -52,10 +52,22 @@ const WIDTH_CLASSES: Record<ModalWidth, string> = {
   '4xl': 'max-w-4xl',
 };
 
+const CONTENT_MAX_HEIGHT_CLASSES: Record<string, string> = {
+  '55vh': 'max-h-[55vh]'
+  ,
+  '60vh': 'max-h-[60vh]'
+  ,
+  '70vh': 'max-h-[70vh]'
+  ,
+  '75vh': 'max-h-[75vh]'
+  ,
+  '80vh': 'max-h-[80vh]'
+};
+
 /**
  * ModalWrapper组件
  * 统一的模态框UI包装器,提供一致的样式和交互
- * 
+ *
  * @example
  * <ModalWrapper
  *   isOpen={isOpen}
@@ -97,16 +109,18 @@ export const ModalWrapper: React.FC<ModalWrapperProps> = ({
 
   // 处理ESC键关闭
   React.useEffect(() => {
+    if (!isOpen) {
+      return undefined;
+    }
+
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isOpen) {
         onClose();
       }
     };
 
-    if (isOpen) {
-      document.addEventListener('keydown', handleEscape);
-      return () => document.removeEventListener('keydown', handleEscape);
-    }
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
   }, [isOpen, onClose]);
 
   // 禁用/恢复背景滚动
@@ -121,7 +135,16 @@ export const ModalWrapper: React.FC<ModalWrapperProps> = ({
 
   if (!isOpen) return null;
 
+  const modalSizeClass = isMobileViewport && mobileFullScreen
+    ? 'w-screen max-h-[100dvh] rounded-none'
+    : `w-full ${WIDTH_CLASSES[maxWidth]} mx-4 max-h-[95vh]`;
+
+  const contentMaxHeightClass = isMobileViewport && mobileFullScreen
+    ? 'max-h-none'
+    : CONTENT_MAX_HEIGHT_CLASSES[maxHeight] ?? 'max-h-[55vh]';
+
   return (
+    // {标记} Z-LAYER-MODAL-WRAPPER: 模态框背景层 (z-50)
     <div
       className={`fixed inset-0 z-50 modal-backdrop-pearl flex ${
         isMobileViewport && mobileFullScreen
@@ -134,13 +157,7 @@ export const ModalWrapper: React.FC<ModalWrapperProps> = ({
       aria-labelledby={`modal-title-${title.replace(/\s+/g, '-')}`}
     >
       <div
-        className={`modal-content w-full ${isMobileViewport && mobileFullScreen ? '' : WIDTH_CLASSES[maxWidth]} ${isMobileViewport && mobileFullScreen ? '' : 'mx-4'} modal-pearl overflow-hidden flex flex-col max-h-[95vh]`}
-        style={{
-          width: isMobileViewport && mobileFullScreen ? '100vw' : undefined,
-          minHeight: isMobileViewport && mobileFullScreen ? '100dvh' : undefined,
-          maxHeight: isMobileViewport && mobileFullScreen ? '100dvh' : undefined,
-          borderRadius: isMobileViewport && mobileFullScreen ? '0' : undefined,
-        }}
+        className={`modal-content ${modalSizeClass} modal-pearl overflow-hidden flex flex-col`}
         onClick={(e) => e.stopPropagation()}
         role="document"
       >
@@ -167,8 +184,7 @@ export const ModalWrapper: React.FC<ModalWrapperProps> = ({
 
         {/* Content */}
         <div
-          className={`${isMobileViewport && mobileFullScreen ? 'px-4 py-4' : 'px-6 py-5'} space-y-4 overflow-y-auto flex-1`}
-          style={{ maxHeight: isMobileViewport && mobileFullScreen ? undefined : maxHeight }}
+          className={`${isMobileViewport && mobileFullScreen ? 'px-4 py-4' : 'px-6 py-5'} space-y-4 overflow-y-auto flex-1 ${contentMaxHeightClass}`}
         >
           {children}
         </div>

@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
 import { ChevronDownIcon } from '@heroicons/react/24/outline';
+import React, { useEffect, useRef, useState } from 'react';
 
 interface ThemedSelectProps {
   id: string;
@@ -44,6 +44,15 @@ const ThemedSelect: React.FC<ThemedSelectProps> = ({
     setIsOpen(false);
   };
 
+  const buttonClasses = [
+    'flex items-center justify-between w-full rounded-lg px-4 py-2.5 text-sm',
+    'bg-claude-surface dark:bg-claude-darkSurface',
+    'border border-claude-border dark:border-claude-darkBorder',
+    'text-claude-text dark:text-claude-darkText',
+    'focus:border-claude-accent focus:ring-1 focus:ring-claude-accent/40',
+    className
+  ].filter(Boolean).join(' ');
+
   return (
     <div className="relative" ref={dropdownRef}>
       <div className="flex items-center space-x-3">
@@ -57,9 +66,8 @@ const ThemedSelect: React.FC<ThemedSelectProps> = ({
             id={id}
             type="button"
             onClick={() => setIsOpen(!isOpen)}
-            className={`flex items-center justify-between w-full rounded-lg dark:bg-claude-darkSurface bg-claude-surface dark:border-claude-darkBorder border-claude-border border focus:border-claude-accent focus:ring-1 focus:ring-claude-accent/40 dark:text-claude-darkText text-claude-text px-4 py-2.5 text-sm ${className}`}
+            className={buttonClasses}
             aria-haspopup="listbox"
-            aria-expanded={isOpen}
           >
             <span>{selectedOption?.label || value}</span>
             <ChevronDownIcon className="w-4 h-4 ml-2" />
@@ -72,23 +80,35 @@ const ThemedSelect: React.FC<ThemedSelectProps> = ({
                 role="listbox"
                 aria-labelledby={id}
               >
-                {options.map((option) => (
-                  <li
-                    key={option.value}
-                    className={`cursor-pointer select-none relative py-1.5 pl-3 pr-9 dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover ${
-                      option.value === value ? 'dark:bg-claude-darkSurfaceHover bg-claude-surfaceHover' : ''
-                    }`}
-                    role="option"
-                    aria-selected={option.value === value}
-                    onClick={() => handleOptionClick(option.value)}
-                  >
-                    <span className={`block truncate dark:text-claude-darkText text-claude-text ${
-                      option.value === value ? 'font-medium' : 'font-normal'
-                    }`}>
-                      {option.label}
-                    </span>
-                  </li>
-                ))}
+                {options.map((option) => {
+                  const isSelected = option.value === value;
+                  const itemClasses = [
+                    'cursor-pointer select-none relative py-1.5 pl-3 pr-9',
+                    'hover:bg-claude-surfaceHover dark:hover:bg-claude-darkSurfaceHover',
+                    isSelected ? 'bg-claude-surfaceHover dark:bg-claude-darkSurfaceHover' : '',
+                  ].filter(Boolean).join(' ');
+
+                  const textClasses = [
+                    'block truncate',
+                    'text-claude-text dark:text-claude-darkText',
+                    isSelected ? 'font-medium' : 'font-normal',
+                  ].filter(Boolean).join(' ');
+
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      role="option"
+                      aria-selected={isSelected}
+                      className={`${itemClasses} w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-claude-accent/40`}
+                      onClick={() => handleOptionClick(option.value)}
+                    >
+                      <span className={textClasses}>
+                        {option.label}
+                      </span>
+                    </button>
+                  );
+                })}
               </ul>
             </div>
           )}
@@ -98,4 +118,4 @@ const ThemedSelect: React.FC<ThemedSelectProps> = ({
   );
 };
 
-export default ThemedSelect; 
+export default ThemedSelect;

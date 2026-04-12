@@ -11,6 +11,11 @@ type CompressionApiConfig = {
   source: string;
 };
 
+type CompressionAttemptResult = {
+  result: ManualContextCompressionResult | null;
+  error: string | null;
+};
+
 type CompressibleMessage = {
   type: string;
   content: string;
@@ -34,8 +39,6 @@ export interface ManualContextCompressionResult {
   modelId: string;
 }
 
-const MANUAL_COMPRESSION_TIMEOUT_MS = 90_000;
-const MANUAL_COMPRESSION_RETRY_TIMEOUT_MS = 150_000;
 const MAX_CONVERSATION_PROMPT_CHARS = 60_000;
 const MAX_BOARD_PROMPT_CHARS = 12_000;
 
@@ -175,30 +178,12 @@ function buildCompressionPrompt(session: CompressibleSession, boardText: string)
   ].join('\n');
 }
 
-function isTimeoutError(error: unknown): boolean {
-  if (!(error instanceof Error)) {
-    return false;
-  }
-  const message = `${error.message} ${(error as any)?.cause?.message || ''}`;
-  return /headers timeout|timeout|UND_ERR_HEADERS_TIMEOUT|fetch failed/i.test(message);
-}
-
-async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
-  return fetch(url, {
-    ...init,
-    signal: init.signal ?? AbortSignal.timeout(timeoutMs),
-  });
-}
-
-async function fetchWithRetry(url: string, init: RequestInit): Promise<Response> {
-  try {
-    return await fetchWithTimeout(url, init, MANUAL_COMPRESSION_TIMEOUT_MS);
-  } catch (error) {
-    if (!isTimeoutError(error)) {
-      throw error;
-    }
-    return await fetchWithTimeout(url, init, MANUAL_COMPRESSION_RETRY_TIMEOUT_MS);
-  }
+async function fetchWithoutLocalTimeout(url: string, init: RequestInit): Promise<Response> {
+  // ##混淆点注意：
+  // 手工压缩上下文不再由服务端本地强加 90 秒 / 150 秒超时。
+  // 这类长整理任务是否停止，交给用户侧的“手工打断”按钮，而不是隐式定时切断。
+  // 如果上游自己超时/断开，会直接返回上游错误；这里不再额外套一层本地短时闸门。
+  return fetch(url, init);
 }
 
 async function fetchOpenAI(prompt: string, config: CompressionApiConfig): Promise<string> {
@@ -209,7 +194,7 @@ async function fetchOpenAI(prompt: string, config: CompressionApiConfig): Promis
       ? `${base}/chat/completions`
       : `${base}/v1/chat/completions`;
 
-  const resp = await fetchWithRetry(url, {
+  const resp = await fetchWithoutLocalTimeout(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -238,7 +223,7 @@ async function fetchAnthropic(prompt: string, config: CompressionApiConfig): Pro
     ? base
     : `${base}/v1/messages`;
 
-  const resp = await fetchWithRetry(url, {
+  const resp = await fetchWithoutLocalTimeout(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -288,6 +273,14 @@ function parseCompressionJson(text: string): ManualContextCompressionResult | nu
   }
 }
 
+function summarizeCompressionResponse(text: string): string {
+  const cleaned = text.replace(/\s+/g, ' ').trim();
+  if (!cleaned) {
+    return 'empty response';
+  }
+  return cleaned.slice(0, 180);
+}
+
 export async function compressSessionContext(params: {
   db: Database;
   appConfig?: Record<string, any>;
@@ -307,28 +300,44 @@ export async function compressSessionContext(params: {
     buildBroadcastPromptText(params.db, roleKey),
   );
 
-  const runCompression = async (targetConfig: CompressionApiConfig): Promise<ManualContextCompressionResult | null> => {
+  const runCompression = async (targetConfig: CompressionApiConfig): Promise<CompressionAttemptResult> => {
     try {
       const raw = targetConfig.apiFormat === 'anthropic'
         ? await fetchAnthropic(prompt, targetConfig)
         : await fetchOpenAI(prompt, targetConfig);
       const parsed = parseCompressionJson(raw);
       if (!parsed) {
-        return null;
+        return {
+          result: null,
+          error: `${targetConfig.source} returned non-JSON compression output: ${summarizeCompressionResponse(raw)}`,
+        };
       }
       return {
-        ...parsed,
-        source: targetConfig.source,
-        modelId: targetConfig.modelId,
+        result: {
+          ...parsed,
+          source: targetConfig.source,
+          modelId: targetConfig.modelId,
+        },
+        error: null,
       };
-    } catch {
-      return null;
+    } catch (error) {
+      return {
+        result: null,
+        error: `${targetConfig.source} failed: ${error instanceof Error ? error.message : String(error)}`,
+      };
     }
   };
 
   const primaryResult = await runCompression(config);
-  if (primaryResult) {
-    return primaryResult;
+  if (primaryResult.result) {
+    console.info('[manual-compression] success', {
+      source: primaryResult.result.source,
+      modelId: primaryResult.result.modelId,
+      conversationSummaryLength: primaryResult.result.conversationSummary.length,
+      broadcastSummaryLength: primaryResult.result.broadcastSummary.length,
+      combinedSummaryLength: primaryResult.result.combinedSummary.length,
+    });
+    return primaryResult.result;
   }
 
   const shouldFallbackToRoleModel = Boolean(
@@ -339,10 +348,26 @@ export async function compressSessionContext(params: {
 
   if (shouldFallbackToRoleModel) {
     const fallbackResult = await runCompression(roleConfig!);
-    if (fallbackResult) {
-      return fallbackResult;
+    if (fallbackResult.result) {
+      console.info('[manual-compression] fallback-success', {
+        source: fallbackResult.result.source,
+        modelId: fallbackResult.result.modelId,
+        conversationSummaryLength: fallbackResult.result.conversationSummary.length,
+        broadcastSummaryLength: fallbackResult.result.broadcastSummary.length,
+        combinedSummaryLength: fallbackResult.result.combinedSummary.length,
+      });
+      return fallbackResult.result;
     }
+    throw new Error([
+      `压缩失败：专用压缩模型和角色模型都没接住。`,
+      primaryResult.error ? `主压缩：${primaryResult.error}` : null,
+      fallbackResult.error ? `角色降级：${fallbackResult.error}` : null,
+    ].filter(Boolean).join('\n'));
   }
 
-  throw new Error('压缩模型无响应，且角色模型降级也失败');
+  throw new Error([
+    '压缩失败：当前只尝试了主压缩模型。',
+    primaryResult.error ? `主压缩：${primaryResult.error}` : null,
+    roleConfig ? null : `角色降级：当前角色 ${roleKey} 没有可用的压缩模型配置。`,
+  ].filter(Boolean).join('\n'));
 }

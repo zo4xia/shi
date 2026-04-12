@@ -1,5 +1,5 @@
+import { InformationCircleIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import React from 'react';
-import { XMarkIcon, InformationCircleIcon } from '@heroicons/react/24/outline';
 
 interface ToastProps {
   message: string;
@@ -8,6 +8,7 @@ interface ToastProps {
 
 const Toast: React.FC<ToastProps> = ({ message, onClose }) => {
   return (
+    // {标记} Z-LAYER-TOAST: 通知层 (z-70, 在模态框之上)
     <div className="pointer-events-none fixed top-4 right-4 z-[70] flex w-full max-w-sm justify-end px-4">
       <div
         role="status"

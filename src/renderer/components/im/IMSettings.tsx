@@ -3,17 +3,17 @@
  * Configuration UI for Feishu and supported IM bots
  */
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
-import { SignalIcon, XMarkIcon, CheckCircleIcon, XCircleIcon, ExclamationTriangleIcon, InformationCircleIcon } from '@heroicons/react/24/outline';
 import { EyeIcon, EyeSlashIcon, XCircleIcon as XCircleIconSolid } from '@heroicons/react/20/solid';
-import { RootState } from '../../store';
+import { CheckCircleIcon, ExclamationTriangleIcon, InformationCircleIcon, SignalIcon, XCircleIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import { AGENT_ROLE_ICONS, AGENT_ROLE_LABELS, AGENT_ROLE_ORDER } from '../../../shared/agentRoleConfig';
 import { imService } from '../../services/im';
 import { showGlobalToast } from '../../services/toast';
-import { setDingTalkConfig, setFeishuConfig, setQQConfig, setTelegramConfig, setDiscordConfig, setNimConfig, setXiaomifengConfig, setWecomConfig, setWechatBotConfig, setImaConfig, clearError } from '../../store/slices/imSlice';
-import type { IMPlatform, IMConnectivityCheck, IMConnectivityTestResult, IMGatewayConfig } from '../../types/im';
+import { RootState } from '../../store';
+import { clearError, setDingTalkConfig, setDiscordConfig, setFeishuConfig, setImaConfig, setNimConfig, setQQConfig, setTelegramConfig, setWechatBotConfig, setWecomConfig, setXiaomifengConfig } from '../../store/slices/imSlice';
+import type { IMConnectivityCheck, IMConnectivityTestResult, IMGatewayConfig, IMPlatform } from '../../types/im';
 import { getVisibleIMPlatforms, isComingSoonIMPlatform } from '../../utils/regionFilter';
-import { AGENT_ROLE_ICONS, AGENT_ROLE_LABELS, AGENT_ROLE_ORDER } from '../../../shared/agentRoleConfig';
 
 type IMSidebarItem = IMPlatform | 'ima';
 type WechatBotQrLoginState = {
@@ -111,6 +111,7 @@ const IMSettings: React.FC = () => {
   const [togglingPlatform, setTogglingPlatform] = useState<IMPlatform | null>(null);
   // Track visibility of password fields (eye toggle)
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
+  const secretMaskTimersRef = useRef<Record<string, number>>({});
   const [showImaHelp, setShowImaHelp] = useState(false);
   const [showFeishuPoolHint, setShowFeishuPoolHint] = useState(false);
   const [wechatBotQrLogin, setWechatBotQrLogin] = useState<WechatBotQrLoginState | null>(null);
@@ -129,7 +130,42 @@ const IMSettings: React.FC = () => {
   // Reset password visibility when switching platforms
   useEffect(() => {
     setShowSecrets({});
+    Object.values(secretMaskTimersRef.current).forEach((timer) => window.clearTimeout(timer));
+    secretMaskTimersRef.current = {};
   }, [activePlatform]);
+
+  useEffect(() => {
+    const nextVisibleKeys = Object.entries(showSecrets)
+      .filter(([, visible]) => visible)
+      .map(([key]) => key);
+
+    for (const key of nextVisibleKeys) {
+      if (secretMaskTimersRef.current[key]) {
+        continue;
+      }
+      secretMaskTimersRef.current[key] = window.setTimeout(() => {
+        setShowSecrets((prev) => {
+          if (!prev[key]) {
+            return prev;
+          }
+          return { ...prev, [key]: false };
+        });
+        const current = secretMaskTimersRef.current[key];
+        if (current) {
+          window.clearTimeout(current);
+          delete secretMaskTimersRef.current[key];
+        }
+      }, 5000);
+    }
+
+    for (const key of Object.keys(secretMaskTimersRef.current)) {
+      if (showSecrets[key]) {
+        continue;
+      }
+      window.clearTimeout(secretMaskTimersRef.current[key]);
+      delete secretMaskTimersRef.current[key];
+    }
+  }, [showSecrets]);
 
   // Initialize IM service and subscribe status updates
   useEffect(() => {
@@ -149,6 +185,8 @@ const IMSettings: React.FC = () => {
         window.clearTimeout(feishuPersistTimerRef.current);
         feishuPersistTimerRef.current = null;
       }
+      Object.values(secretMaskTimersRef.current).forEach((timer) => window.clearTimeout(timer));
+      secretMaskTimersRef.current = {};
     };
   }, []);
 
@@ -454,7 +492,7 @@ const IMSettings: React.FC = () => {
     if (!configLoaded) return;
     const updatedNimConfig = { ...config.nim, ...updates };
     await imService.updateConfig({ nim: updatedNimConfig });
-    
+
     // 显示保存成功提示
     showGlobalToast('设置已保存');
   };
@@ -1022,11 +1060,7 @@ const IMSettings: React.FC = () => {
               </div>
               {activeGatewayPlatform && (
                 <>
-                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                    activeGatewayEnabled
-                      ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300'
-                      : 'bg-gray-500/15 text-gray-500 dark:text-gray-400'
-                  }`}>
+                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${activeGatewayEnabled ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300' : 'bg-gray-500/15 text-gray-500 dark:text-gray-400'}`}>
                     {activeGatewayEnabled ? '渠道已启用' : '渠道未启用'}
                   </span>
                   <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
@@ -1267,6 +1301,8 @@ const IMSettings: React.FC = () => {
                 </label>
                 <select
                   value={config.wechatbot.agentRoleKey}
+                  title="绑定角色"
+                  aria-label="绑定角色"
                   onChange={(e) => {
                     const nextWechatBotConfig = {
                       ...config.wechatbot,
@@ -1550,6 +1586,8 @@ const IMSettings: React.FC = () => {
                     </label>
                     <select
                       value={app.agentRoleKey}
+                      title="内部角色模型绑定"
+                      aria-label="内部角色模型绑定"
                       onChange={(e) => handleFeishuAppChange(app.id, 'agentRoleKey', e.target.value)}
                       className="block w-full rounded-lg dark:bg-claude-darkSurface/80 bg-claude-surface/80 dark:border-claude-darkBorder/60 border-claude-border/60 border focus:border-claude-accent focus:ring-1 focus:ring-claude-accent/30 dark:text-claude-darkText text-claude-text px-3 py-2 text-sm transition-colors"
                     >
@@ -1791,6 +1829,8 @@ const IMSettings: React.FC = () => {
                       {id}
                       <button
                         type="button"
+                        title={`删除允许用户: ${id}`}
+                        aria-label={`删除允许用户: ${id}`}
                         onClick={() => {
                           const newIds = (config.telegram.allowedUserIds || []).filter((uid) => uid !== id);
                           handleTelegramChange('allowedUserIds', newIds);
@@ -2051,6 +2091,8 @@ const IMSettings: React.FC = () => {
               </label>
               <select
                 value={config.nim.teamPolicy || 'disabled'}
+                title="群消息策略"
+                aria-label="群消息策略"
                 onChange={(e) => {
                   const newValue = e.target.value as 'disabled' | 'open' | 'allowlist';
                   handleNimChange('teamPolicy', newValue);
@@ -2428,6 +2470,8 @@ const IMSettings: React.FC = () => {
                 </div>
                 <button
                   type="button"
+                  title="关闭扫码"
+                  aria-label="关闭扫码"
                   onClick={() => setWechatBotQrLogin(null)}
                   className="p-1 rounded-md dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover dark:text-claude-darkTextSecondary text-claude-textSecondary"
                 >

@@ -5,7 +5,6 @@ import { RootState } from '../../store';
 import { setViewMode, selectTask } from '../../store/slices/scheduledTaskSlice';
 import { scheduledTaskService } from '../../services/scheduledTask';
 import { showGlobalToast } from '../../services/toast';
-import { getPlatform } from '../../utils/platform';
 import TaskList from './TaskList';
 import TaskForm from './TaskForm';
 import TaskDetail from './TaskDetail';

@@ -33,7 +33,6 @@ const SkillsMcpHelperButton: React.FC<SkillsMcpHelperButtonProps> = ({ contextLa
   const [error, setError] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [inputValue, setInputValue] = useState('');
-  const [showDetails, setShowDetails] = useState(false);
   const [messages, setMessages] = useState<HelperMessage[]>([]);
   const rootRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -152,7 +151,7 @@ const SkillsMcpHelperButton: React.FC<SkillsMcpHelperButtonProps> = ({ contextLa
       top: messagesRef.current.scrollHeight,
       behavior: 'smooth',
     });
-  }, [isOpen, messages, isSending, showDetails]);
+  }, [isOpen, messages, isSending]);
 
   const handleSend = async (rawMessage?: string) => {
     const message = (rawMessage ?? inputValue).trim();
@@ -207,6 +206,8 @@ const SkillsMcpHelperButton: React.FC<SkillsMcpHelperButtonProps> = ({ contextLa
               </div>
               <button
                 type="button"
+                aria-label="关闭小助手"
+                title="关闭小助手"
                 onClick={() => setIsOpen(false)}
                 className="rounded-lg p-1 text-claude-textSecondary transition-colors hover:bg-claude-surfaceHover hover:text-claude-text dark:text-claude-darkTextSecondary dark:hover:bg-claude-darkSurfaceHover dark:hover:text-claude-darkText"
               >

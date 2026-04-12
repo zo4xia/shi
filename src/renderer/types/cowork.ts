@@ -179,12 +179,14 @@ export type CoworkPermissionResult =
       behavior: 'allow';
       updatedInput?: Record<string, unknown>;
       updatedPermissions?: Record<string, unknown>[];
+      // {标记} DRIFT: legacy casing only. Top-layer message/tool grouping uses toolUseId.
       toolUseID?: string;
     }
   | {
       behavior: 'deny';
       message: string;
       interrupt?: boolean;
+      // {标记} DRIFT: legacy casing only. Keep watching for mismatched request/response wiring.
       toolUseID?: string;
     };
 

@@ -8,6 +8,9 @@ import type {
   TeamTaskRuntime,
 } from '../types/teamRuntime';
 
+// #边界_Team运行时转换层
+// Team 的时间轴 / 板书块 / reveal 运行时转换先收在这里。
+// 页面可以先是演示壳，但这些转换不要继续反向塞回页面组件。
 const TIMELINE_ORDER: Record<RuntimeTimelinePoint['type'], number> = {
   speech: 0,
   board: 1,

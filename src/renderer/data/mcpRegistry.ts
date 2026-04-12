@@ -134,6 +134,17 @@ export const mcpRegistry: McpRegistryEntry[] = [
     command: 'npx',
     defaultArgs: ['-y', '@playwright/mcp@latest'],
   },
+  {
+    id: 'desktop-control',
+    name: 'Desktop Control',
+    descriptionKey: 'mcpDesc_desktop_control',
+    category: 'browser',
+    categoryKey: 'mcpCategoryBrowser',
+    transportType: 'stdio',
+    command: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe',
+    defaultArgs: ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File'],
+    argPlaceholders: ['{{USERPROFILE}}\\.codex\\vendor_imports\\desktop-control-mcp\\server.ps1'],
+  },
 
   // ── Design ──────────────────────────────────────────────
   {

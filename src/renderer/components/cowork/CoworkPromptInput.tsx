@@ -1,39 +1,36 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { useSelector, useDispatch } from 'react-redux';
-import { PaperAirplaneIcon, StopIcon, FolderIcon } from '@heroicons/react/24/solid';
 import { ComputerDesktopIcon, PhotoIcon } from '@heroicons/react/24/outline';
-import PaperClipIcon from '../icons/PaperClipIcon';
-import XMarkIcon from '../icons/XMarkIcon';
-import ModelSelector from '../ModelSelector';
+import { PaperAirplaneIcon, StopIcon } from '@heroicons/react/24/solid';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import {
+    BROWSER_EYES_CURRENT_PAGE_STORE_KEY,
+    type BrowserEyesCurrentPageState,
+} from '../../../shared/browserEyesState';
+import { AGENT_ROLE_ORDER } from '../../../shared/agentRoleConfig';
+import { useTimedConversationActionStatus } from '../../hooks/useTimedConversationActionStatus';
+import { coworkService } from '../../services/cowork';
 import { requestEmbeddedBrowserOpen } from '../../services/embeddedBrowser';
 import { skillService } from '../../services/skill';
 import { localStore } from '../../services/store';
 import { showGlobalToast } from '../../services/toast';
-import { coworkService } from '../../services/cowork';
 import { RootState } from '../../store';
 import { setDraftPrompt } from '../../store/slices/coworkSlice';
 import { setSkills, toggleActiveSkill } from '../../store/slices/skillSlice';
-import { Skill } from '../../types/skill';
 import { CoworkImageAttachment } from '../../types/cowork';
+import { Skill } from '../../types/skill';
 import { getCompactFolderName } from '../../utils/path';
-import { useIsMobileViewport } from '../../hooks/useIsMobileViewport';
 import {
-  chunkTextForAttachment,
-  parseGeneratedTextChunkName,
-  shouldSplitTextFile,
-  splitLargeTextFile,
-  type GeneratedTextChunkDescriptor,
+    chunkTextForAttachment,
+    parseGeneratedTextChunkName,
+    shouldSplitTextFile,
+    splitLargeTextFile,
+    type GeneratedTextChunkDescriptor,
 } from '../../utils/textFileChunking';
-import type { AgentRoleKey } from '../../../shared/agentRoleConfig';
-import {
-  BROWSER_EYES_CURRENT_PAGE_STORE_KEY,
-  type BrowserEyesCurrentPageState,
-} from '../../../shared/browserEyesState';
-import type { ConversationActionStatus } from './conversationActionStatus';
+import PaperClipIcon from '../icons/PaperClipIcon';
+import XMarkIcon from '../icons/XMarkIcon';
 import ConversationActionBar from './ConversationActionBar';
+import type { ConversationActionStatus } from './conversationActionStatus';
 import PromptToolRow from './PromptToolRow';
-import { UI_LABEL_TEXT_CLASS } from '../../../shared/mobileUi';
-import { useTimedConversationActionStatus } from '../../hooks/useTimedConversationActionStatus';
 
 type CoworkAttachment = {
   path: string;
@@ -44,7 +41,7 @@ type CoworkAttachment = {
 };
 
 const INPUT_FILE_LABEL = '输入文件';
-const MAX_PROMPT_CHARS = 12000;
+const MAX_PROMPT_CHARS = 120000;
 const URL_PATTERN = /(https?:\/\/[^\s]+|www\.[^\s]+)/i;
 
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg']);
@@ -213,12 +210,35 @@ const buildAttachmentPromptLines = (attachments: CoworkAttachment[]): string[] =
     lines.push(
       `${INPUT_FILE_LABEL}说明: ${group.sourceName} 已按顺序拆成 ${group.totalParts} 份，请把这些 part 视为同一份文件连续处理。`
     );
+    lines.push(
+      `${INPUT_FILE_LABEL}清单: source_name=${group.sourceName}; total_parts=${group.totalParts}; file_names=${group.paths.map((item) => getFileNameFromPath(item)).join(', ')}`
+    );
     for (const path of group.paths) {
       lines.push(`${INPUT_FILE_LABEL}: ${path}`);
     }
   }
 
   return lines;
+};
+
+const areSkillsEquivalent = (left: Skill[], right: Skill[]): boolean => {
+  if (left === right) {
+    return true;
+  }
+
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  return left.every((skill, index) => {
+    const other = right[index];
+    return Boolean(other)
+      && skill.id === other.id
+      && skill.name === other.name
+      && skill.skillPath === other.skillPath
+      && skill.prompt === other.prompt
+      && skill.enabled === other.enabled;
+  });
 };
 
 export interface CoworkPromptInputRef {
@@ -297,6 +317,12 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
     const folderButtonRef = useRef<HTMLButtonElement>(null);
     const dragDepthRef = useRef(0);
     const skillsLoadAttemptedRef = useRef(false);
+    const skillsLoadPromiseRef = useRef<Promise<Skill[]> | null>(null);
+    const draftPromptRef = useRef(draftPrompt);
+
+  useEffect(() => {
+    draftPromptRef.current = draftPrompt;
+  }, [draftPrompt]);
 
   const updateValue = useCallback((nextValue: string) => {
     const normalized = clampPromptValue(nextValue);
@@ -327,6 +353,17 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
   const skills = useSelector((state: RootState) => state.skill.skills);
   const [hasSkillCatalogLoaded, setHasSkillCatalogLoaded] = useState(() => skills.length > 0);
 
+  const syncLoadedSkills = useCallback((loadedSkills: Skill[]) => {
+    skillsLoadAttemptedRef.current = true;
+    if (!hasSkillCatalogLoaded) {
+      setHasSkillCatalogLoaded(true);
+    }
+    if (!areSkillsEquivalent(skills, loadedSkills)) {
+      dispatch(setSkills(loadedSkills));
+    }
+    return loadedSkills;
+  }, [dispatch, hasSkillCatalogLoaded, skills]);
+
   const isLarge = size === 'large';
   const minHeight = isLarge ? 60 : 24;
   const maxHeight = isLarge ? 160 : 120;
@@ -336,20 +373,26 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
       return skills;
     }
 
+    if (skillsLoadPromiseRef.current) {
+      return skillsLoadPromiseRef.current;
+    }
+
     // {标记} P1-LAZY-SKILL-CATALOG: 聊天输入区只有在用户打开/使用 skills 时才拉技能目录。
-    const loadedSkills = await skillService.loadSkills();
-    skillsLoadAttemptedRef.current = true;
-    setHasSkillCatalogLoaded(true);
-    dispatch(setSkills(loadedSkills));
-    return loadedSkills;
-  }, [dispatch, skills]);
+    skillsLoadPromiseRef.current = skillService.loadSkills()
+      .then(syncLoadedSkills)
+      .finally(() => {
+        skillsLoadPromiseRef.current = null;
+      });
+
+    return skillsLoadPromiseRef.current;
+  }, [skills, syncLoadedSkills]);
 
   useEffect(() => {
-    if (skills.length > 0) {
+    if (!hasSkillCatalogLoaded && skills.length > 0) {
       skillsLoadAttemptedRef.current = true;
       setHasSkillCatalogLoaded(true);
     }
-  }, [skills]);
+  }, [hasSkillCatalogLoaded, skills.length]);
 
   useEffect(() => {
     if (!hasSkillCatalogLoaded) {
@@ -359,14 +402,12 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
     // {标记} P1-LAZY-SKILL-CATALOG: 目录未启用前不常驻监听，避免聊天首屏白吃 skills 变更事件。
     const unsubscribe = skillService.onSkillsChanged(async () => {
       const loadedSkills = await skillService.loadSkills();
-      skillsLoadAttemptedRef.current = true;
-      setHasSkillCatalogLoaded(true);
-      dispatch(setSkills(loadedSkills));
+      syncLoadedSkills(loadedSkills);
     });
     return () => {
       unsubscribe();
     };
-  }, [dispatch, hasSkillCatalogLoaded]);
+  }, [hasSkillCatalogLoaded, syncLoadedSkills]);
 
   useEffect(() => {
     if (activeSkillIds.length === 0 || hasSkillCatalogLoaded) {
@@ -409,13 +450,16 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
   }, [workingDirectory]);
 
   useEffect(() => {
-    if (value !== draftPrompt) {
-      const timer = setTimeout(() => {
-        dispatch(setDraftPrompt(value));
-      }, 300);
-      return () => clearTimeout(timer);
+    if (value === draftPromptRef.current) {
+      return;
     }
-  }, [value, draftPrompt, dispatch]);
+
+    const timer = setTimeout(() => {
+      dispatch(setDraftPrompt(value));
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [value, dispatch]);
 
   const handleSubmit = useCallback(async () => {
     if (showFolderSelector && !workingDirectory?.trim()) {
@@ -560,6 +604,13 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
     return selectedModel;
   }, [availableModels, selectedModel, sessionModelId, sessionRoleKey]);
   const modelSupportsImage = !!effectiveModel?.supportsImage;
+  const attachmentRoleKey = React.useMemo(() => {
+    const candidates = [sessionRoleKey, effectiveModel?.providerKey];
+    const resolved = candidates
+      .map((value) => String(value || '').trim())
+      .find((value) => AGENT_ROLE_ORDER.includes(value as typeof AGENT_ROLE_ORDER[number]));
+    return resolved || undefined;
+  }, [effectiveModel?.providerKey, sessionRoleKey]);
 
   const addAttachment = useCallback((filePath: string, imageInfo?: { isImage: boolean; dataUrl?: string }) => {
     if (!filePath) return;
@@ -638,12 +689,16 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
       if (!dataBase64) {
         return null;
       }
+      // ##混淆点注意：
+      // 浏览器侧上传默认拿不到稳定本地绝对路径，所以这里必须把 agentRoleKey 一起带给后端，
+      // 让服务端按“角色附件家目录”落盘；否则又会退回旧 cwd/.cowork-temp 口径。
       const result = await window.electron.dialog.saveInlineFile({
         dataBase64,
         fileName: file.name,
-        mimeType: file.type,
-        cwd: workingDirectory,
-      });
+          mimeType: file.type,
+          cwd: workingDirectory,
+          agentRoleKey: attachmentRoleKey,
+        });
       if (result.success && result.path) {
         return result.path;
       }
@@ -652,7 +707,7 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
       console.error('Failed to save inline file:', error);
       return null;
     }
-  }, [fileToBase64, workingDirectory]);
+  }, [attachmentRoleKey, fileToBase64, workingDirectory]);
 
   const parseInlineFile = useCallback(async (filePath: string): Promise<{
     success: boolean;
@@ -982,6 +1037,8 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
         type="file"
         multiple
         className="hidden"
+        title="Upload files"
+        aria-label="Upload files"
         onChange={handleFileInputChange}
       />
       {shouldShowActionBar && (
@@ -1057,9 +1114,8 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
               onPaste={handlePaste}
               placeholder={placeholder}
               disabled={disabled}
-              rows={isLarge ? 2 : 1}
-              className={textareaClass}
-              style={{ minHeight: `${minHeight}px`, maxHeight: `${maxHeight}px` }}
+              rows={2}
+              className={`${textareaClass} cowork-prompt-input__textarea--large`}
             />
             <PromptToolRow
               showFolderSelector={showFolderSelector}
@@ -1145,12 +1201,17 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
           </>
         )}
       </div>
-      {(showFolderRequiredWarning || showPromptLimitHint) && (
+      {(showFolderRequiredWarning || showPromptLimitHint || Boolean(sessionRoleKey)) && (
         <div className="mt-2 flex items-center justify-between gap-3 text-xs">
           <div className="min-w-0">
             {showFolderRequiredWarning && (
               <div className="text-red-500 dark:text-red-400">
                 {'请选择任务目录后再提交'}
+              </div>
+            )}
+            {sessionRoleKey && (
+              <div className="text-[#9A9085] dark:text-white/45">
+                {'昨天的记忆回忆，可以叫小家伙去找找记忆数据库。'}
               </div>
             )}
           </div>
