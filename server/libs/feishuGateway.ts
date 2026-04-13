@@ -8,7 +8,6 @@ import { EventEmitter } from 'events';
 import fs from 'fs';
 import path from 'path';
 import type { CoworkStore } from '../../src/main/coworkStore';
-import type { SkillManager } from '../../src/main/skillManager';
 import { getProjectRoot } from '../../src/shared/runtimeDataPaths';
 import {
   getFeishuSchedulerBindingKey,
@@ -281,17 +280,21 @@ export class FeishuGateway extends EventEmitter {
   // Dependencies injected after construction
   private coworkStore: CoworkStore | null = null;
   private store: SqliteStore | null = null;
-  private skillManager: SkillManager | null = null;
+  private buildSelectedSkillsPrompt: ((skillIds: string[]) => string | null) | null = null;
   private readonly chatTurnQueues = new Map<string, Promise<void>>();
 
   constructor() {
     super();
   }
 
-  setDependencies(deps: { coworkStore: CoworkStore; store: SqliteStore; skillManager: SkillManager }): void {
+  setDependencies(deps: {
+    coworkStore: CoworkStore;
+    store: SqliteStore;
+    buildSelectedSkillsPrompt?: ((skillIds: string[]) => string | null) | null;
+  }): void {
     this.coworkStore = deps.coworkStore;
     this.store = deps.store;
-    this.skillManager = deps.skillManager;
+    this.buildSelectedSkillsPrompt = deps.buildSelectedSkillsPrompt ?? null;
   }
 
   // {埋点} 🔄 Gateway状态 (ID: feishu-gw-003) getStatus() → {connected, startedAt, botOpenId, error}
@@ -600,7 +603,7 @@ export class FeishuGateway extends EventEmitter {
     // 【1.0链路】FEISHU-WS-EXEC: 飞书 WS 当前稳定主链 = 绑定会话 -> HttpSessionExecutor -> 回帖/回传文件。
     // {标记} P0-FEISHU-QUEUE-COMPAT: 同一 chat 改为顺序串行，不再 busy 硬拦后续消息，避免把 agent 当成一次一句的 RPA。
     await this.enqueueChatTurn(chatId, async () => {
-      if (!this.coworkStore || !this.store || !this.skillManager) {
+      if (!this.coworkStore || !this.store) {
         console.error('[Feishu WS] Dependencies not set');
         return;
       }
@@ -643,7 +646,7 @@ export class FeishuGateway extends EventEmitter {
           imageAttachments,
           confirmationMode: 'text',
           autoApprove: true,
-          workspaceRoot: session.cwd || getProjectRoot(),
+          workspaceRoot: getProjectRoot(),
           systemPrompt: turnSystemPrompt,
         });
       } catch (err: any) {
@@ -659,7 +662,7 @@ export class FeishuGateway extends EventEmitter {
       const artifactResult = collectFeishuArtifacts({
         sessionMessages: completed?.messages ?? [],
         knownMessageIds: knownIds,
-        workspaceRoot: session.cwd || getProjectRoot(),
+        workspaceRoot: getProjectRoot(),
         runStartedAt,
       });
       const replies = (() => {
@@ -743,7 +746,10 @@ export class FeishuGateway extends EventEmitter {
     return getOrCreateWebSessionExecutor({
       store: this.coworkStore!,
       configStore: this.store!,
-      buildSelectedSkillsPrompt: (skillIds: string[]) => this.skillManager?.buildSelectedSkillsPrompt(skillIds) ?? null,
+      buildSelectedSkillsPrompt: (skillIds: string[]) => (
+        this.buildSelectedSkillsPrompt?.(skillIds)
+        ?? null
+      ),
     });
   }
 

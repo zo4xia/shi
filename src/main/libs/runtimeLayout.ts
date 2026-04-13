@@ -55,9 +55,16 @@ export function getRuntimeResourcesRoot(): string {
 }
 
 export function getBundledNodeModulesRoot(): string {
-  return isBundledRuntime()
-    ? path.join(getRuntimeResourcesRoot(), 'app.asar.unpacked', 'node_modules')
-    : path.join(getRuntimeAppRoot(), 'node_modules');
+  if (isBundledRuntime()) {
+    return path.join(getRuntimeResourcesRoot(), 'app.asar.unpacked', 'node_modules');
+  }
+
+  const candidates = [
+    path.join(getRuntimeAppRoot(), 'node_modules'),
+    path.join(getProjectRoot(), 'node_modules'),
+  ];
+
+  return candidates.find((candidate) => existsSync(candidate)) ?? candidates[0];
 }
 
 export function getBundledNodeModuleEntry(...segments: string[]): string {

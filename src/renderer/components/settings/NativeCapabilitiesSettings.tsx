@@ -39,6 +39,22 @@ export default function NativeCapabilitiesSettings({
     }));
   };
 
+  const updateOfficeDiscovery = (
+    capabilityId: NativeCapabilityId,
+    updates: {
+      binaryPath?: string;
+      searchCommonInstallDirs?: boolean;
+    }
+  ) => {
+    updateCapability(capabilityId, (entry) => ({
+      ...entry,
+      discovery: {
+        binaryPath: updates.binaryPath ?? entry.discovery?.binaryPath ?? '',
+        searchCommonInstallDirs: updates.searchCommonInstallDirs ?? entry.discovery?.searchCommonInstallDirs ?? true,
+      },
+    }));
+  };
+
   return (
     <div className="space-y-6">
       <div className="rounded-xl border px-4 py-4 dark:border-claude-darkBorder border-claude-border bg-gradient-to-br from-[#f8efe8] via-white to-[#f6f8fb] dark:from-claude-darkSurface dark:via-claude-darkSurface/90 dark:to-claude-darkSurface/70">
@@ -131,6 +147,50 @@ export default function NativeCapabilitiesSettings({
                   </div>
                 </div>
               </div>
+
+              {capabilityId === 'office-native-addon' && (
+                <div className="mt-4 grid gap-4 md:grid-cols-[1fr_220px]">
+                  <div>
+                    <label className="block text-xs font-medium dark:text-claude-darkText text-claude-text mb-1">
+                      {'Office 可执行文件路径'}
+                    </label>
+                    <input
+                      type="text"
+                      value={entry.discovery?.binaryPath ?? ''}
+                      onChange={(event) => updateOfficeDiscovery(capabilityId, {
+                        binaryPath: event.target.value,
+                      })}
+                      placeholder={'留空则只做安全探测，不自动安装'}
+                      className="block w-full rounded-xl bg-claude-surfaceInset dark:bg-claude-darkSurfaceInset dark:border-claude-darkBorder border-claude-border border focus:border-claude-accent focus:ring-1 focus:ring-claude-accent/30 dark:text-claude-darkText text-claude-text px-3 py-2 text-xs"
+                    />
+                    <p className="mt-1 text-[11px] leading-5 dark:text-claude-darkTextSecondary text-claude-textSecondary">
+                      {'建议指向你自己手动放置的 officecli 二进制。这里不会帮你安装，也不会改 PATH。'}
+                    </p>
+                  </div>
+
+                  <div>
+                    <div className="block text-xs font-medium dark:text-claude-darkText text-claude-text mb-2">
+                      {'发现策略'}
+                    </div>
+                    <label
+                      className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs dark:border-claude-darkBorder border-claude-border dark:text-claude-darkTextSecondary text-claude-textSecondary"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={entry.discovery?.searchCommonInstallDirs ?? true}
+                        onChange={(event) => updateOfficeDiscovery(capabilityId, {
+                          searchCommonInstallDirs: event.target.checked,
+                        })}
+                        className="h-4 w-4 rounded border-claude-border dark:border-claude-darkBorder text-claude-accent focus:ring-claude-accent/40"
+                      />
+                      {'允许只读探测常见安装目录'}
+                    </label>
+                    <p className="mt-1 text-[11px] leading-5 dark:text-claude-darkTextSecondary text-claude-textSecondary">
+                      {'只做存在性检查，不写入系统目录，不向其他 agent 家目录投放 skill。'}
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           );
         })}

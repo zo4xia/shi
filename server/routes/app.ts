@@ -1,6 +1,7 @@
 import { randomInt } from 'crypto';
 import fs from 'fs';
 import { Router, Request, Response } from 'express';
+import { getProjectRoot } from '../../src/shared/runtimeDataPaths';
 import type { RequestContext } from '../src/index';
 import { resolveEnvSyncTargetPath } from './store';
 
@@ -197,13 +198,13 @@ export function setupAppRoutes(app: Router) {
 
   // GET /api/app/workspace - Get workspace path
   router.get('/workspace', (req: Request, res: Response) => {
-    const workspace = req.app.get('workspace') || process.env.HOME || '';
+    const workspace = req.app.get('workspace') || getProjectRoot();
     res.json({ path: workspace });
   });
 
   // GET /api/app/runtimePaths - Get runtime paths that affect config writes
   router.get('/runtimePaths', (req: Request, res: Response) => {
-    const workspace = String(req.app.get('workspace') || process.env.HOME || '');
+    const workspace = String(req.app.get('workspace') || getProjectRoot());
     const envSyncTargetPath = resolveEnvSyncTargetPath();
     res.json({
       workspacePath: workspace,

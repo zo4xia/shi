@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import * as SqliteStoreModule from '../server/sqliteStore.web.ts';
 import * as RoleSkillFilesModule from '../server/libs/roleSkillFiles.ts';
 import * as RoleRuntimeViewsModule from '../server/libs/roleRuntimeViews.ts';
@@ -8,6 +9,8 @@ import { AGENT_ROLE_ORDER, type AgentRoleKey } from '../src/shared/agentRoleConf
 
 const SKILL_ID = 'ima-note';
 const SKILL_NAME = 'ima-note';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 type RuntimeSkillRecord = {
   id: string;
@@ -83,7 +86,7 @@ async function main(): Promise<void> {
     throw new Error('Failed to resolve runtime binding modules');
   }
 
-  const projectRoot = path.resolve(process.cwd());
+  const projectRoot = path.resolve(__dirname, '..');
   const userDataPath = path.join(projectRoot, '.uclaw', 'web');
   const skillsRoot = path.join(userDataPath, 'SKILLs');
   const skillRoot = path.join(skillsRoot, SKILL_ID);

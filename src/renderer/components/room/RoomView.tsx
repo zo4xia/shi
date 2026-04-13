@@ -9,10 +9,12 @@ import {
   loadRooms,
   resolveMentionTargets,
   saveRooms,
+  type RoomAttachment,
   type RoomMessage,
   type RoomSessionRecord,
 } from '../../services/room';
 import type { AgentRoleKey } from '../../../shared/agentRoleConfig';
+import { EXPORT_STORAGE_BOUNDARY_NOTICE, UPLOAD_STORAGE_BOUNDARY_NOTICE } from '../../../shared/storageBoundaryCopy';
 import { renderAgentRoleAvatar } from '../../utils/agentRoleDisplay';
 import PageHeaderShell from '../ui/PageHeaderShell';
 
@@ -27,11 +29,14 @@ const RoomView: React.FC<RoomViewProps> = ({
   onToggleSidebar,
   updateBadge,
 }) => {
+  const DEFAULT_ATTACHMENT_SUMMARY_PROMPT = '请先按需阅读我刚挂上的文件，给我一份清楚的总结。先说重点，再说结构；如果有不确定或没读到的部分，请明确说。';
+  const DEFAULT_ATTACHMENT_SUMMARY_EXPORT_PROMPT = '请先按需阅读我刚挂上的文件，给我一份清楚的总结，并把最终整理结果写成 markdown 文档保存到你自己的 export 区。如果成功写入，请在回复里告诉我文件名和保存路径；如果没写成，请明确说明卡在哪里。';
   const roleChoices = useMemo(() => getRoomRoleChoices(), []);
   const [selectedRoleKeys, setSelectedRoleKeys] = useState<AgentRoleKey[]>(['organizer', 'writer']);
   const [rooms, setRooms] = useState<RoomSessionRecord[]>([]);
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
+  const [draftAttachments, setDraftAttachments] = useState<RoomAttachment[]>([]);
   const [isBusy, setIsBusy] = useState(false);
   const [pendingNames, setPendingNames] = useState<string[]>([]);
 
@@ -79,6 +84,7 @@ const RoomView: React.FC<RoomViewProps> = ({
     setRooms((prev) => [nextRoom, ...prev]);
     setActiveRoomId(nextRoom.id);
     setDraft('');
+    setDraftAttachments([]);
   };
 
   const handlePauseRoom = () => {
@@ -90,6 +96,7 @@ const RoomView: React.FC<RoomViewProps> = ({
     }));
     setActiveRoomId(null);
     setDraft('');
+    setDraftAttachments([]);
   };
 
   const handleEndRoom = () => {
@@ -106,6 +113,7 @@ const RoomView: React.FC<RoomViewProps> = ({
     }));
     setActiveRoomId(null);
     setDraft('');
+    setDraftAttachments([]);
   };
 
   const handleOpenRoom = (roomId: string, resume = false) => {
@@ -117,21 +125,93 @@ const RoomView: React.FC<RoomViewProps> = ({
       }));
     }
     setActiveRoomId(roomId);
+    setDraftAttachments([]);
   };
 
-  const handleSend = async () => {
+  const fileToBase64 = (file: File): Promise<string> => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result;
+      if (typeof result !== 'string') {
+        reject(new Error('Failed to read file'));
+        return;
+      }
+      const commaIndex = result.indexOf(',');
+      resolve(commaIndex >= 0 ? result.slice(commaIndex + 1) : result);
+    };
+    reader.onerror = () => reject(reader.error ?? new Error('Failed to read file'));
+    reader.readAsDataURL(file);
+  });
+
+  const handleAttachFiles = async (fileList: FileList | File[]) => {
+    if (isBusy || activeRoom?.status !== 'active') return;
+    const files = Array.from(fileList ?? []);
+    if (files.length === 0) return;
+
+    const staged: RoomAttachment[] = [];
+    for (const file of files) {
+      try {
+        const dataBase64 = await fileToBase64(file);
+        const result = await window.electron.dialog.saveInlineFile({
+          dataBase64,
+          fileName: file.name,
+          mimeType: file.type,
+          purpose: 'attachment',
+        });
+        if (result.success && result.path) {
+          staged.push({
+            path: result.path,
+            name: file.name,
+          });
+        }
+      } catch (error) {
+        console.error('Failed to stage Room attachment:', error);
+      }
+    }
+
+    if (staged.length === 0) {
+      showGlobalToast('这次没有顺利挂上文件');
+      return;
+    }
+
+    setDraftAttachments((prev) => {
+      const seen = new Set(prev.map((item) => item.path));
+      const next = [...prev];
+      for (const attachment of staged) {
+        if (seen.has(attachment.path)) continue;
+        seen.add(attachment.path);
+        next.push(attachment);
+      }
+      return next;
+    });
+  };
+
+  const handleRemoveDraftAttachment = (path: string) => {
+    setDraftAttachments((prev) => prev.filter((attachment) => attachment.path !== path));
+  };
+
+  const handleSend = async (mode: 'reply' | 'export' = 'reply') => {
     if (!activeRoom || isBusy) return;
     const text = draft.trim();
-    if (!text) return;
+    const effectiveText = text || (
+      draftAttachments.length > 0
+        ? mode === 'export'
+          ? DEFAULT_ATTACHMENT_SUMMARY_EXPORT_PROMPT
+          : DEFAULT_ATTACHMENT_SUMMARY_PROMPT
+        : ''
+    );
+    if (!effectiveText && draftAttachments.length === 0) return;
 
     const roomAfterHuman = appendRoomMessage(activeRoom, {
       kind: 'human',
       senderId: 'human',
       senderName: '夏夏',
-      content: text,
+      content: effectiveText,
+      attachments: draftAttachments,
     });
     updateRoom(activeRoom.id, () => roomAfterHuman);
     setDraft('');
+    setDraftAttachments([]);
 
     const targets = resolveMentionTargets(roomAfterHuman, text);
     if (targets.length === 0) {
@@ -188,6 +268,18 @@ const RoomView: React.FC<RoomViewProps> = ({
           <div className="mt-1 whitespace-pre-wrap break-words text-sm leading-6">
             {message.content}
           </div>
+          {message.attachments && message.attachments.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {message.attachments.map((attachment) => (
+                <span
+                  key={`${message.id}:${attachment.path}`}
+                  className="rounded-full bg-black/5 px-2.5 py-1 text-[11px] text-claude-textSecondary dark:bg-white/[0.08] dark:text-claude-darkTextSecondary"
+                >
+                  {attachment.name}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     );
@@ -380,6 +472,44 @@ const RoomView: React.FC<RoomViewProps> = ({
                     可以用 <code>@A</code>、<code>@B</code>、<code>@浏览器助手</code>、<code>@全部</code> 点名。
                   </div>
                   <div className="uclaw-panel-inner p-3">
+                    <div className="mb-2 flex items-center justify-between gap-3">
+                      <div className="text-xs text-claude-textSecondary dark:text-claude-darkTextSecondary">
+                        文件会跟着这轮对话一起交给小家伙；如果你只挂文件不写话，这轮会默认先请它做总结。
+                      </div>
+                      <label className="inline-flex cursor-pointer items-center rounded-full border border-white/60 bg-white/80 px-3 py-1.5 text-xs font-medium text-claude-text shadow-sm dark:border-white/10 dark:bg-white/[0.08] dark:text-claude-darkText">
+                        挂文件
+                        <input
+                          type="file"
+                          multiple
+                          className="hidden"
+                          disabled={isBusy || activeRoom.status !== 'active'}
+                          onChange={(event) => {
+                            const files = event.target.files;
+                            if (files?.length) {
+                              void handleAttachFiles(files);
+                            }
+                            event.target.value = '';
+                          }}
+                        />
+                      </label>
+                    </div>
+                    <div className="mb-3 text-[11px] leading-5 text-claude-textSecondary dark:text-claude-darkTextSecondary">
+                      {UPLOAD_STORAGE_BOUNDARY_NOTICE}
+                    </div>
+                    {draftAttachments.length > 0 && (
+                      <div className="mb-3 flex flex-wrap gap-2">
+                        {draftAttachments.map((attachment) => (
+                          <button
+                            key={attachment.path}
+                            type="button"
+                            onClick={() => handleRemoveDraftAttachment(attachment.path)}
+                            className="rounded-full bg-white px-3 py-1 text-[11px] text-claude-text shadow-sm transition hover:bg-rose-50 hover:text-rose-700 dark:bg-white/[0.08] dark:text-claude-darkText dark:hover:bg-rose-400/[0.12] dark:hover:text-rose-200"
+                          >
+                            {attachment.name} ×
+                          </button>
+                        ))}
+                      </div>
+                    )}
                     <textarea
                       value={draft}
                       onChange={(event) => setDraft(event.target.value)}
@@ -397,14 +527,31 @@ const RoomView: React.FC<RoomViewProps> = ({
                       <div className="text-xs text-claude-textSecondary dark:text-claude-darkTextSecondary">
                         {activeRoom.status === 'active' ? '想停就暂停，晚上回来还能继续。' : '这个 Room 现在是只读状态。'}
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => { void handleSend(); }}
-                        disabled={isBusy || activeRoom.status !== 'active' || !draft.trim()}
-                        className="inline-flex items-center rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-500 px-4 py-2 text-sm font-medium text-white shadow-sm transition-transform hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        发送
-                      </button>
+                      <div className="flex items-center gap-2">
+                        {!draft.trim() && draftAttachments.length > 0 && (
+                          <div className="flex flex-col items-end gap-1">
+                            <button
+                              type="button"
+                              onClick={() => { void handleSend('export'); }}
+                              disabled={isBusy || activeRoom.status !== 'active'}
+                              className="inline-flex items-center rounded-full border border-white/60 bg-white px-4 py-2 text-sm font-medium text-claude-text shadow-sm transition-transform hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/[0.08] dark:text-claude-darkText"
+                            >
+                              总结并导出
+                            </button>
+                            <div className="max-w-[260px] text-right text-[11px] leading-5 text-claude-textSecondary dark:text-claude-darkTextSecondary">
+                              {EXPORT_STORAGE_BOUNDARY_NOTICE}
+                            </div>
+                          </div>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => { void handleSend(); }}
+                          disabled={isBusy || activeRoom.status !== 'active' || (!draft.trim() && draftAttachments.length === 0)}
+                          className="inline-flex items-center rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-500 px-4 py-2 text-sm font-medium text-white shadow-sm transition-transform hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {!draft.trim() && draftAttachments.length > 0 ? '总结附件' : '发送'}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>

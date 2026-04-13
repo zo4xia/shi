@@ -5,7 +5,6 @@ import {
   getAgentRoleDisplayAvatar,
   getAgentRoleDisplayLabel,
   normalizeAgentRolesForSave,
-  pickNextApiKey,
   resolveAgentRolesFromConfig,
   type AgentRoleKey,
 } from '../../shared/agentRoleConfig';
@@ -28,7 +27,13 @@ export interface RoomMessage {
   senderId: string;
   senderName: string;
   content: string;
+  attachments?: RoomAttachment[];
   createdAt: number;
+}
+
+export interface RoomAttachment {
+  path: string;
+  name: string;
 }
 
 export interface RoomSessionRecord {
@@ -51,115 +56,13 @@ const ROOM_SEATS: Array<{ seat: RoomSeatKey; seatLabel: string }> = [
 
 const createId = (prefix: string) => `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
-const normalizeBaseUrl = (baseUrl: string): string => baseUrl.trim().replace(/\/+$/, '');
-
-const isVolcengineV3BaseUrl = (baseUrl: string): boolean => {
-  const normalized = normalizeBaseUrl(baseUrl).toLowerCase();
-  return normalized.includes('ark.cn-beijing.volces.com/api/v3')
-    || normalized.includes('ark.cn-beijing.volces.com/api/coding/v3');
-};
-
-const buildOpenAiUrl = (baseUrl: string): string => {
-  const normalized = normalizeBaseUrl(baseUrl);
-  if (!normalized) {
-    return '/v1/chat/completions';
-  }
-  if (normalized.endsWith('/chat/completions')) {
-    return normalized;
-  }
-  if (normalized.includes('generativelanguage.googleapis.com')) {
-    if (normalized.endsWith('/v1beta/openai') || normalized.endsWith('/v1/openai')) {
-      return `${normalized}/chat/completions`;
-    }
-    if (normalized.endsWith('/v1beta')) {
-      return `${normalized}/openai/chat/completions`;
-    }
-    if (normalized.endsWith('/v1')) {
-      return `${normalized.slice(0, -3)}v1beta/openai/chat/completions`;
-    }
-    return `${normalized}/v1beta/openai/chat/completions`;
-  }
-  if (/\/v\d+$/.test(normalized)) {
-    return `${normalized}/chat/completions`;
-  }
-  return `${normalized}/v1/chat/completions`;
-};
-
-const buildAnthropicUrl = (baseUrl: string): string => {
-  const normalized = normalizeBaseUrl(baseUrl);
-  if (!normalized) {
-    return '/v1/messages';
-  }
-  if (normalized.endsWith('/messages')) {
-    return normalized;
-  }
-  if (normalized.endsWith('/v1')) {
-    return `${normalized}/messages`;
-  }
-  return `${normalized}/v1/messages`;
-};
-
-const extractOpenAiText = (payload: any): string => {
-  const directOutputText = typeof payload?.output_text === 'string' ? payload.output_text.trim() : '';
-  if (directOutputText) {
-    return directOutputText;
-  }
-
-  const nestedOutputText = typeof payload?.response?.output_text === 'string'
-    ? payload.response.output_text.trim()
-    : '';
-  if (nestedOutputText) {
-    return nestedOutputText;
-  }
-
-  const direct = payload?.choices?.[0]?.message?.content;
-  if (typeof direct === 'string') {
-    return direct.trim();
-  }
-  if (Array.isArray(direct)) {
-    return direct
-      .map((item: any) => {
-        if (typeof item?.text === 'string') {
-          return item.text;
-        }
-        if (typeof item?.content?.text === 'string') {
-          return item.content.text;
-        }
-        return '';
-      })
-      .join('')
-      .trim();
-  }
-
-  const output = Array.isArray(payload?.response?.output)
-    ? payload.response.output
-    : Array.isArray(payload?.output)
-      ? payload.output
-      : [];
-  if (Array.isArray(output)) {
-    const text = output
-      .flatMap((item: any) => Array.isArray(item?.content) ? item.content : [])
-      .map((contentItem: any) => (typeof contentItem?.text === 'string' ? contentItem.text : ''))
-      .join('')
-      .trim();
-    if (text) {
-      return text;
-    }
-  }
-
-  return '';
-};
-
-const extractAnthropicText = (payload: any): string => {
-  const content = Array.isArray(payload?.content) ? payload.content : [];
-  return content
-    .map((item: any) => (item?.type === 'text' && typeof item?.text === 'string' ? item.text : ''))
-    .join('')
-    .trim();
-};
+function buildMessagePromptBody(message: RoomMessage): string {
+  const attachmentLines = (message.attachments ?? []).map((attachment) => `输入文件: ${attachment.path}`);
+  return [message.content, ...attachmentLines].filter(Boolean).join('\n');
+}
 
 const buildTranscriptLines = (messages: RoomMessage[]): string[] => messages.slice(-16).map((message) => (
-  `${message.senderName}: ${message.content}`
+  `${message.senderName}: ${buildMessagePromptBody(message)}`
 ));
 
 const buildRoomUserPrompt = (
@@ -287,8 +190,9 @@ export async function invokeRoomParticipant(
   room: RoomSessionRecord,
   participant: RoomParticipant
 ): Promise<string> {
-  // {标记} P0-AGENT-ROOM-SYNC: Room 参与者当前走的是轻量直连聊天旁路，不会自动吃到主执行器里的 role-home doorplate、continuity rules、role_home_* tools。
-  // {标记} DISPLAY_ONLY: 如果主链边界更新，这里的唤醒提示也必须同步，不然 Room 里的小家伙会和主家园吃到两套不同规则。
+  // {标记} ROOM-EXECUTOR-BRIDGE:
+  // Room 参与者不再直接前端私聊模型，而是绑定到后端 channel-style session，
+  // 借现役 HttpSessionExecutor 吃到 role-home、attachment_read、role_home_*、连续性与工具兼容逻辑。
   const config = configService.getConfig();
   const roles = normalizeAgentRolesForSave(resolveAgentRolesFromConfig(config));
   const role = roles[participant.roleKey];
@@ -297,74 +201,26 @@ export async function invokeRoomParticipant(
     throw new Error(`${participant.roleLabel} 还没有配置可用的 API 和模型`);
   }
 
-  const apiKey = pickNextApiKey(role.apiKey, `room:${participant.roleKey}`) || role.apiKey;
   const transcriptLines = buildTranscriptLines(room.messages);
   const userPrompt = buildRoomUserPrompt(room, participant, transcriptLines);
-
-  if (!window.electron?.api?.fetch) {
-    throw new Error('当前环境没有可用的 API 代理');
-  }
-
-  const useOpenAICompatibleFormat = role.apiFormat === 'openai' || isVolcengineV3BaseUrl(role.apiUrl);
-
-  if (!useOpenAICompatibleFormat) {
-    const response = await window.electron.api.fetch({
-      url: buildAnthropicUrl(role.apiUrl),
-      method: 'POST',
-      headers: {
-        ...(apiKey ? { 'x-api-key': apiKey } : {}),
-        'anthropic-version': '2023-06-01',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: role.modelId,
-        max_tokens: 600,
-        messages: [{ role: 'user', content: userPrompt }],
-      }),
-    });
-
-    if (!response.ok) {
-      const errorMessage = response.data?.error?.message || response.data?.message || response.error || `请求失败 (${response.status})`;
-      throw new Error(errorMessage);
-    }
-
-    const text = extractAnthropicText(response.data);
-    if (!text) {
-      throw new Error('没有拿到有效回复');
-    }
-    return text;
-  }
-
-  const response = await window.electron.api.fetch({
-    url: buildOpenAiUrl(role.apiUrl),
+  const response = await fetch('/api/room/invoke', {
     method: 'POST',
     headers: {
-      ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: role.modelId,
-      messages: [
-        {
-          role: 'system',
-          content: '你在一个叫 Room 的轻松聊天房里发言。自然、简短、有人味，不要摆出工具说明口吻。',
-        },
-        {
-          role: 'user',
-          content: userPrompt,
-        },
-      ],
-      temperature: 0.9,
-      max_tokens: 600,
+      roomId: room.id,
+      roleKey: participant.roleKey,
+      roleLabel: participant.roleLabel,
+      seatLabel: participant.seatLabel,
+      prompt: userPrompt,
     }),
   });
-
-  if (!response.ok) {
-    const errorMessage = response.data?.error?.message || response.data?.message || response.error || `请求失败 (${response.status})`;
-    throw new Error(errorMessage);
+  const payload = await response.json().catch(() => null);
+  if (!response.ok || !payload?.success) {
+    throw new Error(payload?.error || `请求失败 (${response.status})`);
   }
-
-  const text = extractOpenAiText(response.data);
+  const text = typeof payload.replyText === 'string' ? payload.replyText.trim() : '';
   if (!text) {
     throw new Error('没有拿到有效回复');
   }

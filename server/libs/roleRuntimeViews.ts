@@ -22,6 +22,7 @@ import {
   getRoleSkillsIndexPath,
   type RoleSkillIndexFile,
 } from './roleSkillFiles';
+import { probeOfficeFoundation } from './officeFoundation';
 
 export type RoleSettingsViewFile = {
   version: 1;
@@ -59,6 +60,10 @@ export type RoleSettingsViewFile = {
       title: string;
       enabled: boolean;
       priority: number;
+      available?: boolean;
+      detail?: string;
+      detectedPath?: string | null;
+      source?: string;
     }>;
   };
 };
@@ -96,6 +101,10 @@ export type RoleCapabilitySnapshotFile = {
     title: string;
     enabled: boolean;
     priority: number;
+    available?: boolean;
+    detail?: string;
+    detectedPath?: string | null;
+    source?: string;
   }>;
   availableSkills: Array<{
     id: string;
@@ -172,6 +181,7 @@ export function syncRoleSettingsView(
   const notesRoot = getRoleNotesRoot(userDataPath, roleKey);
   const settingsPath = getRoleSettingsViewPath(userDataPath, roleKey);
   const role = roles[roleKey];
+  const officeProbe = probeOfficeFoundation(nativeCapabilities['office-native-addon']);
   const payload: RoleSettingsViewFile = {
     version: 1,
     role: roleKey,
@@ -208,6 +218,10 @@ export function syncRoleSettingsView(
         title: NATIVE_CAPABILITY_LABELS[id as keyof typeof NATIVE_CAPABILITY_LABELS]?.title ?? id,
         enabled: Boolean(entry.enabled && entry.roles[roleKey]),
         priority: entry.priority,
+        available: id === 'office-native-addon' ? officeProbe.available : true,
+        detail: id === 'office-native-addon' ? officeProbe.message : undefined,
+        detectedPath: id === 'office-native-addon' ? officeProbe.resolvedPath : undefined,
+        source: id === 'office-native-addon' ? officeProbe.source : undefined,
       })),
     },
   };
@@ -366,6 +380,7 @@ export function syncRoleCapabilitySnapshot(
     transportType: server.transportType,
     scope: server.agentRoleKey,
   }));
+  const officeProbe = probeOfficeFoundation(nativeCapabilities['office-native-addon']);
   const invalidBindings = roleIndex
     ? configuredBindings
       .filter((binding) => !indexedSkillIds.has(binding.skillId))
@@ -397,6 +412,30 @@ export function syncRoleCapabilitySnapshot(
     }
   }
 
+  const runtimeNativeCapabilities = Object.entries(nativeCapabilities)
+    .filter(([, entry]) => entry.enabled && entry.roles[roleKey])
+    .map(([id, entry]) => {
+      const isOffice = id === 'office-native-addon';
+      const available = isOffice ? officeProbe.available : true;
+      if (isOffice && !available) {
+        warnings.push(`Office 轻通道已为当前角色启用，但当前没有发现专用 Office 可执行文件。${officeProbe.message}`);
+      }
+      if (isOffice && available) {
+        warnings.push(`Office 轻通道已探测到专用 Office 可执行文件（${officeProbe.resolvedPath}），但当前只完成了安全探测与配置层接入，尚未桥接执行器，因此不会进入 runtimeNativeCapabilities。`);
+      }
+      return {
+        id,
+        title: NATIVE_CAPABILITY_LABELS[id as keyof typeof NATIVE_CAPABILITY_LABELS]?.title ?? id,
+        enabled: true,
+        priority: entry.priority,
+        available,
+        detail: isOffice ? officeProbe.message : undefined,
+        detectedPath: isOffice ? officeProbe.resolvedPath : undefined,
+        source: isOffice ? officeProbe.source : undefined,
+      };
+    })
+    .filter((entry) => entry.id !== 'office-native-addon' && entry.available !== false);
+
   const snapshot: RoleCapabilitySnapshotFile = {
     version: 1,
     role: roleKey,
@@ -421,19 +460,12 @@ export function syncRoleCapabilitySnapshot(
     summary: {
       availableSkillCount: availableSkills.length,
       runtimeMcpCount: runtimeMcpTools.length,
-      nativeCapabilityCount: Object.values(nativeCapabilities).filter((entry) => entry.enabled && entry.roles[roleKey]).length,
+      nativeCapabilityCount: runtimeNativeCapabilities.length,
       unboundWorkspaceSkillCount: unboundWorkspaceSkills.length,
       warningCount: warnings.length,
       syncStatus: warnings.length > 0 ? 'warning' : 'ok',
     },
-    runtimeNativeCapabilities: Object.entries(nativeCapabilities)
-      .filter(([, entry]) => entry.enabled && entry.roles[roleKey])
-      .map(([id, entry]) => ({
-        id,
-        title: NATIVE_CAPABILITY_LABELS[id as keyof typeof NATIVE_CAPABILITY_LABELS]?.title ?? id,
-        enabled: true,
-        priority: entry.priority,
-      })),
+    runtimeNativeCapabilities,
     availableSkills,
     roleBoundSkills,
     globalAvailableSkills,

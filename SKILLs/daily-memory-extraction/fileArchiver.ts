@@ -1,6 +1,7 @@
 // ROUTE: Daily Memory Extraction - File Archiving Functions - No authentication
 import * as fs from 'fs';
 import * as path from 'path';
+import { getProjectRoot } from '../../src/shared/runtimeDataPaths';
 import type { IdentityKey } from '../../src/main/memory/identityMemoryManager';
 
 // API: File to archive
@@ -182,7 +183,7 @@ async function scanConversationFiles(identity: IdentityKey): Promise<FileToArchi
         const filePath = match[1];
         const absolutePath = path.isAbsolute(filePath)
           ? filePath
-          : path.resolve(process.cwd(), filePath);
+          : path.resolve(getProjectRoot(), filePath);
 
         const filename = path.basename(absolutePath);
         const stats = await fs.promises.stat(absolutePath).catch(() => null);

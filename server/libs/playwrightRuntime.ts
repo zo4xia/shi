@@ -29,7 +29,6 @@ export function resolvePlaywrightBrowsersPath(): string {
 export function resolvePlaywrightMcpCliPath(): string {
   const candidates = [
     resolveCandidatePath(path.join('node_modules', '@playwright', 'mcp', 'cli.js')),
-    path.resolve(process.cwd(), 'node_modules', '@playwright', 'mcp', 'cli.js'),
   ];
 
   return candidates.find((candidate) => fs.existsSync(candidate)) || '';
@@ -38,7 +37,6 @@ export function resolvePlaywrightMcpCliPath(): string {
 export function resolvePlaywrightCliPath(): string {
   const candidates = [
     resolveCandidatePath(path.join('node_modules', 'playwright', 'cli.js')),
-    path.resolve(process.cwd(), 'node_modules', 'playwright', 'cli.js'),
   ];
 
   return candidates.find((candidate) => fs.existsSync(candidate)) || '';

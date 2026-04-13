@@ -1,6 +1,10 @@
+import path from 'path';
+
 const baseUrl = process.argv[2] || 'http://127.0.0.1:3001';
 const prompt = process.argv[3] || '请只回复 OK，不要加任何解释。';
-const cwd = process.argv[4] || process.cwd();
+const scriptDir = path.dirname(new URL(import.meta.url).pathname).replace(/^\/([A-Z]:)/, '$1');
+const projectRoot = path.normalize(path.join(scriptDir, '..'));
+const cwd = process.argv[4] || projectRoot;
 
 function assert(condition, message) {
   if (!condition) {

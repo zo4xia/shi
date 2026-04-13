@@ -93,6 +93,10 @@ export interface RoleCapabilitySnapshotFile {
     title: string;
     enabled: boolean;
     priority: number;
+    available?: boolean;
+    detail?: string;
+    detectedPath?: string | null;
+    source?: string;
   }>;
   availableSkills: RoleCapabilityBoundSkillEntry[];
   roleBoundSkills: RoleCapabilityBoundSkillEntry[];

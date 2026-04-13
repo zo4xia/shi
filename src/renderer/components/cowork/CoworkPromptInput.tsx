@@ -7,6 +7,7 @@ import {
     type BrowserEyesCurrentPageState,
 } from '../../../shared/browserEyesState';
 import { AGENT_ROLE_ORDER } from '../../../shared/agentRoleConfig';
+import { UPLOAD_STORAGE_BOUNDARY_NOTICE } from '../../../shared/storageBoundaryCopy';
 import { useTimedConversationActionStatus } from '../../hooks/useTimedConversationActionStatus';
 import { coworkService } from '../../services/cowork';
 import { requestEmbeddedBrowserOpen } from '../../services/embeddedBrowser';
@@ -1056,40 +1057,45 @@ const CoworkPromptInput = React.forwardRef<CoworkPromptInputRef, CoworkPromptInp
         />
       )}
       {attachments.length > 0 && (
-        <div className="mb-2 flex flex-wrap gap-2">
-          {attachments.map((attachment) => {
+        <div className="mb-2">
+          <div className="mb-2 flex flex-wrap gap-2">
+            {attachments.map((attachment) => {
               const display = describeAttachmentDisplay(attachment);
               return (
-              <div
-                key={attachment.path}
-                className="inline-flex items-center gap-2 rounded-full border border-white/20 dark:border-white/10 bg-white/60 dark:bg-white/5 px-3 py-1.5 text-sm dark:text-white/90 text-[#5A5248] backdrop-blur-sm max-w-full shadow-sm transition-colors hover:bg-white/70 dark:hover:bg-white/8"
-                title={attachment.name}
-              >
-                {attachment.isImage ? (
-                  <PhotoIcon className="h-4 w-4 flex-shrink-0 text-[#9A9085]/80" />
-                ) : (
-                  <PaperClipIcon className="h-4 w-4 flex-shrink-0 text-[#9A9085]/80" />
-                )}
-                <span className="flex min-w-0 max-w-[240px] flex-col leading-tight">
-                  <span className="truncate max-w-[240px] text-[12px]">{display.primary}</span>
-                  {display.secondary && (
-                    <span className="truncate max-w-[240px] text-[10px] text-[#9A9085]/85 dark:text-white/55">
-                      {display.secondary}
-                    </span>
-                  )}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => handleRemoveAttachment(attachment.path)}
-                  className="ml-0.5 rounded-full p-0.5 hover:bg-[#9A9085]/10 transition-colors"
-                  aria-label={'移除'}
-                  title={'移除'}
+                <div
+                  key={attachment.path}
+                  className="inline-flex items-center gap-2 rounded-full border border-white/20 dark:border-white/10 bg-white/60 dark:bg-white/5 px-3 py-1.5 text-sm dark:text-white/90 text-[#5A5248] backdrop-blur-sm max-w-full shadow-sm transition-colors hover:bg-white/70 dark:hover:bg-white/8"
+                  title={attachment.name}
                 >
-                  <XMarkIcon className="h-3.5 w-3.5 text-[#9A9085]/70" />
-                </button>
-              </div>
-          );
-          })}
+                  {attachment.isImage ? (
+                    <PhotoIcon className="h-4 w-4 flex-shrink-0 text-[#9A9085]/80" />
+                  ) : (
+                    <PaperClipIcon className="h-4 w-4 flex-shrink-0 text-[#9A9085]/80" />
+                  )}
+                  <span className="flex min-w-0 max-w-[240px] flex-col leading-tight">
+                    <span className="truncate max-w-[240px] text-[12px]">{display.primary}</span>
+                    {display.secondary && (
+                      <span className="truncate max-w-[240px] text-[10px] text-[#9A9085]/85 dark:text-white/55">
+                        {display.secondary}
+                      </span>
+                    )}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveAttachment(attachment.path)}
+                    className="ml-0.5 rounded-full p-0.5 hover:bg-[#9A9085]/10 transition-colors"
+                    aria-label={'移除'}
+                    title={'移除'}
+                  >
+                    <XMarkIcon className="h-3.5 w-3.5 text-[#9A9085]/70" />
+                  </button>
+                </div>
+            );
+            })}
+          </div>
+          <div className="mb-2 px-1 text-[11px] leading-5 text-[#8B7F73] dark:text-white/55">
+            {UPLOAD_STORAGE_BOUNDARY_NOTICE}
+          </div>
         </div>
       )}
       <div

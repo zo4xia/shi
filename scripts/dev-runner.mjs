@@ -7,17 +7,17 @@ import { setTimeout as delay } from 'timers/promises';
 // {标记} P0-DEV-RUNTIME-FIX: 开发环境自动避让端口 + 后端先启动 + 健康检查后再起前端
 // {标记} 用途: 减少 3001/5176/5177 被占用时的连锁报错与白屏噪音
 
-const root = process.cwd();
+const scriptDir = path.dirname(new URL(import.meta.url).pathname).replace(/^\/([A-Z]:)/, '$1');
+const absoluteRoot = path.normalize(path.join(scriptDir, '..'));
+const root = absoluteRoot;
 const runtimeFile = path.join(root, '.dev-runtime.json');
 const host = '127.0.0.1';
 const pnpmStoreDir = path.join(root, 'node_modules', '.pnpm');
 
 /**
- * 修复: 在某些环境下，process.cwd() 可能会返回错误的路径。
- * 显式计算相对于脚本位置的 root 路径以确保稳定性。
+ * 根路径钉子：
+ * 开发脚本统一以脚本所在项目目录为锚点，不再信任 process.cwd()。
  */
-const scriptDir = path.dirname(new URL(import.meta.url).pathname).replace(/^\/([A-Z]:)/, '$1');
-const absoluteRoot = path.normalize(path.join(scriptDir, '..'));
 
 const isPortAvailable = (port) =>
   new Promise((resolve) => {

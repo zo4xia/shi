@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import * as SqliteStoreModule from '../server/sqliteStore.web.ts';
 import * as RoleSkillFilesModule from '../server/libs/roleSkillFiles.ts';
 import * as RoleRuntimeViewsModule from '../server/libs/roleRuntimeViews.ts';
@@ -10,6 +11,8 @@ const SKILL_ID = 'blingbling-little-eye';
 const SKILL_NAME = 'blingbling小眼睛';
 const TARGET_ROLES: AgentRoleKey[] = ['organizer', 'writer', 'designer', 'analyst'];
 const DEFAULT_SKILL_CONFIG = { order: 226, enabled: true };
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 type RuntimeSkillRecord = {
   id: string;
@@ -113,7 +116,7 @@ async function main(): Promise<void> {
     throw new Error('Failed to resolve runtime binding modules');
   }
 
-  const projectRoot = path.resolve(process.cwd());
+  const projectRoot = path.resolve(__dirname, '..');
   const userDataPath = path.join(projectRoot, '.uclaw', 'web');
   const runtimeDir = ensureRuntimeSkillInstalled(projectRoot, userDataPath);
   const store = await SqliteStore.create(userDataPath);

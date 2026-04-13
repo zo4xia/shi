@@ -19,6 +19,7 @@ import { setupLogRoutes } from '../routes/log';
 import { setupMcpRoutes } from '../routes/mcp';
 import { setupPermissionsRoutes } from '../routes/permissions';
 import { setupRoleRuntimeRoutes } from '../routes/roleRuntime';
+import { setupRoomRoutes } from '../routes/room';
 import { setupScheduledTaskRoutes } from '../routes/scheduledTasks';
 import { setupShellRoutes } from '../routes/shell';
 import { setupSkillsRoutes } from '../routes/skills';
@@ -99,6 +100,7 @@ import {
     resolveRuntimeUserDataPath,
     setProjectRoot,
 } from '../../src/shared/runtimeDataPaths';
+import { partitionSkillIdsByHandling } from '../../src/shared/systemHandledSkills';
 import { FeishuGateway } from '../libs/feishuGateway';
 import { getOrCreateWebSessionExecutor } from '../libs/httpSessionExecutor';
 import {
@@ -213,10 +215,6 @@ const STALE_RUNNING_SESSION_TIMEOUT_MS = 24 * 60 * 60 * 1000;
 const STALE_RUNNING_SESSION_SWEEP_INTERVAL_MS = 5 * 60 * 1000;
 const STALE_RUNNING_SESSION_TIMEOUT_MINUTES = Math.round(STALE_RUNNING_SESSION_TIMEOUT_MS / 60_000);
 const DAILY_MEMORY_CRON_TASK_TITLE = '每日记忆抽取与文件归档';
-const WEB_DIRECT_NATIVE_SKILL_IDS = new Set([
-  'blingbling-little-eye',
-  'ima-note',
-]);
 let dailyMemoryCatchupPromise: Promise<void> | null = null;
 
 interface RuntimeBootstrapPayload {
@@ -338,12 +336,7 @@ function getUnsupportedWebRuntimeSkillIds(
   roleKey: SharedAgentRoleKey,
   skillIds?: string[]
 ): string[] {
-  const dedupedSkillIds = Array.from(new Set(
-    (skillIds ?? [])
-      .map((skillId) => String(skillId || '').trim())
-      .filter(Boolean)
-      .filter((skillId) => !WEB_DIRECT_NATIVE_SKILL_IDS.has(skillId))
-  ));
+  const { promptHandled: dedupedSkillIds } = partitionSkillIdsByHandling(skillIds);
 
   if (dedupedSkillIds.length === 0) {
     return [];
@@ -355,22 +348,6 @@ function getUnsupportedWebRuntimeSkillIds(
   ));
 }
 
-const initializeSkillManager = (manager: SkillManager): void => {
-  try {
-    // [FLOW] Web Server 启动时补齐 upstream 技能初始化，确保“已安装”列表能看到同步后的内置/已安装技能。
-    manager.syncBundledSkillsToUserData();
-  } catch (error) {
-    console.error('[skills] Failed to sync bundled skills during web server init:', error);
-  }
-
-  try {
-    // [FLOW] 保持技能目录监听在线，避免安装完成后列表刷新依赖偶发 API 调用。
-    manager.startWatching();
-  } catch (error) {
-    console.error('[skills] Failed to start skill watcher during web server init:', error);
-  }
-};
-
 const syncRoleSettingsViewsForRuntime = (): void => {
   try {
     const userDataPath = getUserDataPath(serverOptions.dataDir);
@@ -379,6 +356,17 @@ const syncRoleSettingsViewsForRuntime = (): void => {
   } catch (error) {
     console.error('[roles] Failed to sync role settings views:', error);
   }
+};
+
+const buildSelectedSkillsPromptLazily = (skillIds?: string[]): string | null => {
+  if (!skillIds?.length) {
+    return null;
+  }
+  const { promptHandled } = partitionSkillIdsByHandling(skillIds);
+  if (promptHandled.length === 0) {
+    return null;
+  }
+  return getSkillManager().buildSelectedSkillsPrompt(promptHandled);
 };
 
 const ensureRuntimeViewSyncSubscriptions = (): void => {
@@ -476,7 +464,7 @@ const getCoworkRunner = (): CoworkRunner => {
     coworkRunner.setContinuityStateStore(getStore() as any);
 
     coworkRunner.setSkillPromptProvider((skillIds: string[]) => {
-      return getSkillManager().buildSelectedSkillsPrompt(skillIds);
+      return buildSelectedSkillsPromptLazily(skillIds);
     });
 
     // Provide MCP server configuration to the runner
@@ -499,9 +487,7 @@ const ensureStaleRunningSessionSweep = (): void => {
       const webSessionExecutor = getOrCreateWebSessionExecutor({
         store,
         configStore: getStore(),
-        buildSelectedSkillsPrompt: (skillIds?: string[]) => (
-          skillIds?.length ? getSkillManager().buildSelectedSkillsPrompt(skillIds) : null
-        ),
+        buildSelectedSkillsPrompt: buildSelectedSkillsPromptLazily,
       });
       const now = Date.now();
       // {标记} P1-STALE-SWEEP-PHASE1: 一期失联清理只覆盖 Web/Feishu 轻链会话，不再依赖 CoworkRunner 活跃表。
@@ -541,9 +527,10 @@ const ensureStaleRunningSessionSweep = (): void => {
 
 const getSkillManager = (): SkillManager => {
   if (!skillManager) {
-    // Type assertion: web SqliteStore is compatible with main process version for SkillManager's usage
+    // {标记} P0-SKILL-LIST-ONLY-BOOT:
+    // 构造 SkillManager 只提供技能列表/索引访问能力，不自动进入技能运行态。
+    // 默认启动不再因为 syncBundled / startWatching 抢跑；真正需要 runtime 的动作由明确入口按需触发。
     skillManager = new SkillManager(getStore as any);
-    initializeSkillManager(skillManager);
   }
   return skillManager;
 };
@@ -719,16 +706,14 @@ const getScheduler = (): Scheduler => {
       coworkStore: getCoworkStore(),
       getSkillsPrompt: async (skillIds?: string[]) => {
         // {标记} P0-SCHEDULER-SKILL-SLIM: 定时任务未显式选技能时，不再默认注入 auto-routing prompt。
-        return skillIds?.length
-          ? getSkillManager().buildSelectedSkillsPrompt(skillIds)
-          : null;
+        return buildSelectedSkillsPromptLazily(skillIds);
       },
       // {标记} P0-SCHEDULER-WEB-EXEC: 定时任务当前优先桥接到 HttpSessionExecutor，避免普通任务再走 CoworkRunner 主链。
       runTaskDirectly: runScheduledTaskThroughWebExecutor,
       stopSessionDirectly: (sessionId) => getOrCreateWebSessionExecutor({
         store: getCoworkStore(),
         configStore: getStore(),
-        buildSelectedSkillsPrompt: (skillIds: string[]) => getSkillManager().buildSelectedSkillsPrompt(skillIds),
+        buildSelectedSkillsPrompt: buildSelectedSkillsPromptLazily,
       }).stopSession(sessionId as CoworkSessionId),
       getImConfig: () => getStore().get('im_config'),
       getStoreValue: (key) => getStore().get(key),
@@ -965,7 +950,7 @@ const initFeishuGateway = async (): Promise<void> => {
           gw.setDependencies({
             coworkStore: getCoworkStore(),
             store: getStore(),
-            skillManager: getSkillManager(),
+            buildSelectedSkillsPrompt: (skillIds: string[]) => buildSelectedSkillsPromptLazily(skillIds),
           });
           await gw.start({ appId: app.appId, appSecret: app.appSecret, agentRoleKey: app.agentRoleKey, domain, debug });
           feishuGateways.push(gw);
@@ -1012,7 +997,7 @@ const initWechatBotGateway = async (): Promise<void> => {
       deps: {
         coworkStore: getCoworkStore(),
         store: currentStore,
-        skillManager: getSkillManager(),
+        buildSelectedSkillsPrompt: (skillIds: string[]) => buildSelectedSkillsPromptLazily(skillIds),
         userDataPath,
         workspaceRoot: serverOptions.workspace,
       },
@@ -1186,6 +1171,7 @@ setupDialogRoutes(app);
 setupShellRoutes(app);
 setupFilesRoutes(app);
 setupRoleRuntimeRoutes(app);
+setupRoomRoutes(app);
 setupFeishuWebhookRoutes(app);
 setupDingTalkWebhookRoutes(app);
 setupWechatBotBridgeRoutes(app);

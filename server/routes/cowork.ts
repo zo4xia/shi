@@ -7,6 +7,7 @@ import { orchestrateWebTurn } from '../../clean-room/spine/modules/sessionOrches
 import { generateSessionTitle } from '../../src/main/libs/coworkUtil';
 import { resolveAgentRolesFromConfig, type AgentRoleKey as SharedAgentRoleKey } from '../../src/shared/agentRoleConfig';
 import { getProjectRoot } from '../../src/shared/runtimeDataPaths';
+import { partitionSkillIdsByHandling } from '../../src/shared/systemHandledSkills';
 import { getOrCreateWebSessionExecutor } from '../libs/httpSessionExecutor';
 import { clearIdentityThreadForRole, listIdentityThreadBoardSnapshots } from '../libs/identityThreadHelper';
 import { compressSessionContext } from '../libs/manualContextCompression';
@@ -130,7 +131,13 @@ export function setupCoworkRoutes(app: Router) {
   const createPreferredSessionExecutor = (context: RequestContext) => getOrCreateWebSessionExecutor({
     store: context.coworkStore,
     configStore: context.store,
-    buildSelectedSkillsPrompt: (skillIds: string[]) => context.skillManager.buildSelectedSkillsPrompt(skillIds),
+    buildSelectedSkillsPrompt: (skillIds: string[]) => {
+      const { promptHandled } = partitionSkillIdsByHandling(skillIds);
+      if (promptHandled.length === 0) {
+        return null;
+      }
+      return context.skillManager.buildSelectedSkillsPrompt(promptHandled);
+    },
   });
 
   // ==================== Session Management ====================

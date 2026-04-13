@@ -1,8 +1,13 @@
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import initSqlJs from 'sql.js';
 
 import { ENV_ALIAS_PAIRS, getEnvAliasKeysForPair } from '../src/shared/envAliases.ts';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const projectRoot = path.resolve(__dirname, '..');
 
 type AgentRoleConfig = {
   apiUrl?: string;
@@ -60,7 +65,7 @@ function firstNonEmpty(...values: Array<string | undefined>): string {
 
 async function readAppConfig(dbPath: string): Promise<AppConfig> {
   const SQL = await initSqlJs({
-    locateFile: (file: string) => path.join(process.cwd(), 'node_modules', 'sql.js', 'dist', file),
+    locateFile: (file: string) => path.join(projectRoot, 'node_modules', 'sql.js', 'dist', file),
   });
   const db = new SQL.Database(fs.readFileSync(dbPath));
   const result = db.exec('SELECT value FROM kv WHERE key = ?', ['app_config']);
@@ -74,7 +79,6 @@ async function readAppConfig(dbPath: string): Promise<AppConfig> {
 }
 
 async function main(): Promise<void> {
-  const projectRoot = process.cwd();
   const dbPath = path.join(projectRoot, '.uclaw', 'web', 'uclaw.sqlite');
   const envPath = path.join(projectRoot, '.env');
 

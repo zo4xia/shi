@@ -55,6 +55,13 @@ const NATIVE_CAPABILITY_UI_META: Partial<Record<NativeCapabilityId, {
     statusText: '当前角色可直接记',
     dotClassName: 'bg-sky-500',
   },
+  'office-native-addon': {
+    buttonLabel: '说明',
+    icon: <DocumentTextIcon className={UI_MENU_ICON_CLASS} />,
+    helperText: '只在显式接上专用 Office 工具时开放，不会靠 skill 名字冒充可用。',
+    statusText: '当前角色已接上轻 Office 通道',
+    dotClassName: 'bg-amber-500',
+  },
 };
 
 const SkillsPopover: React.FC<SkillsPopoverProps> = ({
@@ -208,6 +215,11 @@ const SkillsPopover: React.FC<SkillsPopoverProps> = ({
 
     if (capabilityId === 'ima-native-addon') {
       showGlobalToast('IMA 已在底层启用。直接在对话里说“搜索 IMA 笔记… / 读取 IMA 笔记 doc_id: … / 保存到 IMA：…”；如果还没配钥匙，去 设置 -> 消息频道 里填 IMA。');
+      return;
+    }
+
+    if (capabilityId === 'office-native-addon') {
+      showGlobalToast('Office 轻通道属于底层能力，不会自动安装。只有在当前 runtime 真实发现专用 Office 工具时，才会开放 Word / Excel / PowerPoint 的结构化创作与编辑。');
       return;
     }
 

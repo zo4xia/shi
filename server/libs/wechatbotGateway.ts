@@ -3,7 +3,6 @@ import fs from 'fs';
 import path from 'path';
 
 import type { CoworkSession, CoworkStore } from '../../src/main/coworkStore';
-import type { SkillManager } from '../../src/main/skillManager';
 import { AGENT_ROLE_LABELS } from '../../src/shared/agentRoleConfig';
 import { getProjectRoot } from '../../src/shared/runtimeDataPaths';
 import type { SqliteStore } from '../sqliteStore.web';
@@ -35,9 +34,9 @@ const CHANNEL_VERSION = 'uclaw-wechatbot-bridge-phase1';
 type WechatBotGatewayDeps = {
   coworkStore: CoworkStore;
   store: SqliteStore;
-  skillManager: SkillManager;
   userDataPath: string;
   workspaceRoot?: string;
+  buildSelectedSkillsPrompt?: (skillIds: string[]) => string | null;
 };
 
 type WechatBotGatewayStartOptions = {
@@ -845,14 +844,17 @@ class WechatBotGateway {
     const executor = getOrCreateWebSessionExecutor({
       store: deps.coworkStore,
       configStore: deps.store,
-      buildSelectedSkillsPrompt: (skillIds: string[]) => deps.skillManager.buildSelectedSkillsPrompt(skillIds) ?? null,
+      buildSelectedSkillsPrompt: (skillIds: string[]) => (
+        deps.buildSelectedSkillsPrompt?.(skillIds)
+        ?? null
+      ),
     });
 
     try {
       await executor.runChannelFastTurn(session.id, prompt, {
         confirmationMode: 'text',
         autoApprove: true,
-        workspaceRoot: session.cwd || deps.workspaceRoot || getProjectRoot(),
+        workspaceRoot: deps.workspaceRoot || getProjectRoot(),
       });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -865,7 +867,7 @@ class WechatBotGateway {
     const artifactResult = collectFeishuArtifacts({
       sessionMessages: completed?.messages ?? [],
       knownMessageIds: knownIds,
-      workspaceRoot: session.cwd || deps.workspaceRoot || getProjectRoot(),
+      workspaceRoot: deps.workspaceRoot || getProjectRoot(),
       runStartedAt,
     });
     const fileArtifacts = artifactResult.artifacts

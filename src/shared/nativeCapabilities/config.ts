@@ -4,7 +4,12 @@ import {
   type AppConfigLike,
 } from '../agentRoleConfig';
 
-export type NativeCapabilityId = 'ima-native-addon' | 'browser-eyes-native-addon';
+export type NativeCapabilityId = 'ima-native-addon' | 'browser-eyes-native-addon' | 'office-native-addon';
+
+export type NativeCapabilityDiscoveryConfig = {
+  binaryPath?: string;
+  searchCommonInstallDirs?: boolean;
+};
 
 export type NativeCapabilityRoleConfig = Record<AgentRoleKey, boolean>;
 
@@ -12,6 +17,7 @@ export type NativeCapabilityEntryConfig = {
   enabled: boolean;
   priority: number;
   roles: NativeCapabilityRoleConfig;
+  discovery?: NativeCapabilityDiscoveryConfig;
 };
 
 export type NativeCapabilitiesConfig = Record<NativeCapabilityId, NativeCapabilityEntryConfig>;
@@ -19,6 +25,7 @@ export type NativeCapabilitiesConfig = Record<NativeCapabilityId, NativeCapabili
 export const NATIVE_CAPABILITY_ORDER: NativeCapabilityId[] = [
   'ima-native-addon',
   'browser-eyes-native-addon',
+  'office-native-addon',
 ];
 
 export const NATIVE_CAPABILITY_LABELS: Record<NativeCapabilityId, { title: string; description: string }> = {
@@ -30,7 +37,36 @@ export const NATIVE_CAPABILITY_LABELS: Record<NativeCapabilityId, { title: strin
     title: '小眼睛外挂',
     description: '先用轻量 DOM 观察看页面，再决定要不要上重浏览器。',
   },
+  'office-native-addon': {
+    title: 'Office 轻通道',
+    description: '仅在显式发现 OfficeCLI 等专用文档工具时，才开放 Word / Excel / PowerPoint 的结构化创作与编辑。',
+  },
 };
+
+function normalizeDiscoveryConfig(
+  value: unknown,
+  fallback?: NativeCapabilityDiscoveryConfig
+): NativeCapabilityDiscoveryConfig | undefined {
+  const record = value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+
+  const binaryPath = typeof record.binaryPath === 'string'
+    ? record.binaryPath.trim()
+    : String(fallback?.binaryPath || '').trim();
+  const searchCommonInstallDirs = typeof record.searchCommonInstallDirs === 'boolean'
+    ? record.searchCommonInstallDirs
+    : Boolean(fallback?.searchCommonInstallDirs);
+
+  if (!binaryPath && !searchCommonInstallDirs) {
+    return undefined;
+  }
+
+  return {
+    binaryPath,
+    searchCommonInstallDirs,
+  };
+}
 
 function buildRoleConfig(enabledRoles: AgentRoleKey[]): NativeCapabilityRoleConfig {
   return AGENT_ROLE_ORDER.reduce((acc, roleKey) => {
@@ -50,6 +86,15 @@ export function createDefaultNativeCapabilitiesConfig(): NativeCapabilitiesConfi
       enabled: true,
       priority: 60,
       roles: buildRoleConfig(['organizer', 'writer', 'designer', 'analyst']),
+    },
+    'office-native-addon': {
+      enabled: false,
+      priority: 40,
+      roles: buildRoleConfig(['organizer', 'writer', 'designer', 'analyst']),
+      discovery: {
+        binaryPath: '',
+        searchCommonInstallDirs: true,
+      },
     },
   };
 }
@@ -90,6 +135,7 @@ function normalizeEntryConfig(
     enabled: typeof record.enabled === 'boolean' ? record.enabled : fallback.enabled,
     priority: Number.isFinite(priority) ? Math.max(-999, Math.min(999, Math.round(priority))) : fallback.priority,
     roles: normalizeRoleConfig(record.roles, fallback.roles),
+    discovery: normalizeDiscoveryConfig(record.discovery, fallback.discovery),
   };
 }
 
@@ -104,6 +150,7 @@ export function normalizeNativeCapabilitiesConfig(
   const normalized = {
     'ima-native-addon': normalizeEntryConfig(record['ima-native-addon'], defaults['ima-native-addon']),
     'browser-eyes-native-addon': normalizeEntryConfig(record['browser-eyes-native-addon'], defaults['browser-eyes-native-addon']),
+    'office-native-addon': normalizeEntryConfig(record['office-native-addon'], defaults['office-native-addon']),
   };
 
   // 兼容旧配置：早期把小眼睛只开放给 organizer/designer。

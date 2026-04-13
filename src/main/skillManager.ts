@@ -1302,22 +1302,31 @@ export class SkillManager {
       return null;
     }
 
-    return selectedSkills.map((skill) => {
-      const skillDirectory = skill.skillPath.trim().replace(/\\/g, '/').replace(/\/SKILL\.md$/i, '') || skill.skillPath;
-      return [
-        `## Skill: ${skill.name}`,
-        '<skill_context>',
-        `  <location>${skill.skillPath}</location>`,
-        `  <directory>${skillDirectory}</directory>`,
-        '  <path_rules>',
-        '    Resolve relative file references from this skill against <directory>.',
-        '    Do not assume skills are under the current workspace directory.',
-        '  </path_rules>',
-        '</skill_context>',
-        '',
-        skill.prompt,
-      ].join('\n');
-    }).join('\n\n');
+    const selectedSkillNames = selectedSkills.map((skill) => skill.name).join(', ');
+
+    return [
+      '## Turn-Active Skills',
+      `- Only the following skills are active in this conversation turn because they were explicitly selected for this session: ${selectedSkillNames}`,
+      '- Do not confuse turn-active skills with role-owned or installed skills.',
+      '- A role may own additional bound modules, but if they are not listed in this section, their prompt is not active in this turn.',
+      '',
+      selectedSkills.map((skill) => {
+        const skillDirectory = skill.skillPath.trim().replace(/\\/g, '/').replace(/\/SKILL\.md$/i, '') || skill.skillPath;
+        return [
+          `## Skill: ${skill.name}`,
+          '<skill_context>',
+          `  <location>${skill.skillPath}</location>`,
+          `  <directory>${skillDirectory}</directory>`,
+          '  <path_rules>',
+          '    Resolve relative file references from this skill against <directory>.',
+          '    Do not assume skills are under the current workspace directory.',
+          '  </path_rules>',
+          '</skill_context>',
+          '',
+          skill.prompt,
+        ].join('\n');
+      }).join('\n\n'),
+    ].join('\n');
   }
 
   setSkillEnabled(id: string, enabled: boolean): SkillRecord[] {

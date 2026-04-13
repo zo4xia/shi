@@ -115,8 +115,11 @@ const resolveInlineAttachmentDirs = (
       // {标记} P1-OPENCLAW-SKILL-COMPAT: 运行态附件主路径仍优先放工作目录，避免打断 skills 读取绝对路径。
       // {标记} P1-ATTACHMENT-WORKDIR-TRUTH: 前端若一时未透传 cwd，后端继续以 coworkConfig.workingDirectory 为兜底真相源。
       // ##混淆点注意：只有“用户没显式设置新主家”时，才允许退回 cwd/.cowork-temp。
+      const relativeLeaf = purpose === 'export'
+        ? path.join('.cowork-temp', 'attachments', 'exports')
+        : path.join('.cowork-temp', 'attachments', 'manual');
       return {
-        primaryDir: path.join(resolved, '.cowork-temp', 'attachments', 'manual'),
+        primaryDir: path.join(resolved, relativeLeaf),
         cacheDir,
       };
     }
@@ -131,15 +134,20 @@ const resolveInlineAttachmentDirs = (
     const resolvedWorkspace = path.resolve(workspaceRoot);
     if (fs.existsSync(resolvedWorkspace) && fs.statSync(resolvedWorkspace).isDirectory()) {
       // {标记} P1-ATTACHMENT-WORKSPACE-FALLBACK: 连 coworkConfig 都缺失时，至少回到当前项目根，避免落进用户数据黑箱目录。
+      const relativeLeaf = purpose === 'export'
+        ? path.join('.cowork-temp', 'attachments', 'exports')
+        : path.join('.cowork-temp', 'attachments', 'manual');
       return {
-        primaryDir: path.join(resolvedWorkspace, '.cowork-temp', 'attachments', 'manual'),
+        primaryDir: path.join(resolvedWorkspace, relativeLeaf),
         cacheDir: null,
       };
     }
   }
 
   return {
-    primaryDir: path.join(userDataPath, 'attachments'),
+    primaryDir: purpose === 'export'
+      ? path.join(userDataPath, 'attachments', 'exports')
+      : path.join(userDataPath, 'attachments', 'manual'),
     cacheDir: null,
   };
 };
