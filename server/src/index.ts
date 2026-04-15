@@ -932,37 +932,39 @@ const initFeishuGateway = async (): Promise<void> => {
         return;
       }
 
-      const envApps: FeishuRuntimeAppConfig[] = [];
-      for (let index = 0; index < 10; index += 1) {
-        const suffix = index === 0 ? '' : `_${index}`;
-        const envAppId = readEnvAliasPairWithSuffix(ENV_ALIAS_PAIRS.feishuAppId, suffix)?.trim() || '';
-        const envAppSecret = readEnvAliasPairWithSuffix(ENV_ALIAS_PAIRS.feishuAppSecret, suffix)?.trim() || '';
-        if (!envAppId || !envAppSecret) {
-          continue;
-        }
-
-        const envAgentRoleKey = normalizeRequiredIdentityRoleKey(
-          readEnvAliasPairWithSuffix(ENV_ALIAS_PAIRS.feishuAgentRoleKey, suffix)
-        );
-        if (!envAgentRoleKey) {
-          console.warn(`[Feishu WS] Skip env app ${envAppId}: missing FEISHU_AGENT_ROLE_KEY${suffix} / agentRoleKey binding`);
-          continue;
-        }
-
-        envApps.push({
-          id: `env-bootstrap-${index}`,
-          name: readEnvAliasPairWithSuffix(ENV_ALIAS_PAIRS.feishuAppName, suffix)?.trim() || `env-bootstrap-${index + 1}`,
-          appId: envAppId,
-          appSecret: envAppSecret,
-          agentRoleKey: envAgentRoleKey,
-          enabled: true,
-          createdAt: 0,
-        });
-      }
-
       const configuredApps = Array.isArray(feishuConfig?.apps)
         ? feishuConfig.apps.filter((app: any) => app?.appId && app?.appSecret && app?.enabled)
         : [];
+      const hasConfiguredApps = configuredApps.length > 0;
+      const envApps: FeishuRuntimeAppConfig[] = [];
+      if (!hasConfiguredApps) {
+        for (let index = 0; index < 10; index += 1) {
+          const suffix = index === 0 ? '' : `_${index}`;
+          const envAppId = readEnvAliasPairWithSuffix(ENV_ALIAS_PAIRS.feishuAppId, suffix)?.trim() || '';
+          const envAppSecret = readEnvAliasPairWithSuffix(ENV_ALIAS_PAIRS.feishuAppSecret, suffix)?.trim() || '';
+          if (!envAppId || !envAppSecret) {
+            continue;
+          }
+
+          const envAgentRoleKey = normalizeRequiredIdentityRoleKey(
+            readEnvAliasPairWithSuffix(ENV_ALIAS_PAIRS.feishuAgentRoleKey, suffix)
+          );
+          if (!envAgentRoleKey) {
+            console.warn(`[Feishu WS] Skip env app ${envAppId}: missing FEISHU_AGENT_ROLE_KEY${suffix} / agentRoleKey binding`);
+            continue;
+          }
+
+          envApps.push({
+            id: `env-bootstrap-${index}`,
+            name: readEnvAliasPairWithSuffix(ENV_ALIAS_PAIRS.feishuAppName, suffix)?.trim() || `env-bootstrap-${index + 1}`,
+            appId: envAppId,
+            appSecret: envAppSecret,
+            agentRoleKey: envAgentRoleKey,
+            enabled: true,
+            createdAt: 0,
+          });
+        }
+      }
       const mergedApps = dedupeRuntimeFeishuApps([
         ...configuredApps,
         ...envApps,
