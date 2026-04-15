@@ -22,7 +22,15 @@ type MathMarkdownDeps = {
   rehypeKatex: unknown;
 };
 
+type MermaidModule = {
+  default: {
+    initialize: (config: Record<string, unknown>) => void;
+    render: (id: string, code: string) => Promise<{ svg: string }>;
+  };
+};
+
 let mathMarkdownDepsPromise: Promise<MathMarkdownDeps> | null = null;
+let mermaidModulePromise: Promise<MermaidModule['default']> | null = null;
 
 const loadMathMarkdownDeps = async (): Promise<MathMarkdownDeps> => {
   if (!mathMarkdownDepsPromise) {
@@ -37,6 +45,21 @@ const loadMathMarkdownDeps = async (): Promise<MathMarkdownDeps> => {
   }
 
   return mathMarkdownDepsPromise;
+};
+
+const loadMermaidModule = async (): Promise<MermaidModule['default']> => {
+  if (!mermaidModulePromise) {
+    mermaidModulePromise = import('mermaid').then((module) => {
+      const mermaid = module.default;
+      mermaid.initialize({
+        startOnLoad: false,
+        securityLevel: 'strict',
+      });
+      return mermaid;
+    });
+  }
+
+  return mermaidModulePromise;
 };
 
 const encodeFileUrl = (url: string): string => {
@@ -208,12 +231,48 @@ const CodeBlock: React.FC<any> = ({ node, className, children, ...props }) => {
     && trimmedCodeText.split('\n').length <= CODE_BLOCK_LINE_LIMIT;
   const [isCopied, setIsCopied] = useState(false);
   const copyTimeoutRef = useRef<number | null>(null);
+  const [mermaidSvg, setMermaidSvg] = useState<string | null>(null);
+  const [mermaidError, setMermaidError] = useState<string | null>(null);
+  const mermaidRenderSeqRef = useRef(0);
 
   useEffect(() => () => {
     if (copyTimeoutRef.current != null) {
       window.clearTimeout(copyTimeoutRef.current);
     }
   }, []);
+
+  useEffect(() => {
+    if (isInline || match?.[1] !== 'mermaid') {
+      setMermaidSvg(null);
+      setMermaidError(null);
+      return;
+    }
+
+    let cancelled = false;
+    const renderSeq = mermaidRenderSeqRef.current + 1;
+    mermaidRenderSeqRef.current = renderSeq;
+    setMermaidSvg(null);
+    setMermaidError(null);
+
+    void loadMermaidModule()
+      .then(async (mermaid) => {
+        const renderId = `mermaid-${renderSeq}-${Math.random().toString(36).slice(2, 10)}`;
+        const rendered = await mermaid.render(renderId, trimmedCodeText);
+        if (!cancelled && mermaidRenderSeqRef.current === renderSeq) {
+          setMermaidSvg(rendered.svg);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          console.error('Failed to render mermaid block:', error);
+          setMermaidError(error instanceof Error ? error.message : 'Mermaid render failed');
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isInline, match, trimmedCodeText]);
 
   const handleCopy = useCallback(async () => {
     try {
@@ -229,6 +288,50 @@ const CodeBlock: React.FC<any> = ({ node, className, children, ...props }) => {
   }, [trimmedCodeText]);
 
   if (!isInline) {
+    if (match?.[1] === 'mermaid') {
+      return (
+        <div className="my-3 rounded-xl overflow-hidden border dark:border-claude-darkBorder border-claude-border relative shadow-subtle">
+          <div className="dark:bg-claude-darkSurfaceMuted bg-claude-surfaceMuted px-4 py-2 text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary font-medium flex items-center justify-between">
+            <span>mermaid</span>
+            <button
+              type="button"
+              onClick={handleCopy}
+              className="p-1.5 rounded-md dark:hover:bg-claude-darkSurfaceHover hover:bg-claude-surfaceHover transition-colors"
+              title={'复制到剪贴板'}
+              aria-label={'复制到剪贴板'}
+            >
+              {isCopied ? (
+                <CheckIcon className="h-4 w-4 text-green-500" />
+              ) : (
+                <ClipboardDocumentIcon className="h-4 w-4" />
+              )}
+            </button>
+          </div>
+          <div className="overflow-x-auto bg-white px-4 py-4 dark:bg-claude-darkSurfaceInset">
+            {mermaidSvg ? (
+              <div
+                className="mermaid-diagram min-w-max dark:[&_svg]:text-claude-darkText"
+                dangerouslySetInnerHTML={{ __html: mermaidSvg }}
+              />
+            ) : mermaidError ? (
+              <div className="space-y-3">
+                <div className="rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+                  {`Mermaid 渲染失败：${mermaidError}`}
+                </div>
+                <code className="block whitespace-pre-wrap break-words rounded-lg bg-[#282c34] px-4 py-3 font-mono text-[13px] leading-6 text-claude-darkText">
+                  {trimmedCodeText}
+                </code>
+              </div>
+            ) : (
+              <div className="rounded-lg border border-dashed dark:border-claude-darkBorder border-claude-border px-3 py-4 text-xs dark:text-claude-darkTextSecondary text-claude-textSecondary">
+                Mermaid 渲染中...
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
     // Simple code block without language - minimal styling
     if (!match) {
       return (

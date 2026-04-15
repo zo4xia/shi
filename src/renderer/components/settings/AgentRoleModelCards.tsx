@@ -151,12 +151,12 @@ export const AgentRoleApiConfigCard: React.FC<AgentRoleApiConfigCardProps> = ({
                 {'使用系统预设'}
               </button>
               {roleConfig.apiUrl && (
-                <button
-                  type="button"
-                  onClick={onEnableManualApiUrlEdit}
-                  className="shrink-0 rounded-lg border dark:border-claude-darkBorder border-claude-border px-2 py-1 text-[11px] font-medium text-claude-textSecondary dark:text-claude-darkTextSecondary transition-colors hover:bg-claude-surfaceHover dark:hover:bg-claude-darkSurfaceHover"
-                >
-                  {'手动填写'}
+              <button
+                type="button"
+                onClick={onEnableManualApiUrlEdit}
+                className="shrink-0 rounded-lg border dark:border-claude-darkBorder border-claude-border px-2 py-1 text-[11px] font-medium text-claude-textSecondary dark:text-claude-darkTextSecondary transition-colors hover:bg-claude-surfaceHover dark:hover:bg-claude-darkSurfaceHover"
+              >
+                  {'清空重填'}
                 </button>
               )}
               <button
@@ -177,7 +177,7 @@ export const AgentRoleApiConfigCard: React.FC<AgentRoleApiConfigCardProps> = ({
               onFocus={isUsingSystemPreset ? undefined : onApiUrlFocus}
               onChange={(event) => onApiUrlChange(event.target.value)}
               className="block w-full rounded-xl border dark:border-claude-darkBorder border-claude-border bg-claude-surfaceInset dark:bg-claude-darkSurfaceInset px-3 py-2 pr-8 text-xs text-claude-text dark:text-claude-darkText"
-              placeholder={isUsingSystemPreset ? '点击“使用系统预设”后自动应用' : '请输入 API Base URL'}
+              placeholder={isUsingSystemPreset ? '点击“使用系统预设”后自动应用' : '重新输入 API Base URL；已保存线路不会再次明文回显'}
               onCopy={isUsingSystemPreset ? (event) => event.preventDefault() : undefined}
               onCut={isUsingSystemPreset ? (event) => event.preventDefault() : undefined}
               onPaste={isUsingSystemPreset ? (event) => event.preventDefault() : undefined}

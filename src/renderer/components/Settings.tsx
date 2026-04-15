@@ -1144,12 +1144,13 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
   }, [handleAgentRoleChange]);
 
   const handleEnableManualApiUrlEdit = useCallback((roleKey: AgentRoleKey) => {
+    handleAgentRoleChange(roleKey, 'apiUrl', '');
     setApiUrlManualModeByRole((prev) => ({
       ...prev,
       [roleKey]: true,
     }));
     revealApiUrlTemporarily(roleKey);
-  }, [revealApiUrlTemporarily]);
+  }, [handleAgentRoleChange, revealApiUrlTemporarily]);
 
   useEffect(() => {
     return () => {

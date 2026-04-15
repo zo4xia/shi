@@ -38,15 +38,10 @@ function maskSecret(value: string): string {
 }
 
 function summarizeProvider(role: AgentRoleConfigEntry): string {
-  const normalizedBaseUrl = role.apiUrl.trim().replace(/\/+$/, '');
-  if (!normalizedBaseUrl) {
+  if (!role.apiUrl.trim()) {
     return '未配置';
   }
-  try {
-    return new URL(normalizedBaseUrl).host;
-  } catch {
-    return normalizedBaseUrl;
-  }
+  return '已配置线路';
 }
 
 const SERVICE_ROUTE_META: Record<'novel' | 'drama', {
@@ -239,7 +234,7 @@ const EmployeeStoreView: React.FC<EmployeeStoreViewProps> = ({
                             {summarizeProvider(selectedRole)}
                           </div>
                           <div className="mt-1 text-xs text-claude-textSecondary dark:text-claude-darkTextSecondary">
-                            {selectedRole.apiFormat === 'anthropic' ? 'Anthropic 协议' : 'OpenAI 兼容协议'}
+                            {selectedRole.apiFormat === 'anthropic' ? 'Anthropic 协议（来源隐藏）' : 'OpenAI 兼容协议（来源隐藏）'}
                           </div>
                         </div>
 
