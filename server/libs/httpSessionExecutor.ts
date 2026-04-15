@@ -315,6 +315,8 @@ export class HttpSessionExecutor implements SessionExecutor {
         await this.runGoogleGenerateContent(sessionId, session, systemPrompt, apiConfig, streamState, abortController.signal);
       } else if (apiConfig.agentRoleKey === 'designer' && effectiveImageApiType === 'images') {
         await this.runOpenAIImagesGeneration(sessionId, session, systemPrompt, apiConfig, streamState, abortController.signal);
+      } else if (apiConfig.agentRoleKey === 'designer' && effectiveImageApiType === 'video') {
+        await this.runOpenAIVideoGeneration(sessionId, session, systemPrompt, apiConfig, streamState, abortController.signal);
       } else if (this.shouldPreferBoundedToolLoop(session, prompt, mergedSkillIds)) {
         // {BREAKPOINT} DIRECT-EXECUTOR-BOUNDED-LOOP
         // {FLOW} PHASE1-DIRECT-AGENTIC-DEFAULT: 现役非图片主链默认把工具决定权交给 agent，
@@ -580,6 +582,8 @@ export class HttpSessionExecutor implements SessionExecutor {
         context.attachmentExportsHome
           ? `- Your unique export home is \`${context.attachmentExportsHome}/\`.`
           : '- Your export home is not configured yet because the conversation file root is missing.',
+        '- Recommended order when you need context or files: 1) read the broadcast baton / recent continuity hints, 2) check `role_home_paths`, 3) list with `role_home_files(area=attachment|export)`, 4) read one exact file with `role_home_read_file`, 5) only then write or export with `role_home_write_file`.',
+        '- If this turn mentions export or deliverables, check the export home before claiming success. Treat export verification as a real step, not a decorative sentence.',
         ...buildRoleHomeMemoryLines(roleKey),
         '- If a skill is not present in the role skills index, do not assume it is already available for this role.',
         '- If an MCP tool is not present in the runtime capability snapshot, do not assume it is currently live for this role.',
@@ -603,8 +607,6 @@ export class HttpSessionExecutor implements SessionExecutor {
     attachmentExportsHome: string | null;
     attachmentManualAbs: string | null;
     attachmentExportsAbs: string | null;
-    legacyAttachmentManualHome: string | null;
-    legacyAttachmentExportsHome: string | null;
     legacyAttachmentManualAbs: string | null;
     legacyAttachmentExportsAbs: string | null;
   } {
@@ -643,8 +645,6 @@ export class HttpSessionExecutor implements SessionExecutor {
       attachmentExportsHome: attachmentExportsAbs ? toRelative(attachmentExportsAbs) : null,
       attachmentManualAbs,
       attachmentExportsAbs,
-      legacyAttachmentManualHome: legacyAttachmentManualAbs ? toRelative(legacyAttachmentManualAbs) : null,
-      legacyAttachmentExportsHome: legacyAttachmentExportsAbs ? toRelative(legacyAttachmentExportsAbs) : null,
       legacyAttachmentManualAbs,
       legacyAttachmentExportsAbs,
     };
@@ -1777,7 +1777,7 @@ export class HttpSessionExecutor implements SessionExecutor {
           type: 'function',
           function: {
             name: 'role_home_read_file',
-            description: 'Read one file from your own role attachment/export home. Only supports your current role bucket, never system runtime files.',
+            description: 'Read one file from your own role attachment/export home. Only supports your current role bucket, never system runtime files. `relative_path` must be bucket-relative like `drafts/scene-1.md`, never `.uclaw/...` or `C:\\...\\skills.json`.',
             parameters: {
               type: 'object',
               properties: {
@@ -1806,7 +1806,7 @@ export class HttpSessionExecutor implements SessionExecutor {
           type: 'function',
           function: {
             name: 'role_home_write_file',
-            description: 'Write one UTF-8 text file into your own role attachment/export home. Only supports your current role bucket, never system runtime files.',
+            description: 'Write one UTF-8 text file into your own role attachment/export home. Only supports your current role bucket, never system runtime files. `relative_path` must be bucket-relative like `drafts/scene-1.md`, never `.uclaw/...` or absolute paths.',
             parameters: {
               type: 'object',
               properties: {
@@ -2140,8 +2140,11 @@ export class HttpSessionExecutor implements SessionExecutor {
       `sqlite=${context.sqlitePath}`,
       `attachment_home=${context.attachmentManualHome || '-'}`,
       `export_home=${context.attachmentExportsHome || '-'}`,
-      `legacy_attachment_home=${context.legacyAttachmentManualHome || '-'}`,
-      `legacy_export_home=${context.legacyAttachmentExportsHome || '-'}`,
+      'rule_runtime_files=skills.json / role-capabilities.json / notes live under role_home and are not attachment/export bucket files',
+      'rule_bucket_files=role_home_read_file / role_home_write_file only work inside attachment_home or export_home',
+      'example_runtime_check=read role_home_paths first, then inspect skills_index / capability_snapshot from this doorplate',
+      'example_bucket_read=role_home_read_file(area=attachment, relative_path="drafts/scene-1.md")',
+      'wrong_example=role_home_read_file(area=attachment, relative_path=".uclaw/web/roles/writer/skills.json")',
     ].join('\n');
   }
 
@@ -2186,11 +2189,6 @@ export class HttpSessionExecutor implements SessionExecutor {
     const entries = fs.readdirSync(targetPath, { withFileTypes: true })
       .slice(0, maxItems)
       .map((entry) => `${entry.isDirectory() ? 'dir' : 'file'}:${entry.name}`);
-    const legacyEntries = legacyPath && fs.existsSync(legacyPath) && fs.statSync(legacyPath).isDirectory()
-      ? fs.readdirSync(legacyPath, { withFileTypes: true })
-        .slice(0, maxItems)
-        .map((entry) => `${entry.isDirectory() ? 'dir' : 'file'}:${entry.name}`)
-      : [];
 
     return [
       `role=${roleKey}`,
@@ -2198,13 +2196,6 @@ export class HttpSessionExecutor implements SessionExecutor {
       `path=${targetPath}`,
       `count=${entries.length}`,
       ...entries,
-      ...(legacyPath
-        ? [
-            `legacy_path=${legacyPath}`,
-            `legacy_count=${legacyEntries.length}`,
-            ...legacyEntries.map((entry) => `legacy_${entry}`),
-          ]
-        : []),
     ].join('\n');
   }
 
@@ -2247,6 +2238,24 @@ export class HttpSessionExecutor implements SessionExecutor {
     return { ok: true, resolvedPath };
   }
 
+  private buildRoleBucketPathError(
+    roleKey: AgentRoleKey,
+    area: 'attachment' | 'export',
+    relativePath: string,
+    reason: string,
+  ): string {
+    return [
+      `role=${roleKey}`,
+      `area=${area}`,
+      `relative_path=${relativePath}`,
+      `reason=${reason}`,
+      'rule=relative_path must stay inside your current bucket and cannot point to role_home/system files',
+      'good_example=relative_path=drafts/scene-1.md',
+      'bad_example=relative_path=.uclaw/web/roles/writer/skills.json',
+      'hint=if you need skills.json or role-capabilities.json, use role_home_paths and its doorplate fields instead of role_home_read_file',
+    ].join('\n');
+  }
+
   private async runRoleHomeReadFileTool(args: {
     area: 'attachment' | 'export';
     relative_path: string;
@@ -2260,7 +2269,12 @@ export class HttpSessionExecutor implements SessionExecutor {
 
     const resolution = this.resolveRoleBucketFilePath(primaryPath, args.relative_path);
     if (!resolution.ok || !resolution.resolvedPath) {
-      return `role=${roleKey}\narea=${args.area}\nreason=${resolution.reason || 'invalid relative_path'}`;
+      return this.buildRoleBucketPathError(
+        roleKey,
+        args.area,
+        args.relative_path,
+        resolution.reason || 'invalid relative_path',
+      );
     }
 
     let targetPath = resolution.resolvedPath;
@@ -2292,7 +2306,6 @@ export class HttpSessionExecutor implements SessionExecutor {
         `area=${args.area}`,
         `relative_path=${args.relative_path}`,
         `path=${targetPath}`,
-        `used_legacy=${usedLegacy ? 'true' : 'false'}`,
         `reason=${parsed.error || 'read-failed'}`,
       ].join('\n');
     }
@@ -2302,7 +2315,6 @@ export class HttpSessionExecutor implements SessionExecutor {
       `area=${args.area}`,
       `relative_path=${args.relative_path}`,
       `path=${targetPath}`,
-      `used_legacy=${usedLegacy ? 'true' : 'false'}`,
       `file_type=${parsed.fileType}`,
       `truncated=${parsed.truncated ? 'true' : 'false'}`,
       'content:',
@@ -2325,7 +2337,12 @@ export class HttpSessionExecutor implements SessionExecutor {
     fs.mkdirSync(primaryPath, { recursive: true });
     const resolution = this.resolveRoleBucketFilePath(primaryPath, args.relative_path);
     if (!resolution.ok || !resolution.resolvedPath) {
-      return `role=${roleKey}\narea=${args.area}\nreason=${resolution.reason || 'invalid relative_path'}`;
+      return this.buildRoleBucketPathError(
+        roleKey,
+        args.area,
+        args.relative_path,
+        resolution.reason || 'invalid relative_path',
+      );
     }
 
     const targetPath = resolution.resolvedPath;
@@ -2761,6 +2778,50 @@ export class HttpSessionExecutor implements SessionExecutor {
     const output = extractAssistantOutput(parsed);
     if (output.generatedImages.length > 0 && !output.text) {
       output.text = '已生成图片。';
+    }
+    if (output.text || output.generatedImages.length > 0) {
+      this.appendAssistantOutput(sessionId, streamState, output);
+    }
+  }
+
+  private async runOpenAIVideoGeneration(
+    sessionId: string,
+    session: NonNullable<ReturnType<CoworkStore['getSession']>>,
+    systemPrompt: string,
+    apiConfig: DirectApiConfig,
+    streamState: StreamState,
+    signal: AbortSignal
+  ): Promise<void> {
+    const requestBody = await this.buildOpenAIImagesGenerationRequest(session, systemPrompt);
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (apiConfig.apiKey.trim()) {
+      headers.Authorization = `Bearer ${apiConfig.apiKey.trim()}`;
+    }
+
+    const response = await this.fetchUpstreamResponseWithSingleRetry(
+      'video generation',
+      () => fetch(buildOpenAIVideoGenerationURL(apiConfig.baseURL), {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          model: apiConfig.model,
+          ...requestBody,
+        }),
+        signal,
+      }),
+      signal,
+    );
+
+    if (!response.ok) {
+      throw new Error(await buildUpstreamError(response));
+    }
+
+    const parsed = await response.json().catch(() => null);
+    const output = extractAssistantOutput(parsed);
+    if (output.generatedImages.length > 0 && !output.text) {
+      output.text = '已生成视频。';
     }
     if (output.text || output.generatedImages.length > 0) {
       this.appendAssistantOutput(sessionId, streamState, output);
@@ -3784,6 +3845,17 @@ function buildOpenAIImagesGenerationURL(baseURL: string): string {
     return `${normalized}/images/generations`;
   }
   return `${normalized}/v1/images/generations`;
+}
+
+function buildOpenAIVideoGenerationURL(baseURL: string): string {
+  const normalized = baseURL.trim().replace(/\/+$/, '');
+  if (!normalized) {
+    return '/video';
+  }
+  if (normalized.endsWith('/video')) {
+    return normalized;
+  }
+  return `${normalized}/video`;
 }
 
 async function buildUpstreamError(response: Response): Promise<string> {

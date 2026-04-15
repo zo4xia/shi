@@ -197,14 +197,18 @@ const killChildren = () => {
   }
 };
 
-const attachChild = (child, name) => {
+const attachChild = (child, name, { critical = true } = {}) => {
   children.add(child);
   child.on('exit', (code, signal) => {
     children.delete(child);
     if (!shuttingDown) {
-      console.log(`[dev-runner] ${name} exited (${signal || code || 0}), shutting down the rest`);
-      killChildren();
-      process.exit(code ?? 0);
+      if (critical) {
+        console.log(`[dev-runner] ${name} exited (${signal || code || 0}), shutting down the rest`);
+        killChildren();
+        process.exit(code ?? 0);
+      } else {
+        console.warn(`[dev-runner] ${name} exited (${signal || code || 0}), backend/runtime kept alive`);
+      }
     }
   });
 };
@@ -232,7 +236,7 @@ const backend = spawnCommand(process.execPath, [
   '--workspace',
   root,
 ]);
-attachChild(backend, 'backend');
+attachChild(backend, 'backend', { critical: true });
 
 await waitForHttp(`http://${host}:${backendPort}/health`);
 console.log('[dev-runner] Backend is healthy, delaying frontend startup slightly');
@@ -247,6 +251,6 @@ const frontend = spawnCommand(process.execPath, [
   '--port',
   String(frontendPort),
 ]);
-attachChild(frontend, 'frontend');
+attachChild(frontend, 'frontend', { critical: false });
 
 console.log('[dev-runner] Development services are up. Open the frontend URL manually when needed.');

@@ -14,6 +14,17 @@ import {
   getRuntimeResourcePath,
   isBundledRuntime,
 } from './libs/runtimeLayout';
+import { getProjectRoot } from '../shared/runtimeDataPaths';
+
+function ensureWithinProjectRoot(candidate: string): string | null {
+  const projectRoot = getProjectRoot();
+  const normalized = path.resolve(candidate);
+  const relative = path.relative(projectRoot, normalized);
+  if (relative.startsWith('..') || path.isAbsolute(relative)) {
+    return null;
+  }
+  return normalized;
+}
 
 /**
  * Resolve the user's login shell PATH on macOS/Linux.
@@ -459,10 +470,12 @@ export class SkillServiceManager {
       candidates.push(getRuntimeResourcePath('SKILLs', 'web-search'));
       candidates.push(getRuntimeAppPath('SKILLs', 'web-search'));
     } else {
-      // In development, __dirname is dist-electron/, so we need to go up one level to get to project root
-      const projectRoot = path.resolve(__dirname, '..');
+      const projectRoot = getProjectRoot();
       candidates.push(path.join(projectRoot, 'SKILLs', 'web-search'));
-      candidates.push(getRuntimeAppPath('SKILLs', 'web-search'));
+      const runtimeCandidate = ensureWithinProjectRoot(getRuntimeAppPath('SKILLs', 'web-search'));
+      if (runtimeCandidate) {
+        candidates.push(runtimeCandidate);
+      }
     }
 
     return candidates.find(skillPath => fs.existsSync(skillPath)) ?? null;

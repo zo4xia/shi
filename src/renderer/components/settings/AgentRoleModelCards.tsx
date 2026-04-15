@@ -95,11 +95,13 @@ interface AgentRoleApiConfigCardProps {
   activeRole: string;
   roleConfig: AgentRoleConfigEntry;
   isUsingSystemPreset: boolean;
+  showApiUrl: boolean;
   showApiKey: boolean;
   onToggleShowApiKey: () => void;
   onApplySystemPreset: () => void;
   onEnableManualApiUrlEdit: () => void;
   onOpenBuyKey: () => void;
+  onApiUrlFocus: () => void;
   onApiUrlChange: (value: string) => void;
   onClearApiUrl: () => void;
   onApiKeyChange: (value: string) => void;
@@ -114,11 +116,13 @@ export const AgentRoleApiConfigCard: React.FC<AgentRoleApiConfigCardProps> = ({
   activeRole,
   roleConfig,
   isUsingSystemPreset,
+  showApiUrl,
   showApiKey,
   onToggleShowApiKey,
   onApplySystemPreset,
   onEnableManualApiUrlEdit,
   onOpenBuyKey,
+  onApiUrlFocus,
   onApiUrlChange,
   onClearApiUrl,
   onApiKeyChange,
@@ -167,9 +171,10 @@ export const AgentRoleApiConfigCard: React.FC<AgentRoleApiConfigCardProps> = ({
           <div className="relative">
             <input
               id={`${activeRole}-apiUrl`}
-              type={isUsingSystemPreset ? 'password' : 'text'}
+              type={isUsingSystemPreset || (!showApiUrl && Boolean(roleConfig.apiUrl.trim())) ? 'password' : 'text'}
               value={isUsingSystemPreset ? '已使用系统预设线路' : roleConfig.apiUrl}
               readOnly={isUsingSystemPreset}
+              onFocus={isUsingSystemPreset ? undefined : onApiUrlFocus}
               onChange={(event) => onApiUrlChange(event.target.value)}
               className="block w-full rounded-xl border dark:border-claude-darkBorder border-claude-border bg-claude-surfaceInset dark:bg-claude-darkSurfaceInset px-3 py-2 pr-8 text-xs text-claude-text dark:text-claude-darkText"
               placeholder={isUsingSystemPreset ? '点击“使用系统预设”后自动应用' : '请输入 API Base URL'}
@@ -286,7 +291,7 @@ export const AgentRoleApiConfigCard: React.FC<AgentRoleApiConfigCardProps> = ({
           {roleConfig.key === 'designer' && (
             <div>
               <label htmlFor={`${activeRole}-imageApiType`} className="mb-1 block text-xs font-medium dark:text-claude-darkText text-claude-text">
-                {'生图接口类型'}
+                {'生成接口类型'}
               </label>
               <ThemedSelect
                 id={`${activeRole}-imageApiType`}

@@ -15,6 +15,7 @@ export interface FeishuRuntimeAppConfig {
   appId?: string;
   appSecret?: string;
   agentRoleKey?: AgentRoleKey;
+  botOpenId?: string;
   enabled?: boolean;
   createdAt?: number;
 }
@@ -32,6 +33,7 @@ type FeishuRuntimeAppLike = {
   appId?: string;
   appSecret?: string;
   agentRoleKey?: string;
+  botOpenId?: string;
   enabled?: boolean;
   createdAt?: number;
 };
@@ -78,6 +80,7 @@ export function dedupeRuntimeFeishuApps<T extends FeishuRuntimeAppLike>(apps: T[
       appId,
       appSecret: existing.appSecret || app.appSecret,
       agentRoleKey: existing.agentRoleKey || app.agentRoleKey,
+      botOpenId: existing.botOpenId || app.botOpenId,
       name: existing.name || app.name,
       id: existing.id || app.id,
       enabled: existing.enabled ?? app.enabled,
@@ -111,6 +114,7 @@ export function resolveRuntimeFeishuApps(params: {
         ...app,
         appSecret: app.appSecret || envApp.appSecret,
         agentRoleKey: app.agentRoleKey || envApp.agentRoleKey,
+        botOpenId: app.botOpenId || envApp.botOpenId,
         enabled: app.enabled ?? true,
       };
     }));

@@ -82,7 +82,7 @@ export class SessionTurnFinalizer {
 }
 
 function inferSharedThreadChannelHint(session: Pick<CoworkSession, 'systemPrompt' | 'title' | 'sourceType'>): string {
-  // {标记} P1-CHANNEL-HINT-EXPLICIT: 共享线程优先读显式 sourceType，推断仅作兼容兜底。
+  // {标记} P1-CHANNEL-HINT-EXPLICIT: 共享线程优先读显式 sourceType；兼容推断只用于旧数据兜底，不再承担新的真相判断职责。
   if (session.sourceType === 'desktop') {
     return 'desktop';
   }

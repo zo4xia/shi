@@ -93,14 +93,14 @@ const resolveInlineAttachmentDirs = (
   const workspaceRoot = String(req.app.get('workspace') || getProjectRoot()).trim();
 
   if (purpose === 'export' && cacheDir) {
-    // {标记} P1-FILE-PURPOSE-SPLIT: 导出产物优先落会话缓存目录，和运行态附件分流。
-    // ##混淆点注意：导出和上传附件不是一类文件，不要再混写到同一个 manual 目录。
+    // {标记} P1-FILE-PURPOSE-SPLIT: 导出与上传附件继续按 purpose 分流，并且都必须留在当前工作区锚点内。
+    // ##混淆点注意：export / manual 现在都受工作区锚点约束，不再允许借旧目录语义漂移。
     return { primaryDir: path.join(cacheDir, 'exports'), cacheDir: null };
   }
 
   if (cacheDir) {
-    // {标记} P1-ROLE-ATTACHMENT-HOME: 用户显式设置后，附件主落点直接切到角色目录，不再继续双写旧 cwd 路径。
-    // ##混淆点注意：这里是“主落点切换”，不是“再额外复制一份副本”。
+    // {标记} P1-ROLE-ATTACHMENT-HOME: 用户显式设置后，附件主落点直接切到角色目录，并继续留在当前工作区锚点内。
+    // ##混淆点注意：这里是“主落点切换”，不是“复制一份到别处”，也不是放宽到任意目录。
     return { primaryDir: path.join(cacheDir, 'manual'), cacheDir: null };
   }
 
@@ -112,9 +112,9 @@ const resolveInlineAttachmentDirs = (
   if (preferredWorkingDirectory) {
     const resolved = path.resolve(preferredWorkingDirectory);
     if (fs.existsSync(resolved) && fs.statSync(resolved).isDirectory()) {
-      // {标记} P1-OPENCLAW-SKILL-COMPAT: 运行态附件主路径仍优先放工作目录，避免打断 skills 读取绝对路径。
-      // {标记} P1-ATTACHMENT-WORKDIR-TRUTH: 前端若一时未透传 cwd，后端继续以 coworkConfig.workingDirectory 为兜底真相源。
-      // ##混淆点注意：只有“用户没显式设置新主家”时，才允许退回 cwd/.cowork-temp。
+      // {标记} P1-OPENCLAW-SKILL-COMPAT: 运行态附件主路径仍优先放工作区内的工作目录，避免打断现役绝对路径心智。
+      // {标记} P1-ATTACHMENT-WORKSPACE-TRUTH: 所有附件/导出路径都必须先服从工作区锚点；coworkConfig.workingDirectory 现在只是工作区内候选，不再是独立真相源。
+      // ##混淆点注意：这里只有“工作区内候选兜底”，不是重新放开旧 cwd 漂移。
       const relativeLeaf = purpose === 'export'
         ? path.join('.cowork-temp', 'attachments', 'exports')
         : path.join('.cowork-temp', 'attachments', 'manual');
@@ -126,14 +126,14 @@ const resolveInlineAttachmentDirs = (
   }
 
   if (cacheDir) {
-    // {标记} P1-CONVERSATION-CACHE-DIR: 没有工作目录时，缓存目录接管主落点。
+    // {标记} P1-CONVERSATION-CACHE-DIR: 没有工作目录时，缓存目录接管主落点，但仍然属于当前工作区锚点下的角色分桶。
     return { primaryDir: cacheDir, cacheDir };
   }
 
   if (workspaceRoot) {
     const resolvedWorkspace = path.resolve(workspaceRoot);
     if (fs.existsSync(resolvedWorkspace) && fs.statSync(resolvedWorkspace).isDirectory()) {
-      // {标记} P1-ATTACHMENT-WORKSPACE-FALLBACK: 连 coworkConfig 都缺失时，至少回到当前项目根，避免落进用户数据黑箱目录。
+      // {标记} P1-ATTACHMENT-WORKSPACE-FALLBACK: 连工作目录候选都缺失时，最终也只回到当前工作区锚点，不再暗退到 userData 黑箱目录。
       const relativeLeaf = purpose === 'export'
         ? path.join('.cowork-temp', 'attachments', 'exports')
         : path.join('.cowork-temp', 'attachments', 'manual');
@@ -155,15 +155,39 @@ const resolveInlineAttachmentDirs = (
 export function setupDialogRoutes(app: Router) {
   const router = Router();
   const getWorkspaceRoot = (req: Request): string => String(req.app.get('workspace') || getProjectRoot());
+  const resolveWorkspaceRoot = (req: Request): string => path.resolve(getWorkspaceRoot(req));
+  const resolveAnchoredWorkspacePath = (req: Request, provided?: string): string => {
+    const workspaceRoot = resolveWorkspaceRoot(req);
+    const trimmed = typeof provided === 'string' && provided.trim() ? provided.trim() : '';
+    const candidate = trimmed
+      ? (path.isAbsolute(trimmed) ? path.resolve(trimmed) : path.resolve(workspaceRoot, trimmed))
+      : workspaceRoot;
+    const normalizedRoot = workspaceRoot.endsWith(path.sep) ? workspaceRoot : `${workspaceRoot}${path.sep}`;
+    const normalizedCandidate = path.resolve(candidate);
+    if (normalizedCandidate === workspaceRoot || normalizedCandidate.startsWith(normalizedRoot)) {
+      return normalizedCandidate;
+    }
+    throw new Error('路径必须位于工作区内');
+  };
+  const getParentWithinWorkspace = (req: Request, targetPath: string): string | null => {
+    try {
+      const parent = path.dirname(targetPath);
+      return resolveAnchoredWorkspacePath(req, parent);
+    } catch {
+      return null;
+    }
+  };
 
   // GET /api/dialog/browse - 浏览目录，返回子文件夹列表
   router.get('/browse', async (req: Request, res: Response) => {
     try {
       const { path: dirPath } = req.query;
-      // 默认从用户主目录开始
-      const targetPath = (typeof dirPath === 'string' && dirPath.trim())
-        ? path.resolve(dirPath.trim())
-        : process.env.USERPROFILE || process.env.HOME || getWorkspaceRoot(req);
+      let targetPath: string;
+      try {
+        targetPath = resolveAnchoredWorkspacePath(req, typeof dirPath === 'string' ? dirPath : undefined);
+      } catch (error) {
+        return res.status(400).json({ success: false, error: error instanceof Error ? error.message : '路径必须位于工作区内' });
+      }
 
       if (!fs.existsSync(targetPath) || !fs.statSync(targetPath).isDirectory()) {
         return res.json({ success: false, error: '路径不存在或不是文件夹' });
@@ -176,13 +200,13 @@ export function setupDialogRoutes(app: Router) {
         .sort((a, b) => a.localeCompare(b, 'zh-CN'));
 
       // 计算父目录
-      const parentPath = path.dirname(targetPath);
-      const hasParent = parentPath !== targetPath; // 根目录时 dirname === 自身
+      const parentPath = getParentWithinWorkspace(req, targetPath);
+      const hasParent = Boolean(parentPath);
 
       res.json({
         success: true,
         current: targetPath,
-        parent: hasParent ? parentPath : null,
+        parent: parentPath,
         folders,
       });
     } catch (error) {
@@ -226,31 +250,26 @@ export function setupDialogRoutes(app: Router) {
         return res.status(400).json({ success: false, error: 'Missing name' });
       }
 
-      // 在常见位置搜索匹配的目录
-      const home = process.env.USERPROFILE || process.env.HOME || '';
-      const searchRoots = [
-        home,
-        path.join(home, 'Desktop'),
-        path.join(home, 'Documents'),
-        path.join(home, 'Downloads'),
-        path.join(home, 'Projects'),
-        getWorkspaceRoot(req),
-      ].filter(Boolean);
-
-      for (const root of searchRoots) {
-        const candidate = path.join(root, dirName);
-        try {
-          if (fs.existsSync(candidate) && fs.statSync(candidate).isDirectory()) {
-            // 如果提供了子文件名，验证匹配度
-            if (childNames.length > 0) {
-              const entries = fs.readdirSync(candidate);
-              const matchCount = childNames.filter(c => entries.includes(c)).length;
-              if (matchCount < Math.min(childNames.length, 3)) continue; // 匹配度太低，跳过
-            }
-            return res.json({ success: true, path: candidate });
-          }
-        } catch { /* skip */ }
+      // 在工作区内搜索匹配的目录
+      let candidatePath: string;
+      try {
+        candidatePath = resolveAnchoredWorkspacePath(req, dirName);
+      } catch (error) {
+        return res.status(400).json({ success: false, error: error instanceof Error ? error.message : '路径必须位于工作区内' });
       }
+
+      try {
+        if (fs.existsSync(candidatePath) && fs.statSync(candidatePath).isDirectory()) {
+          if (childNames.length > 0) {
+            const entries = fs.readdirSync(candidatePath);
+            const matchCount = childNames.filter(c => entries.includes(c)).length;
+            if (matchCount < Math.min(childNames.length, 3)) {
+              return res.json({ success: false, error: '未找到匹配的目录' });
+            }
+          }
+          return res.json({ success: true, path: candidatePath });
+        }
+      } catch { /* skip */ }
 
       res.json({ success: false, error: '未找到匹配的目录' });
     } catch (error) {
@@ -271,7 +290,12 @@ export function setupDialogRoutes(app: Router) {
         });
       }
 
-      const resolvedPath = path.resolve(dirPath);
+      let resolvedPath: string;
+      try {
+        resolvedPath = resolveAnchoredWorkspacePath(req, dirPath);
+      } catch (error) {
+        return res.status(400).json({ success: false, error: error instanceof Error ? error.message : '路径必须位于工作区内' });
+      }
       const exists = fs.existsSync(resolvedPath);
       const isDirectory = exists ? fs.statSync(resolvedPath).isDirectory() : false;
 
@@ -362,7 +386,15 @@ export function setupDialogRoutes(app: Router) {
         });
       }
 
-      const resolvedPath = path.resolve(rawPath);
+      let resolvedPath: string;
+      try {
+        resolvedPath = resolveAnchoredWorkspacePath(req, rawPath);
+      } catch (error) {
+        return res.status(400).json({
+          success: false,
+          error: error instanceof Error ? error.message : '路径必须位于工作区内',
+        });
+      }
       const stat = await fs.promises.stat(resolvedPath);
 
       if (!stat.isFile()) {
@@ -435,7 +467,15 @@ export function setupDialogRoutes(app: Router) {
         '.svg': 'image/svg+xml',
       };
 
-      const resolvedPath = path.resolve(filePath.trim());
+      let resolvedPath: string;
+      try {
+        resolvedPath = resolveAnchoredWorkspacePath(req, filePath.trim());
+      } catch (error) {
+        return res.status(400).json({
+          success: false,
+          error: error instanceof Error ? error.message : '路径必须位于工作区内',
+        });
+      }
       const stat = await fs.promises.stat(resolvedPath);
 
       if (!stat.isFile()) {

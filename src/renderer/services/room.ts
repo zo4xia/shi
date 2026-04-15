@@ -36,6 +36,20 @@ export interface RoomAttachment {
   name: string;
 }
 
+export interface RoomExportVerification {
+  requested: boolean;
+  verified: boolean;
+  configured: boolean;
+  message: string;
+  entries: Array<{
+    source: 'export' | 'legacy-export';
+    relativePath: string;
+    absolutePath: string;
+    size: number;
+    modifiedAt: number;
+  }>;
+}
+
 export interface RoomSessionRecord {
   id: string;
   title: string;
@@ -220,7 +234,11 @@ export async function invokeRoomParticipant(
   if (!response.ok || !payload?.success) {
     throw new Error(payload?.error || `请求失败 (${response.status})`);
   }
+  const exportVerification = payload?.exportVerification as RoomExportVerification | undefined;
   const text = typeof payload.replyText === 'string' ? payload.replyText.trim() : '';
+  if (exportVerification?.requested && !exportVerification.verified && exportVerification.message && !text) {
+    throw new Error(exportVerification.message);
+  }
   if (!text) {
     throw new Error('没有拿到有效回复');
   }

@@ -30,6 +30,12 @@ type IMServiceResult<T = void> = {
 let initialized = false;
 let cachedConfig = createDefaultIMConfig();
 
+type StoreConfigResponse = {
+  success?: boolean;
+  value?: Partial<IMGatewayConfig>;
+  error?: string;
+};
+
 type FeishuGatewayStatusResponse = {
   success?: boolean;
   status?: {
@@ -81,6 +87,19 @@ type WechatBotQrLoginResponse = {
 
 const syncStoreConfig = () => {
   store.dispatch(hydrateIMState({ config: cachedConfig }));
+};
+
+const fetchBackendIMConfig = async (): Promise<Partial<IMGatewayConfig> | null> => {
+  try {
+    const response = await fetch('/api/store/im_config');
+    const payload = await response.json() as StoreConfigResponse;
+    if (!response.ok || payload?.success === false || !payload?.value) {
+      return null;
+    }
+    return payload.value;
+  } catch {
+    return null;
+  }
 };
 
 const buildHydratedStatusFromConfig = () => {
@@ -171,6 +190,18 @@ const persistConfig = async () => {
   await localStore.setItem(IM_CONFIG_STORAGE_KEY, cachedConfig);
 };
 
+const persistConfigToBackend = async (nextConfig: IMGatewayConfig): Promise<void> => {
+  const response = await fetch('/api/store/im_config', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(nextConfig),
+  });
+  const payload = await response.json().catch(() => ({})) as StoreConfigResponse;
+  if (!response.ok || payload?.success === false) {
+    throw new Error(payload?.error || 'Failed to persist im_config');
+  }
+};
+
 const setPlatformError = (platform: IMPlatform, message: string | null) => {
   store.dispatch(setPlatformStatus({
     platform,
@@ -198,8 +229,13 @@ const ensureInitialized = async () => {
     return;
   }
 
+  const backendConfig = await fetchBackendIMConfig();
   const storedConfig = await localStore.getItem<Partial<IMGatewayConfig>>(IM_CONFIG_STORAGE_KEY);
-  cachedConfig = mergeIMConfig(createDefaultIMConfig(), storedConfig ?? undefined);
+  cachedConfig = mergeIMConfig(
+    createDefaultIMConfig(),
+    backendConfig ?? storedConfig ?? undefined
+  );
+  await persistConfig();
   initialized = true;
   store.dispatch(hydrateIMState({
     config: cachedConfig,
@@ -212,7 +248,13 @@ const ensureInitialized = async () => {
 
 // {埋点} 💾 IM配置更新 (ID: im-update-001) mergeIMConfig → persistConfig → syncStoreConfig
 const updateCachedConfig = async (update?: Partial<IMGatewayConfig> | null) => {
-  cachedConfig = mergeIMConfig(cachedConfig, update ?? undefined);
+  const latestBackendConfig = await fetchBackendIMConfig();
+  const baseConfig = mergeIMConfig(
+    createDefaultIMConfig(),
+    latestBackendConfig ?? cachedConfig
+  );
+  cachedConfig = mergeIMConfig(baseConfig, update ?? undefined);
+  await persistConfigToBackend(cachedConfig);
   await persistConfig();
   syncStoreConfig();
 };

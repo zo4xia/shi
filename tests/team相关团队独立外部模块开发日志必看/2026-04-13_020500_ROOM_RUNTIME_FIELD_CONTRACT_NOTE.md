@@ -20,6 +20,48 @@
 - `summary.mcpBindings`
 - `summary.memories`
 
+## Room 当前还消费的导出相关字段
+
+除了 `role-runtime` 主快照之外，
+Room 当前还有两条和导出相关的现役合同：
+
+### A. `room/invoke` 的导出核验返回
+
+入口：
+
+- `server/routes/room.ts`
+- `src/renderer/services/room.ts`
+
+当前返回新增：
+
+- `exportVerification.requested`
+- `exportVerification.verified`
+- `exportVerification.configured`
+- `exportVerification.message`
+- `exportVerification.entries[]`
+
+说明：
+
+- 这条不是 role-runtime 主快照字段
+- 而是 Room 本轮调用后的即时导出核验结果
+
+### B. 角色导出状态接口
+
+入口：
+
+- `GET /api/role-runtime/:roleKey/exports`
+
+前端服务：
+
+- `skillService.getRoleExports(roleKey, limit)`
+
+当前字段：
+
+- `exportStatus.configured`
+- `exportStatus.roots.primary`
+- `exportStatus.roots.legacy`
+- `exportStatus.entries[]`
+
 说明：
 
 - `notes.roleNotes`：作为角色笔记，帮助小家伙维持说话习惯和气质。
@@ -93,6 +135,8 @@ SELECT COUNT(*) FROM user_memories WHERE agent_role_key = ? AND status = 'create
 - `roleRuntime.summary.skillBindings`
 - `roleRuntime.summary.mcpBindings`
 - `roleRuntime.summary.memories`
+- `roomInvoke.exportVerification.*`
+- `roleExports.exportStatus.*`
 
 ### role-runtime 路由输出合同
 
@@ -101,6 +145,8 @@ SELECT COUNT(*) FROM user_memories WHERE agent_role_key = ? AND status = 'create
 - `summary.skillBindings`
 - `summary.mcpBindings`
 - `summary.memories`
+- `health.runtimeFilesStatus`
+- `GET /api/role-runtime/:roleKey/exports -> exportStatus.*`
 
 ### 直接数据库依赖
 
@@ -117,10 +163,14 @@ SELECT COUNT(*) FROM user_memories WHERE agent_role_key = ? AND status = 'create
 
 这次 Room 修复不是“全量接回主执行器”，而是先建立一个小字段合同。
 
-只要后续这五个字段不漂移，`Room` 里的小家伙就能维持基本连续性和说话气质。
+现在这份合同已经不只五个字段，而是两层：
+
+- `role-runtime` 基础连续性字段
+- `Room` 本轮导出核验字段
 
 如果后面字段名、层级、统计口径有变化，必须同步修改：
 
 - `src/renderer/services/room.ts`
 - `src/renderer/services/skill.ts` 里的 `RoleRuntimePayload`
 - `server/routes/roleRuntime.ts`
+- `server/routes/room.ts`

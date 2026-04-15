@@ -3024,7 +3024,7 @@ export class CoworkRunner extends EventEmitter {
         appConfig: this.readRuntimeAppConfig(),
         readCurrentBrowserPage: () => this.readCurrentBrowserPageState(),
       };
-      memoryTools.push(...createNativeCapabilitySdkTools(tool, nativeCapabilityContext));
+      memoryTools.push(...createNativeCapabilitySdkTools(tool as any, nativeCapabilityContext));
       options.mcpServers = {
         ...(options.mcpServers as Record<string, unknown> | undefined),
         [memoryServerName]: createSdkMcpServer({

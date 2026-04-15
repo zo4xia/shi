@@ -28,7 +28,7 @@ export function escapeRegExp(value: string): string {
  */
 export function findSkillsMarkerIndex(value: string): number {
   const match = value.match(/(?:^|\s)\/skills\//);
-  return match ? match.index + match[0].length - '/skills/'.length : -1;
+  return match ? (match.index ?? 0) + match[0].length - '/skills/'.length : -1;
 }
 
 /**

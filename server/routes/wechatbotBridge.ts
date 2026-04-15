@@ -18,6 +18,7 @@ import {
   startWechatBotGateway,
   stopWechatBotGateway,
 } from '../libs/wechatbotGateway';
+import { getProjectRoot } from '../../src/shared/runtimeDataPaths';
 
 const LOCALHOST_ORIGIN_RE = /^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/i;
 
@@ -85,7 +86,11 @@ export function setupWechatBotBridgeRoutes(app: Router) {
 
   router.post('/bridge/start', async (req: Request, res: Response) => {
     try {
-      const { store } = req.context as RequestContext;
+      const context = req.context as RequestContext | undefined;
+      if (!context) {
+        throw new Error('request context not available');
+      }
+      const { store } = context;
       const userDataPath = String(req.app.get('userDataPath') || resolveRuntimeUserDataPath());
       const currentValue = store.get('im_config');
       const wechatbot = mergeWechatBotConfigWithRuntime(currentValue, userDataPath);
@@ -105,11 +110,10 @@ export function setupWechatBotBridgeRoutes(app: Router) {
       await startWechatBotGateway({
         config: wechatbot,
         deps: {
-          coworkStore: req.context.coworkStore,
-          store: req.context.store,
-          skillManager: req.context.skillManager,
+          coworkStore: context.coworkStore,
+          store: context.store,
           userDataPath,
-          workspaceRoot: String(req.app.get('workspace') || ''),
+          workspaceRoot: String(req.app.get('workspace') || getProjectRoot()),
         },
       });
 

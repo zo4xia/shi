@@ -10,8 +10,8 @@ import type { SkillsMcpAssistantHelpersConfig } from './skillsMcpAssistantConfig
 import type { NativeCapabilitiesConfig } from './nativeCapabilities/config';
 
 export type CompatibleApiFormat = 'anthropic' | 'openai';
-export type DesignerImageApiType = 'generic' | 'images' | 'seedream2' | 'sora' | 'veo' | 'google';
-export type SupportedDesignerImageApiType = 'generic' | 'images' | 'google';
+export type DesignerImageApiType = 'generic' | 'images' | 'video' | 'seedream2' | 'sora' | 'veo' | 'google';
+export type SupportedDesignerImageApiType = 'generic' | 'images' | 'video' | 'google';
 export type AgentRoleKey = 'organizer' | 'writer' | 'designer' | 'analyst';
 
 export interface AgentRoleConfigEntry {
@@ -122,6 +122,7 @@ export const AGENT_ROLE_ICONS: Record<AgentRoleKey, string> = {
 export const DESIGNER_IMAGE_API_TYPE_OPTIONS: Array<{ value: SupportedDesignerImageApiType; label: string }> = [
   { value: 'generic', label: '通用 Chat Completions (/v1/chat/completions)' },
   { value: 'images', label: 'Images API (/v1/images/generations)' },
+  { value: 'video', label: 'Video API (/video)' },
   { value: 'google', label: 'Google Generate Content' },
 ];
 
@@ -133,6 +134,7 @@ export const CONFIRMED_DESIGNER_IMAGE_MODEL_HINTS: Array<{
   { apiType: 'images', label: 'qwen-image-max' },
   { apiType: 'images', label: 'gpt-image-1.5' },
   { apiType: 'images', label: 'doubao-seedream-*' },
+  { apiType: 'video', label: '可接 /video 形态的视频生成模型' },
 ];
 
 export function resolveSupportedDesignerImageApiType(
@@ -140,6 +142,9 @@ export function resolveSupportedDesignerImageApiType(
 ): SupportedDesignerImageApiType {
   if (value === 'images') {
     return 'images';
+  }
+  if (value === 'video') {
+    return 'video';
   }
   if (value === 'google') {
     return 'google';

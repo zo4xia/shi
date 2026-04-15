@@ -191,7 +191,7 @@ function resolveAgentRoleConfig(
   agentRoleKey?: string,
 ): ApiConfigResolution | null {
   const requestedRoleKey = agentRoleKey?.trim();
-  const preferredRoleKey = resolveDefaultAgentRoleKey(appConfig);
+  const preferredRoleKey = resolveDefaultAgentRoleKey(appConfig as any);
   const fallbackRoleKey = AGENT_ROLE_ORDER.find((roleKey) => {
     const role = appConfig.agentRoles?.[roleKey];
     return Boolean(role?.enabled && role.apiUrl?.trim() && role.modelId?.trim());

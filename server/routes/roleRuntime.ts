@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { AGENT_ROLE_ORDER, resolveAgentRolesFromConfig, type AgentRoleKey } from '../../src/shared/agentRoleConfig';
 import type { RequestContext } from '../src/index';
+import { buildExportStatusPayload, resolveExportRoots } from '../libs/exportVerification';
 import {
   getRoleRoot,
   getRoleSkillConfigsRoot,
@@ -281,6 +282,34 @@ export function setupRoleRuntimeRoutes(app: Router) {
       res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : 'Failed to load role runtime info',
+      });
+    }
+  });
+
+  router.get('/:roleKey/exports', (req: Request, res: Response) => {
+    try {
+      const roleKey = req.params.roleKey;
+      if (!isValidRoleKey(roleKey)) {
+        return res.status(400).json({ success: false, error: 'Invalid role key' });
+      }
+
+      const limit = typeof req.query.limit === 'string' ? Number(req.query.limit) : undefined;
+      const { store } = req.context as RequestContext;
+      const appConfig = store.get('app_config') as Parameters<typeof resolveExportRoots>[0];
+      const exportStatus = buildExportStatusPayload({
+        roots: resolveExportRoots(appConfig, roleKey),
+        limit,
+      });
+
+      return res.json({
+        success: true,
+        roleKey,
+        exportStatus,
+      });
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to load role export status',
       });
     }
   });

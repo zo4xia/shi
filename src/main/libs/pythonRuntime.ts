@@ -12,7 +12,15 @@ import {
 import { getProjectRoot } from '../../shared/runtimeDataPaths';
 
 const __filename_esm = fileURLToPath(import.meta.url);
-const __dirname_esm = path.dirname(__filename_esm);
+function ensureWithinProjectRoot(candidate: string): string | null {
+  const projectRoot = getProjectRoot();
+  const normalized = path.resolve(candidate);
+  const relative = path.relative(projectRoot, normalized);
+  if (relative.startsWith('..') || path.isAbsolute(relative)) {
+    return null;
+  }
+  return normalized;
+}
 
 const PYTHON_RUNTIME_DIR_NAME = 'python-win';
 const PYTHON_RUNTIME_STATE_FILE = 'runtime.json';
@@ -210,12 +218,10 @@ function resolveBundledCandidates(): string[] {
     ];
   }
 
-  const projectRoot = path.resolve(__dirname_esm, '..', '..', '..');
-  return [
-    path.join(projectRoot, 'resources', PYTHON_RUNTIME_DIR_NAME),
-    path.join(getProjectRoot(), 'resources', PYTHON_RUNTIME_DIR_NAME),
-    getRuntimeAppPath('resources', PYTHON_RUNTIME_DIR_NAME),
-  ];
+  const projectRoot = getProjectRoot();
+  const explicitCandidate = path.join(projectRoot, 'resources', PYTHON_RUNTIME_DIR_NAME);
+  const runtimeCandidate = ensureWithinProjectRoot(getRuntimeAppPath('resources', PYTHON_RUNTIME_DIR_NAME));
+  return runtimeCandidate ? [explicitCandidate, runtimeCandidate] : [explicitCandidate];
 }
 
 export function getBundledPythonRoot(): string | null {

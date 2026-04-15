@@ -74,6 +74,7 @@
 - `server/routes/apiProxy.ts`
 - `server/routes/app.ts`
 - `server/routes/shell.ts`
+- `server/routes/roleRuntime.ts`
 - `server/routes/feishuWebhook.ts`（通过 `IMSettings/imService`）
 
 ---

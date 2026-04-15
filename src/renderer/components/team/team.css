@@ -164,7 +164,24 @@
 .dark .team-canvas-background {
   background-color: #1d1813;
   background-image:
-    linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0));
+    linear-gradient(rgba(255, 255, 255, 0.12) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.12) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0));
+}
+
+.dark .team-board-expression {
+  color: #E4E5E9;
+}
+
+.dark .team-board-expression-ghost {
+  color: rgba(228, 221, 212, 0.16);
+}
+
+.dark .team-board-footnote {
+  color: #A09B94;
+}
+
+.dark .team-board-chip {
+  background: rgba(82, 220, 255, 0.12);
+  color: #60D5FF;
 }

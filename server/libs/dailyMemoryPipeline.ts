@@ -162,17 +162,27 @@ export async function runDailyMemoryPipeline(params: {
   const saveDb = store.getSaveFunction();
   const appConfig = (store.get('app_config') as Record<string, any>) || {};
   const agentRoles = appConfig.agentRoles || {};
-  const dedicatedConfig = resolveDedicatedDailyMemoryConfig(appConfig);
-  const fallbackRoleConfig = resolveFirstRoleDailyMemoryConfig(agentRoles);
-  if (!dedicatedConfig && !fallbackRoleConfig) {
-    throw new Error('没有可用的 Agent Role 配置，无法调用 LLM 进行摘要');
-  }
-
   const warnings: string[] = [];
   const slotDate = params.slotDay ? parseLocalDayKey(params.slotDay) : null;
   const backup = coworkStore.runDailyConversationBackupIfConfigured(slotDate ? { now: slotDate.getTime() } : undefined);
   if (backup.status === 'failed' && backup.error) {
     warnings.push(`conversation-backup: ${backup.error}`);
+  }
+
+  const dedicatedConfig = resolveDedicatedDailyMemoryConfig(appConfig);
+  const fallbackRoleConfig = resolveFirstRoleDailyMemoryConfig(agentRoles);
+  if (!dedicatedConfig && !fallbackRoleConfig) {
+    warnings.push('daily-memory-skipped:no-agent-role-config');
+    return {
+      backup,
+      extraction: {
+        extractedCount: 0,
+        clearedHotCacheCount: 0,
+        skippedCount: 1,
+        errors: [],
+      },
+      warnings,
+    };
   }
 
   const resolvedConfig: ResolvedDailyMemoryConfig = dedicatedConfig

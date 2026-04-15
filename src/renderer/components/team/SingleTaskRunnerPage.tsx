@@ -58,6 +58,9 @@ const SingleTaskRunnerPage: React.FC = () => {
   const [draftEnd, setDraftEnd] = useState(String(initialTeamRuntime.timeline[0]?.endTime ?? 0));
   const [draftSpeed, setDraftSpeed] = useState(String(initialTeamRuntime.timeline[0]?.speed ?? 1));
   const [draftLabel, setDraftLabel] = useState(initialTeamRuntime.timeline[0]?.label ?? '');
+  const [drawSpeed, setDrawSpeed] = useState(1);
+  const [brushSize, setBrushSize] = useState(2);
+  const [brushColor, setBrushColor] = useState('#29414f');
 
   const durationMs = useMemo(() => timeline.reduce((max, point) => Math.max(max, point.endTime), 1000), [timeline]);
 
@@ -245,6 +248,7 @@ const SingleTaskRunnerPage: React.FC = () => {
         ref={audioRef}
         src={timelineJson.audioUrl}
         crossOrigin="anonymous"
+        controls
         onEnded={() => {
           setPlaybackState('idle');
           setCurrentMs(initialTeamRuntime.currentMs);
@@ -526,8 +530,8 @@ const SingleTaskRunnerPage: React.FC = () => {
                 </div>
               </div>
 
-              <aside className="space-y-4">
-                <div className="space-y-4 rounded-[22px] border border-[#e5ddd5] bg-[#f7f5f2] px-4 py-4">
+              <aside className="space-y-4 max-h-[600px] overflow-y-auto">
+                <div className="space-y-4 rounded-[22px] border border-[#e5ddd5] bg-[#f7f5f2] px-4 py-4 flex-shrink-0">
                   <div className="grid gap-3">
                     <div className="rounded-[16px] border border-[#ebe1d7] bg-white/90 px-4 py-3 shadow-sm">
                       <div className="text-[11px] uppercase tracking-[0.12em] text-[#7a6f65]">录制完毕</div>
@@ -567,9 +571,9 @@ const SingleTaskRunnerPage: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="rounded-[24px] border border-[#d8e5ef] bg-white px-4 py-4 shadow-sm">
+                <div className="rounded-[24px] border border-[#d8e5ef] bg-white px-4 py-4 shadow-sm flex-shrink-0">
                   <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#6f6660]">阿里云时间轴原始结果</div>
-                  <pre className="max-h-[320px] overflow-auto whitespace-pre-wrap break-words rounded-[16px] bg-[#f7fafc] px-3 py-3 text-xs leading-6 text-[#334155]">
+                  <pre className="max-h-[200px] overflow-auto whitespace-pre-wrap break-words rounded-[16px] bg-[#f7fafc] px-3 py-3 text-xs leading-6 text-[#334155]">
                     {JSON.stringify(timelineJson, null, 2)}
                   </pre>
                 </div>
@@ -642,6 +646,56 @@ const SingleTaskRunnerPage: React.FC = () => {
                     </div>
                   </div>
                 </div>
+              </div>
+            </div>
+
+            <div className="rounded-[20px] border border-[#e5ddd5] bg-white px-4 py-4 shadow-sm">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#6f6660] mb-3">画笔控制</div>
+              <div className="grid gap-3 grid-cols-3 md:grid-cols-3">
+                <label className="space-y-1">
+                  <span className="text-[10px] uppercase tracking-[0.12em] text-[#7a6f65]">绘制速度</span>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="range"
+                      min="0.5"
+                      max="3"
+                      step="0.1"
+                      value={drawSpeed}
+                      onChange={(e) => setDrawSpeed(Number(e.target.value))}
+                      className="flex-1 h-2 rounded-full"
+                    />
+                    <span className="text-xs font-medium text-[#544b44] min-w-[32px]">{drawSpeed.toFixed(1)}x</span>
+                  </div>
+                </label>
+
+                <label className="space-y-1">
+                  <span className="text-[10px] uppercase tracking-[0.12em] text-[#7a6f65]">笔刷大小</span>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="range"
+                      min="1"
+                      max="8"
+                      step="0.5"
+                      value={brushSize}
+                      onChange={(e) => setBrushSize(Number(e.target.value))}
+                      className="flex-1 h-2 rounded-full"
+                    />
+                    <span className="text-xs font-medium text-[#544b44] min-w-[32px]">{brushSize.toFixed(1)}</span>
+                  </div>
+                </label>
+
+                <label className="space-y-1">
+                  <span className="text-[10px] uppercase tracking-[0.12em] text-[#7a6f65]">笔刷颜色</span>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={brushColor}
+                      onChange={(e) => setBrushColor(e.target.value)}
+                      className="h-8 w-12 rounded-[8px] border border-[#e3d9cf] cursor-pointer"
+                    />
+                    <span className="text-xs font-mono text-[#544b44]">{brushColor}</span>
+                  </div>
+                </label>
               </div>
             </div>
 

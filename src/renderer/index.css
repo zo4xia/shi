@@ -217,7 +217,8 @@ body {
 
 /* Custom scrollbar styles - minimal, hidden until hover */
 ::-webkit-scrollbar {
-  width: 2px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
@@ -226,11 +227,16 @@ body {
 
 ::-webkit-scrollbar-thumb {
   background: transparent;
-  border-radius: 2px;
+  border-radius: 4px;
+  transition: background 300ms ease-out;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(200, 195, 190, 0.2);
+  background: rgba(200, 195, 190, 0.3);
+}
+
+::-webkit-scrollbar-thumb:active {
+  background: rgba(180, 175, 170, 0.4);
 }
 
 /* Style for select options to match theme */
@@ -1160,35 +1166,12 @@ input:focus-visible {
    Custom Scrollbar - 精致浅色滚动条
    ========================================= */
 
-/* 滚动条轨道 */
-::-webkit-scrollbar {
-  width: 2px;
-  height: 2px;
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(80, 75, 70, 0.3);
 }
 
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-/* 滚动条滑块 - 极致弱化，悬停才可见 */
-::-webkit-scrollbar-thumb {
-  background: transparent;
-  border-radius: 2px;
-  border: none;
-  transition: background 300ms ease-out;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(200, 195, 190, 0.2);
-}
-
-::-webkit-scrollbar-thumb:active {
-  background: rgba(180, 175, 170, 0.25);
-}
-
-/* 暗色模式滚动条 */
-.dark ::-webkit-scrollbar-thumb {
-  background: transparent;
+.dark ::-webkit-scrollbar-thumb:active {
+  background: rgba(90, 85, 80, 0.35);
 }
 
 @media (max-width: 767px) {

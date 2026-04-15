@@ -42,6 +42,24 @@ const ROLE_LABELS: Record<string, string> = {
   analyst: '数据分析师',
 };
 
+function extractMentionOpenIds(mentions: any[] | undefined): string[] {
+  if (!Array.isArray(mentions)) {
+    return [];
+  }
+  return mentions
+    .map((mention) => (typeof mention?.id?.open_id === 'string' ? mention.id.open_id.trim() : ''))
+    .filter(Boolean);
+}
+
+function resolveMentionFallbackOpenId(mentions: any[] | undefined, sender: any): string | null {
+  const senderOpenId = typeof sender?.sender_id?.open_id === 'string'
+    ? sender.sender_id.open_id.trim()
+    : '';
+  const mentionOpenIds = extractMentionOpenIds(mentions);
+  const candidate = mentionOpenIds.find((openId) => openId && openId !== senderOpenId);
+  return candidate ?? mentionOpenIds[0] ?? null;
+}
+
 function buildFeishuSchedulerBindingReply(params: {
   store: SqliteStore | null;
   agentRoleKey: string;
@@ -84,6 +102,7 @@ export interface FeishuGatewayConfig {
   appId: string;
   appSecret: string;
   agentRoleKey?: string;
+  botOpenId?: string | null;
   domain?: 'feishu' | 'lark';
   debug?: boolean;
 }
@@ -170,17 +189,17 @@ function createDelayedStatusController(task: () => Promise<unknown>, delayMs: nu
     timer = setTimeout(() => {
       timer = null;
       if (cancelled) {
-        resolvePromise(false);
+        resolvePromise?.(false);
         return;
       }
 
       void task()
         .then(() => {
-          resolvePromise(true);
+          resolvePromise?.(true);
         })
         .catch((error) => {
           console.error('[Feishu WS] Delayed status send failed:', error);
-          resolvePromise(false);
+          resolvePromise?.(false);
         });
     }, delayMs);
   });
@@ -282,6 +301,7 @@ export class FeishuGateway extends EventEmitter {
   private store: SqliteStore | null = null;
   private buildSelectedSkillsPrompt: ((skillIds: string[]) => string | null) | null = null;
   private readonly chatTurnQueues = new Map<string, Promise<void>>();
+  private lifecycleToken = 0;
 
   constructor() {
     super();
@@ -295,6 +315,82 @@ export class FeishuGateway extends EventEmitter {
     this.coworkStore = deps.coworkStore;
     this.store = deps.store;
     this.buildSelectedSkillsPrompt = deps.buildSelectedSkillsPrompt ?? null;
+  }
+
+  private persistBotOpenId(botOpenId: string): void {
+    const normalized = String(botOpenId || '').trim();
+    if (!normalized || !this.store || !this.config?.appId) {
+      return;
+    }
+
+    const currentConfig = this.store.get('im_config') as Record<string, any> | null;
+    const safeConfig = currentConfig && typeof currentConfig === 'object' ? currentConfig : {};
+    const currentFeishu = safeConfig.feishu && typeof safeConfig.feishu === 'object'
+      ? safeConfig.feishu
+      : { enabled: true, apps: [] };
+    const currentApps = Array.isArray(currentFeishu.apps) ? currentFeishu.apps : [];
+
+    let changed = false;
+    let matched = false;
+    const nextApps = currentApps.map((app: Record<string, any>) => {
+      if (!app || typeof app !== 'object' || String(app.appId || '').trim() !== this.config?.appId) {
+        return app;
+      }
+      matched = true;
+
+      if (String(app.botOpenId || '').trim() === normalized) {
+        return app;
+      }
+
+      changed = true;
+      return {
+        ...app,
+        botOpenId: normalized,
+      };
+    });
+
+    if (!matched) {
+      changed = true;
+      nextApps.push({
+        id: `persisted-feishu-${this.config.appId}`,
+        name: this.config.appId,
+        appId: this.config.appId,
+        appSecret: this.config.appSecret,
+        agentRoleKey: this.config.agentRoleKey || DEFAULT_AGENT_ROLE_KEY,
+        botOpenId: normalized,
+        enabled: true,
+        createdAt: Date.now(),
+      });
+    }
+
+    if (!changed) {
+      return;
+    }
+
+    this.store.set('im_config', {
+      ...safeConfig,
+      feishu: {
+        ...currentFeishu,
+        enabled: true,
+        apps: nextApps,
+      },
+    });
+    this.log(`[Feishu WS] Persisted botOpenId for ${this.config.appId}: ${normalized}`);
+  }
+
+  private rememberBotOpenId(botOpenId: string | null | undefined, source: 'config' | 'probe' | 'mention'): void {
+    const normalized = String(botOpenId || '').trim();
+    if (!normalized || this.botOpenId === normalized) {
+      return;
+    }
+
+    this.botOpenId = normalized;
+    this.status = {
+      ...this.status,
+      botOpenId: normalized,
+    };
+    this.log(`[Feishu WS] Bound botOpenId from ${source}: ${normalized}`);
+    this.persistBotOpenId(normalized);
   }
 
   // {埋点} 🔄 Gateway状态 (ID: feishu-gw-003) getStatus() → {connected, startedAt, botOpenId, error}
@@ -311,8 +407,11 @@ export class FeishuGateway extends EventEmitter {
     }
 
     this.config = config;
+    this.lifecycleToken += 1;
+    const currentLifecycleToken = this.lifecycleToken;
     this.log = config.debug ? console.log.bind(console) : () => {};
     this.log('[Feishu WS] Starting WebSocket gateway...');
+    this.botOpenId = String(config.botOpenId || '').trim() || null;
 
     try {
       const Lark = await import('@larksuiteoapi/node-sdk');
@@ -328,8 +427,14 @@ export class FeishuGateway extends EventEmitter {
 
       // Probe bot info
       const probe = await this.probeBot();
-      if (!probe.ok) throw new Error(`Bot probe failed: ${probe.error}`);
-      this.botOpenId = probe.botOpenId || null;
+      const probeError = probe.ok ? null : `Bot probe failed: ${probe.error}`;
+      if (probeError) {
+        console.warn(`[Feishu WS] ${config.appId} probe warning: ${probeError}`);
+      }
+      this.rememberBotOpenId(this.botOpenId, 'config');
+      if (probe.ok) {
+        this.rememberBotOpenId(probe.botOpenId || null, 'probe');
+      }
       this.log(`[Feishu WS] Bot: ${probe.botName} (${this.botOpenId})`);
 
       // WSClient + EventDispatcher
@@ -344,6 +449,9 @@ export class FeishuGateway extends EventEmitter {
 
       eventDispatcher.register({
         'im.message.receive_v1': async (data: any) => {
+          if (currentLifecycleToken !== this.lifecycleToken || !this.config || !this.restClient) {
+            return;
+          }
           try {
             this.handleMessageEvent(data).catch(err => {
               console.error('[Feishu WS] Message handling error:', err.message);
@@ -369,7 +477,7 @@ export class FeishuGateway extends EventEmitter {
         appId: config.appId,
         botOpenId: this.botOpenId,
         botName: probe.botName || null,
-        error: null,
+        error: probeError,
         lastInboundAt: null,
         lastOutboundAt: null,
       };
@@ -389,8 +497,21 @@ export class FeishuGateway extends EventEmitter {
   }
 
   async stop(): Promise<void> {
-    if (!this.wsClient) return;
+    const currentWsClient = this.wsClient;
+    this.lifecycleToken += 1;
+    if (!currentWsClient) {
+      this.restClient = null;
+      this.config = null;
+      this.status = { ...this.status, connected: false, startedAt: null, appId: null, error: null };
+      this.emit('disconnected');
+      return;
+    }
     this.log('[Feishu WS] Stopping...');
+    try {
+      currentWsClient.close({ force: true });
+    } catch (error) {
+      console.error('[Feishu WS] Failed to close ws client cleanly:', error);
+    }
     this.wsClient = null;
     this.restClient = null;
     this.config = null;
@@ -444,10 +565,23 @@ export class FeishuGateway extends EventEmitter {
     const supportedTypes = ['text', 'image', 'file', 'post'];
     if (!supportedTypes.includes(msgType)) return;
 
-    // Group chat: require @bot
+    // Group chat: require @bot, but degrade gracefully if probe did not return botOpenId.
     if (msg.chat_type === 'group') {
-      const mentioned = (msg.mentions ?? []).some((m: any) => m.id?.open_id === this.botOpenId);
-      if (!mentioned) return;
+      const mentionOpenIds = extractMentionOpenIds(msg.mentions);
+      if (!this.botOpenId) {
+        const learnedBotOpenId = resolveMentionFallbackOpenId(msg.mentions, sender);
+        if (learnedBotOpenId) {
+          this.rememberBotOpenId(learnedBotOpenId, 'mention');
+        }
+      }
+
+      const preciseMentioned = Boolean(this.botOpenId && mentionOpenIds.includes(this.botOpenId));
+      const fallbackMentioned = !this.botOpenId && Array.isArray(msg.mentions) && msg.mentions.length > 0;
+      const mentioned = preciseMentioned || fallbackMentioned;
+      if (!mentioned) {
+        this.log('[Feishu WS] Ignore group message without bot mention');
+        return;
+      }
     }
 
     // Parse content based on message type
@@ -510,11 +644,15 @@ export class FeishuGateway extends EventEmitter {
     console.log(`[Feishu WS] Message: type=${msgType}, chatId=${chatId}, text=${(text || '').substring(0, 50)}, images=${imageAttachments.length}`);
 
     try {
+      const currentConfig = this.config;
+      if (!currentConfig) {
+        return;
+      }
       const schedulerBindingReply = buildFeishuSchedulerBindingReply({
         store: this.store,
-        agentRoleKey: this.config.agentRoleKey || DEFAULT_AGENT_ROLE_KEY,
-        appId: this.config.appId,
-        appName: ROLE_LABELS[this.config.agentRoleKey || DEFAULT_AGENT_ROLE_KEY] || this.config.appId,
+        agentRoleKey: currentConfig.agentRoleKey || DEFAULT_AGENT_ROLE_KEY,
+        appId: currentConfig.appId,
+        appName: ROLE_LABELS[currentConfig.agentRoleKey || DEFAULT_AGENT_ROLE_KEY] || currentConfig.appId,
         chatId,
         senderId,
         chatType: msg.chat_type,
@@ -682,7 +820,7 @@ export class FeishuGateway extends EventEmitter {
           if (!replySent) {
             throw new Error('Feishu outbound reply send failed');
           }
-          currentReplyToMessageId = undefined;
+          currentReplyToMessageId = '';
         }
         await this.sendArtifactsReply(chatId, artifactResult.artifacts, replyToMessageId);
         if (processingStatusSent) {
@@ -782,7 +920,7 @@ export class FeishuGateway extends EventEmitter {
     if (!this.store) throw new Error('store not set');
     return cleanRoomGetOrCreateFeishuSession(
       this.coworkStore,
-      this.store,
+      this.store as any,
       {
         appId: this.config?.appId || 'unknown',
         name: binding.roleLabel,

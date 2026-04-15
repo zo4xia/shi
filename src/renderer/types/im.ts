@@ -25,6 +25,7 @@ export interface FeishuApp {
   appId: string;                 // 飞书 App ID
   appSecret: string;             // 飞书 App Secret
   agentRoleKey: string;          // 内部角色/模型槽位绑定 (organizer/writer/designer/analyst)
+  botOpenId?: string;            // 通信身份锚点；启动时必须可装载，不应只靠运行时学习
   enabled: boolean;              // 是否启用
   createdAt: number;             // 创建时间
 }

@@ -154,6 +154,7 @@ type FeishuWebhookAppConfig = {
   appId?: string;
   appSecret?: string;
   agentRoleKey?: string;
+  botOpenId?: string;
   enabled?: boolean;
   createdAt?: number;
 };
@@ -381,17 +382,17 @@ function createDelayedStatusController(task: () => Promise<void>, delayMs: numbe
     timer = setTimeout(() => {
       timer = null;
       if (cancelled) {
-        resolvePromise(false);
+        resolvePromise?.(false);
         return;
       }
 
       void task()
         .then(() => {
-          resolvePromise(true);
+          resolvePromise?.(true);
         })
         .catch((error) => {
           console.error('[Feishu] Delayed status send failed:', error);
-          resolvePromise(false);
+          resolvePromise?.(false);
         });
     }, delayMs);
   });
@@ -773,7 +774,7 @@ function handleFeishuSchedulerBindingCommand(params: {
 
   const nextBinding: FeishuSchedulerBinding = {
     agentRoleKey: params.binding.agentRoleKey,
-    appId: params.app.appId,
+    appId: params.app.appId || '',
     appName: params.app.name || params.binding.roleLabel,
     chatId: params.chatId,
     senderId: params.senderId,
@@ -998,7 +999,7 @@ export function setupFeishuWebhookRoutes(app: Router) {
       const timestamp = req.headers['x-lark-request-timestamp'] as string;
       const nonce = req.headers['x-lark-request-nonce'] as string;
 
-      if (signature && !verifySignature(signature, timestamp, nonce, JSON.stringify(req.body), app.appSecret)) {
+      if (signature && app.appSecret && !verifySignature(signature, timestamp, nonce, JSON.stringify(req.body), app.appSecret)) {
         console.error('[Feishu] Signature verification failed');
         return res.sendStatus(401);
       }
@@ -1038,7 +1039,7 @@ export function setupFeishuWebhookRoutes(app: Router) {
       let imageAttachments: ImageAttachment[] | undefined;
       let imageDownloadFailed = false;
       if (normalizedInbound.imageKey) {
-        const imageAttachment = await downloadFeishuMessageImage(app, normalizedInbound.messageId, normalizedInbound.imageKey);
+        const imageAttachment = await downloadFeishuMessageImage(app, normalizedInbound.messageId || '', normalizedInbound.imageKey);
         if (imageAttachment) {
           imageAttachments = [imageAttachment];
         } else {
@@ -1204,11 +1205,16 @@ export function setupFeishuWebhookRoutes(app: Router) {
           }
           const { FeishuGateway } = await import('../libs/feishuGateway');
           const gateway = new FeishuGateway();
-          gateway.setDependencies({ coworkStore, store, skillManager });
+          gateway.setDependencies({
+            coworkStore,
+            store,
+            buildSelectedSkillsPrompt: (skillIds: string[]) => skillManager.buildSelectedSkillsPrompt(skillIds),
+          });
           await gateway.start({
             appId: app.appId,
             appSecret: app.appSecret,
             agentRoleKey: identityRoleKey,
+            botOpenId: typeof app.botOpenId === 'string' ? app.botOpenId : null,
             domain: app.domain || domain || 'feishu',
             debug: app.debug ?? debug ?? true,
           });

@@ -79,7 +79,7 @@ import { setupSkillRoleConfigRoutes } from '../routes/skillRoleConfigs';
 import { setupSkillsMcpHelperRoutes } from '../routes/skillsMcpHelper';
 
 // Import existing main process modules
-import { dedupeRuntimeFeishuApps } from '../../clean-room/spine/modules/feishuRuntime';
+import { dedupeRuntimeFeishuApps, type FeishuRuntimeAppConfig } from '../../clean-room/spine/modules/feishuRuntime';
 import { APP_NAME } from '../../src/main/appConstants';
 import { CoworkStore, type CoworkSession } from '../../src/main/coworkStore';
 import { setStoreGetter } from '../../src/main/libs/claudeSettings';
@@ -91,8 +91,9 @@ import { McpStore } from '../../src/main/mcpStore';
 import { ScheduledTaskStore, type ScheduledTask } from '../../src/main/scheduledTaskStore';
 import { SkillManager } from '../../src/main/skillManager';
 import { CoworkSessionId } from '../../src/renderer/types/cowork';
+import { defaultConfig } from '../../src/renderer/config';
 import { resolveAgentRolesFromConfig, type AgentRoleKey as SharedAgentRoleKey } from '../../src/shared/agentRoleConfig';
-import { ENV_ALIAS_PAIRS, assignEnvAlias, readEnvAliasPair } from '../../src/shared/envAliases';
+import { ENV_ALIAS_PAIRS, assignEnvAlias, readEnvAliasPair, readEnvAliasPairWithSuffix } from '../../src/shared/envAliases';
 import {
     ensureDirectory,
     getProjectRoot,
@@ -108,7 +109,7 @@ import {
     resolvePlaywrightBrowsersPath,
 } from '../libs/playwrightRuntime';
 import { runRoleRuntimeHealthCheck } from '../libs/roleRuntimeHealthCheck';
-import { syncRoleSettingsViews } from '../libs/roleRuntimeViews';
+import { syncRoleCapabilitySnapshots, syncRoleSettingsViews } from '../libs/roleRuntimeViews';
 import {
     ensureRoleRuntimeDirs,
     getRoleSkillConfigPath,
@@ -358,6 +359,33 @@ const syncRoleSettingsViewsForRuntime = (): void => {
   }
 };
 
+const ensureMinimalRoleRuntimeSeedsForRuntime = (): void => {
+  try {
+    const userDataPath = getUserDataPath(serverOptions.dataDir);
+    const healthCheck = runRoleRuntimeHealthCheck(userDataPath);
+    const needsSkillIndexes = healthCheck.filenameSummaries.some((summary) => (
+      summary.filename === 'skills.json' && summary.actualCount < summary.expectedCount
+    ));
+    const needsCapabilitySnapshots = healthCheck.filenameSummaries.some((summary) => (
+      summary.filename === 'role-capabilities.json' && summary.actualCount < summary.expectedCount
+    ));
+
+    if (!needsSkillIndexes && !needsCapabilitySnapshots) {
+      return;
+    }
+
+    console.warn('[roles] Minimal runtime seed needed: rebuilding missing role runtime files');
+    if (needsSkillIndexes) {
+      syncRoleSkillIndexes(userDataPath, getStore(), getSkillManager());
+    }
+    if (needsCapabilitySnapshots) {
+      syncRoleCapabilitySnapshots(userDataPath, getStore(), getSkillManager(), getMcpStore());
+    }
+  } catch (error) {
+    console.error('[roles] Failed to seed minimal role runtime files:', error);
+  }
+};
+
 const buildSelectedSkillsPromptLazily = (skillIds?: string[]): string | null => {
   if (!skillIds?.length) {
     return null;
@@ -393,6 +421,7 @@ const scheduleDeferredStartupWarmup = (): void => {
   deferredStartupWarmupTimer = setTimeout(() => {
     deferredStartupWarmupTimer = null;
     syncRoleSettingsViewsForRuntime();
+    ensureMinimalRoleRuntimeSeedsForRuntime();
     logRoleRuntimeHealthCheck();
     ensureRuntimeViewSyncSubscriptions();
   }, 0);
@@ -427,6 +456,13 @@ const initStore = async (): Promise<SqliteStore> => {
     store = await SqliteStore.create(getUserDataPath(serverOptions.dataDir));
     // 注入 store getter 供 claudeSettings.resolveCurrentApiConfig 使用
     setStoreGetter(() => store as any);
+
+    const existingAppConfig = store.get('app_config');
+    if (!existingAppConfig || typeof existingAppConfig !== 'object') {
+      // 新地盘最小配置骨架：只在缺失时写入，保证 app_config 结构完整，
+      // 但不冒充已经配置好角色 API / 模型。
+      store.set('app_config', JSON.parse(JSON.stringify(defaultConfig)));
+    }
   }
   return store;
 };
@@ -896,42 +932,56 @@ const initFeishuGateway = async (): Promise<void> => {
         return;
       }
 
-      // {标记} 收集所有要启动的应用：.env + 数据库apps[]
-      const appsToStart: Array<{ appId: string; appSecret: string; agentRoleKey: string }> = [];
-
-      // 1. .env 环境变量（向后兼容，作为第一个应用）
-      const envAppId = readEnvAliasPair(ENV_ALIAS_PAIRS.feishuAppId);
-      const envAppSecret = readEnvAliasPair(ENV_ALIAS_PAIRS.feishuAppSecret);
-      const envAgentRoleKey = normalizeRequiredIdentityRoleKey(readEnvAliasPair(ENV_ALIAS_PAIRS.feishuAgentRoleKey));
-      if (envAppId && envAppSecret) {
-        if (!envAgentRoleKey) {
-          console.warn('[Feishu WS] Skip env bootstrap app: missing FEISHU_AGENT_ROLE_KEY / agentRoleKey binding');
-        } else {
-          appsToStart.push({ appId: envAppId, appSecret: envAppSecret, agentRoleKey: envAgentRoleKey });
-        }
-      }
-
-      // 2. 数据库 apps[] 配置（跳过已被.env覆盖的）
-      const dbApps = Array.isArray(feishuConfig?.apps) ? feishuConfig.apps : [];
-      for (const dbApp of dbApps) {
-        if (!dbApp?.appId || !dbApp?.appSecret || !dbApp?.enabled) continue;
-        // 跳过和.env重复的
-        if (envAppId && dbApp.appId === envAppId) continue;
-        const identityRoleKey = normalizeRequiredIdentityRoleKey(dbApp.agentRoleKey);
-        if (!identityRoleKey) {
-          console.warn(`[Feishu WS] Skip app ${dbApp.appId}: missing agentRoleKey binding`);
+      const envApps: FeishuRuntimeAppConfig[] = [];
+      for (let index = 0; index < 10; index += 1) {
+        const suffix = index === 0 ? '' : `_${index}`;
+        const envAppId = readEnvAliasPairWithSuffix(ENV_ALIAS_PAIRS.feishuAppId, suffix)?.trim() || '';
+        const envAppSecret = readEnvAliasPairWithSuffix(ENV_ALIAS_PAIRS.feishuAppSecret, suffix)?.trim() || '';
+        if (!envAppId || !envAppSecret) {
           continue;
         }
-        appsToStart.push({
-          appId: dbApp.appId,
-          appSecret: dbApp.appSecret,
-          agentRoleKey: identityRoleKey,
+
+        const envAgentRoleKey = normalizeRequiredIdentityRoleKey(
+          readEnvAliasPairWithSuffix(ENV_ALIAS_PAIRS.feishuAgentRoleKey, suffix)
+        );
+        if (!envAgentRoleKey) {
+          console.warn(`[Feishu WS] Skip env app ${envAppId}: missing FEISHU_AGENT_ROLE_KEY${suffix} / agentRoleKey binding`);
+          continue;
+        }
+
+        envApps.push({
+          id: `env-bootstrap-${index}`,
+          name: readEnvAliasPairWithSuffix(ENV_ALIAS_PAIRS.feishuAppName, suffix)?.trim() || `env-bootstrap-${index + 1}`,
+          appId: envAppId,
+          appSecret: envAppSecret,
+          agentRoleKey: envAgentRoleKey,
+          enabled: true,
+          createdAt: 0,
         });
       }
 
-      const uniqueAppsToStart = dedupeRuntimeFeishuApps(appsToStart);
-      if (uniqueAppsToStart.length < appsToStart.length) {
-        console.warn(`[Feishu WS] Deduped startup app list: ${appsToStart.length} -> ${uniqueAppsToStart.length}`);
+      const configuredApps = Array.isArray(feishuConfig?.apps)
+        ? feishuConfig.apps.filter((app: any) => app?.appId && app?.appSecret && app?.enabled)
+        : [];
+      const mergedApps = dedupeRuntimeFeishuApps([
+        ...configuredApps,
+        ...envApps,
+      ]);
+      const uniqueAppsToStart = dedupeRuntimeFeishuApps(mergedApps)
+        .map((app) => ({
+          ...app,
+          agentRoleKey: normalizeRequiredIdentityRoleKey(app.agentRoleKey),
+        }))
+        .filter((app) => {
+          if (!app.agentRoleKey) {
+            console.warn(`[Feishu WS] Skip app ${app.appId}: missing agentRoleKey binding`);
+            return false;
+          }
+          return true;
+        }) as Array<FeishuRuntimeAppConfig & { appId: string; appSecret: string; agentRoleKey: string }>;
+
+      if (uniqueAppsToStart.length < mergedApps.length) {
+        console.warn(`[Feishu WS] Deduped startup app list: ${mergedApps.length} -> ${uniqueAppsToStart.length}`);
       }
 
       if (uniqueAppsToStart.length === 0) {
@@ -952,7 +1002,14 @@ const initFeishuGateway = async (): Promise<void> => {
             store: getStore(),
             buildSelectedSkillsPrompt: (skillIds: string[]) => buildSelectedSkillsPromptLazily(skillIds),
           });
-          await gw.start({ appId: app.appId, appSecret: app.appSecret, agentRoleKey: app.agentRoleKey, domain, debug });
+          await gw.start({
+            appId: app.appId,
+            appSecret: app.appSecret,
+            agentRoleKey: app.agentRoleKey,
+            botOpenId: typeof app.botOpenId === 'string' ? app.botOpenId : null,
+            domain,
+            debug,
+          });
           feishuGateways.push(gw);
           console.log(`[Feishu WS] Gateway started: ${app.appId} → ${app.agentRoleKey}`);
         } catch (err: any) {
@@ -1190,17 +1247,14 @@ app.set('workspace', serverOptions.workspace);
 const isDev = process.env.NODE_ENV !== 'production';
 
 if (!isDev) {
-  // In compiled mode: __dirname = server/dist/server/src → public is at ../../../public
-  const publicPath = path.resolve(__dirname, '..', '..', '..', 'public');
-  const publicPathAlt = path.resolve(__dirname, '..', 'public');
-  const publicPathAlt2 = path.resolve(__dirname, '..', '..', 'public');
-  const staticRoot = fs.existsSync(path.join(publicPath, 'index.html'))
-    ? publicPath
-    : fs.existsSync(path.join(publicPathAlt, 'index.html'))
-      ? publicPathAlt
-      : fs.existsSync(path.join(publicPathAlt2, 'index.html'))
-        ? publicPathAlt2
-        : null;
+  // 静态资源根优先跟 projectRoot 走，只保留一个编译产物兼容 fallback。
+  const anchoredPublicPath = path.join(getProjectRoot(), 'public');
+  const compiledFallbackPublicPath = path.resolve(__dirname, '..', '..', '..', 'public');
+  const staticRoot = fs.existsSync(path.join(anchoredPublicPath, 'index.html'))
+    ? anchoredPublicPath
+    : fs.existsSync(path.join(compiledFallbackPublicPath, 'index.html'))
+      ? compiledFallbackPublicPath
+      : null;
 
   if (staticRoot) {
     const indexTemplate = fs.readFileSync(path.join(staticRoot, 'index.html'), 'utf8');
@@ -1302,6 +1356,9 @@ const startServer = async (options: ServerOptions = {}): Promise<http.Server> =>
     // {标记} P0架构修复: 合并历史 identity_thread_24h 数据（去掉 modelId 隔离）
     try {
       const { migrateThreadsDropModelId } = await import('../libs/identityThreadHelper.js');
+      if (!store) {
+        throw new Error('store not ready');
+      }
       const db = store.getDatabase();
       migrateThreadsDropModelId(db);
       store.getSaveFunction()();

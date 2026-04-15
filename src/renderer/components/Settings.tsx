@@ -436,6 +436,13 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
   const [activeProvider, setActiveProvider] = useState<ProviderType>(getDefaultActiveProvider());
   const [showApiKey, setShowApiKey] = useState(false);
   const showApiKeyTimerRef = useRef<number | null>(null);
+  const [showApiUrlByRole, setShowApiUrlByRole] = useState<Record<AgentRoleKey, boolean>>({
+    organizer: false,
+    writer: false,
+    designer: false,
+    analyst: false,
+  });
+  const showApiUrlTimerRef = useRef<Partial<Record<AgentRoleKey, number>>>({});
   const [showConversationCacheHint, setShowConversationCacheHint] = useState(false);
   const [conversationBackupStamp, setConversationBackupStamp] = useState<string | null>(null);
   const [showCoworkContinuityNote, setShowCoworkContinuityNote] = useState(false);
@@ -1079,6 +1086,26 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
     }));
   }, []);
 
+  const revealApiUrlTemporarily = useCallback((roleKey: AgentRoleKey) => {
+    setShowApiUrlByRole((prev) => ({
+      ...prev,
+      [roleKey]: true,
+    }));
+
+    const existingTimer = showApiUrlTimerRef.current[roleKey];
+    if (existingTimer) {
+      window.clearTimeout(existingTimer);
+    }
+
+    showApiUrlTimerRef.current[roleKey] = window.setTimeout(() => {
+      setShowApiUrlByRole((prev) => ({
+        ...prev,
+        [roleKey]: false,
+      }));
+      delete showApiUrlTimerRef.current[roleKey];
+    }, 5000);
+  }, []);
+
   const handleAgentRoleSelect = useCallback((roleKey: AgentRoleKey) => {
     setActiveRole(roleKey);
     setShowApiKey(false);
@@ -1109,6 +1136,10 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
       ...prev,
       [roleKey]: false,
     }));
+    setShowApiUrlByRole((prev) => ({
+      ...prev,
+      [roleKey]: false,
+    }));
     showGlobalToast('已应用系统体验预设');
   }, [handleAgentRoleChange]);
 
@@ -1117,6 +1148,18 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
       ...prev,
       [roleKey]: true,
     }));
+    revealApiUrlTemporarily(roleKey);
+  }, [revealApiUrlTemporarily]);
+
+  useEffect(() => {
+    return () => {
+      Object.values(showApiUrlTimerRef.current).forEach((timer) => {
+        if (typeof timer === 'number') {
+          window.clearTimeout(timer);
+        }
+      });
+      showApiUrlTimerRef.current = {};
+    };
   }, []);
 
   // {埋点} ⚡ API连通性测试入口 (ID: api-test-001) → settingsHelpers.buildURL → electronShim.api.fetch → apiProxy /api/api/fetch
@@ -2077,13 +2120,24 @@ const Settings: React.FC<SettingsProps> = ({ onClose, initialTab, notice, onUpda
                 activeRole={activeRole}
                 roleConfig={activeRoleConfig}
                 isUsingSystemPreset={isUsingSystemPreset}
+                showApiUrl={showApiUrlByRole[activeRole]}
                 showApiKey={showApiKey}
                 onToggleShowApiKey={() => setShowApiKey(!showApiKey)}
                 onApplySystemPreset={() => handleApplySystemApiPreset(activeRole)}
                 onEnableManualApiUrlEdit={() => handleEnableManualApiUrlEdit(activeRole)}
                 onOpenBuyKey={() => { void window.electron?.shell?.openExternal?.('https://www.feishu.cn/invitation/page/add_contact/?token=202v2dcb-120d-45ec-a736-131b34dc8026&unique_id=FbSH9BXDAeOfS6vxXyvEqA=='); }}
-                onApiUrlChange={(value) => handleAgentRoleChange(activeRole, 'apiUrl', value)}
-                onClearApiUrl={() => handleAgentRoleChange(activeRole, 'apiUrl', '')}
+                onApiUrlFocus={() => revealApiUrlTemporarily(activeRole)}
+                onApiUrlChange={(value) => {
+                  revealApiUrlTemporarily(activeRole);
+                  handleAgentRoleChange(activeRole, 'apiUrl', value);
+                }}
+                onClearApiUrl={() => {
+                  handleAgentRoleChange(activeRole, 'apiUrl', '');
+                  setShowApiUrlByRole((prev) => ({
+                    ...prev,
+                    [activeRole]: false,
+                  }));
+                }}
                 onApiKeyChange={(value) => handleAgentRoleChange(activeRole, 'apiKey', value)}
                 onClearApiKey={() => handleAgentRoleChange(activeRole, 'apiKey', '')}
                 onModelIdChange={(value) => handleAgentRoleChange(activeRole, 'modelId', value)}

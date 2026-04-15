@@ -147,6 +147,7 @@ export interface RoleRuntimePayload {
     enabled: boolean;
     apiKeyConfigured: boolean;
     capabilitySyncStatus: 'ok' | 'warning';
+    runtimeFilesStatus?: 'ok' | 'warning';
     capabilityWarnings: string[];
     runtimeFileWarnings: string[];
     runtimeFileChecks: unknown[];
@@ -172,6 +173,25 @@ export interface RoleRuntimePayload {
     memories?: number;
     capabilityWarnings: number;
     runtimeFileWarnings?: number;
+  };
+}
+
+export interface RoleExportStatusPayload {
+  success: boolean;
+  roleKey: string;
+  exportStatus: {
+    configured: boolean;
+    roots: {
+      primary: string | null;
+      legacy: string | null;
+    };
+    entries: Array<{
+      source: 'export' | 'legacy-export';
+      relativePath: string;
+      absolutePath: string;
+      size: number;
+      modifiedAt: number;
+    }>;
   };
 }
 
@@ -580,6 +600,24 @@ class SkillService {
       return payload as RoleRuntimePayload;
     } catch (error) {
       console.error('Failed to get role runtime:', error);
+      return null;
+    }
+  }
+
+  async getRoleExports(roleKey: string, limit = 20): Promise<RoleExportStatusPayload | null> {
+    try {
+      const response = await fetch(`/api/role-runtime/${encodeURIComponent(roleKey)}/exports?limit=${encodeURIComponent(String(limit))}`);
+      const raw = await response.text();
+      if (!response.ok || !raw.trim()) {
+        return null;
+      }
+      const payload = JSON.parse(raw);
+      if (!payload?.success) {
+        return null;
+      }
+      return payload as RoleExportStatusPayload;
+    } catch (error) {
+      console.error('Failed to get role export status:', error);
       return null;
     }
   }

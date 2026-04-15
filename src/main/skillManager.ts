@@ -7,6 +7,16 @@ import yaml from 'js-yaml';
 
 const __filename_esm = fileURLToPath(import.meta.url);
 const __dirname_esm = path.dirname(__filename_esm);
+
+function ensureWithinProjectRoot(candidate: string): string | null {
+  const projectRoot = getProjectRoot();
+  const normalized = path.resolve(candidate);
+  const relative = path.relative(projectRoot, normalized);
+  if (relative.startsWith('..') || path.isAbsolute(relative)) {
+    return null;
+  }
+  return normalized;
+}
 import extractZip from 'extract-zip';
 import { SqliteStore } from './sqliteStore';
 import { cpRecursiveSync } from './fsCompat';
@@ -1844,16 +1854,17 @@ export class SkillManager {
       return getRuntimeAppPath(SKILLS_DIR_NAME);
     }
 
-    // Web / tsx 开发态直接跑 src/main/*.ts，此时 __dirname_esm 在 src/main 下；
-    // Electron 开发态可能跑在 dist-electron 下。这里按候选路径探测，避免误找成 src/SKILLs。
-    const candidates = [
-      path.join(getProjectRoot(), SKILLS_DIR_NAME),
-      path.resolve(__dirname_esm, '..', '..', SKILLS_DIR_NAME),
-      path.resolve(__dirname_esm, '..', SKILLS_DIR_NAME),
-    ];
+    // 开发态也只认 projectRoot 这一套真相源。
+    // 如果运行时 helper 给出的路径仍然落在 projectRoot 内，可以作为兼容候选；
+    // 否则不再引入 __dirname_esm 反推出来的第二套根。
+    const anchoredRoot = path.join(getProjectRoot(), SKILLS_DIR_NAME);
+    const runtimeCandidate = ensureWithinProjectRoot(getRuntimeAppPath(SKILLS_DIR_NAME));
+    const candidates = runtimeCandidate
+      ? [anchoredRoot, runtimeCandidate]
+      : [anchoredRoot];
 
     const resolved = candidates.find(candidate => fs.existsSync(candidate));
-    return resolved ?? candidates[0];
+    return resolved ?? anchoredRoot;
   }
 
   getSkillConfig(skillId: string): { success: boolean; config?: Record<string, string>; error?: string } {

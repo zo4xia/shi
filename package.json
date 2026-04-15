@@ -27,6 +27,7 @@
     "dev": "node scripts/dev-runner.mjs",
     "web:dev": "vite --config vite.config.web.ts",
     "dev:web": "node scripts/dev-runner.mjs",
+    "rehearsal:migration": "node scripts/migration-rehearsal.mjs",
     "build": "npm run build:web && npm run build:server",
     "bundle": "node scripts/bundle.mjs",
     "build:web": "vite build --config vite.config.web.ts --outDir server/public",

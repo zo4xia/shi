@@ -137,6 +137,7 @@ delivery-mainline-1.0-clean
 /api/shell
 /api/files + /workspace/*
 /api/role-runtime
+/api/role-runtime/:roleKey/exports
 /api/im/feishu
 /api/im/dingtalk
 /api/skill-role-configs

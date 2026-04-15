@@ -1,5 +1,12 @@
 import { Request, Response, Router } from 'express';
 import { buildChannelBindingKey, bindChannelSession, findLatestScopedSession, getBoundChannelSession } from '../libs/channelSessionBinding';
+import {
+  buildExportVerificationResult,
+  collectExportSnapshot,
+  collectNewExportEntries,
+  looksLikeExportIntent,
+  resolveExportRoots,
+} from '../libs/exportVerification';
 import { getOrCreateWebSessionExecutor } from '../libs/httpSessionExecutor';
 import { getProjectRoot } from '../../src/shared/runtimeDataPaths';
 import { partitionSkillIdsByHandling } from '../../src/shared/systemHandledSkills';
@@ -158,6 +165,13 @@ export function setupRoomRoutes(app: Router) {
           return context.skillManager.buildSelectedSkillsPrompt(promptHandled);
         },
       });
+      const exportIntent = looksLikeExportIntent(prompt);
+      const exportRoots = resolveExportRoots(
+        context.store.get('app_config') as Parameters<typeof resolveExportRoots>[0],
+        roleKey,
+      );
+      const beforePrimarySnapshot = collectExportSnapshot(exportRoots.primary);
+      const beforeLegacySnapshot = collectExportSnapshot(exportRoots.legacy);
 
       await executor.runChannelFastTurn(session.id, prompt, {
         imageAttachments: body.imageAttachments,
@@ -171,12 +185,26 @@ export function setupRoomRoutes(app: Router) {
       const replies = extractNewAssistantReplies(completed, knownIds);
       const replyText = replies.join('\n\n').trim();
       const systemError = extractLatestSystemError(completed);
+      const afterPrimarySnapshot = collectExportSnapshot(exportRoots.primary);
+      const afterLegacySnapshot = collectExportSnapshot(exportRoots.legacy);
+      const exportVerification = buildExportVerificationResult({
+        exportIntent,
+        roots: exportRoots,
+        newPrimaryEntries: collectNewExportEntries(beforePrimarySnapshot, afterPrimarySnapshot),
+        newLegacyEntries: collectNewExportEntries(beforeLegacySnapshot, afterLegacySnapshot),
+      });
+      const exportVerificationText = exportVerification.message.trim();
+      const finalReplyText = [replyText, exportVerificationText]
+        .filter((part) => Boolean(String(part || '').trim()))
+        .join('\n\n')
+        .trim();
 
-      if (replyText) {
+      if (finalReplyText) {
         return res.json({
           success: true,
           sessionId: session.id,
-          replyText,
+          replyText: finalReplyText,
+          exportVerification,
         });
       }
 
@@ -184,14 +212,20 @@ export function setupRoomRoutes(app: Router) {
         return res.json({
           success: true,
           sessionId: session.id,
-          replyText: `这轮没顺利说出来。${systemError}`,
+          replyText: [`这轮没顺利说出来。${systemError}`, exportVerificationText]
+            .filter((part) => Boolean(String(part || '').trim()))
+            .join('\n\n'),
+          exportVerification,
         });
       }
 
       return res.json({
         success: true,
         sessionId: session.id,
-        replyText: '这轮我听见了，但还没顺利组织出回复。你可以再戳我一下，或者换个更短一点的说法。',
+        replyText: ['这轮我听见了，但还没顺利组织出回复。你可以再戳我一下，或者换个更短一点的说法。', exportVerificationText]
+          .filter((part) => Boolean(String(part || '').trim()))
+          .join('\n\n'),
+        exportVerification,
       });
     } catch (error) {
       return res.status(500).json({

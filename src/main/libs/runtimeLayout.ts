@@ -38,7 +38,7 @@ export function getRuntimeAppRoot(): string {
 
 export function getRuntimeResourcesRoot(): string {
   if (isBundledRuntime()) {
-    return process.resourcesPath;
+    return process.resourcesPath || path.join(getRuntimeAppRoot(), 'resources');
   }
 
   const configuredRoot = readEnvAliasPair(ENV_ALIAS_PAIRS.resourcesRoot);

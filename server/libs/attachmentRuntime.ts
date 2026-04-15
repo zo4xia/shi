@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { parseGeneratedTextChunkName, type GeneratedTextChunkDescriptor } from '../../src/shared/attachmentChunkMetadata';
+import { getProjectRoot } from '../../src/shared/runtimeDataPaths';
 import { parseFile } from './fileParser';
 
 export const ATTACHMENT_INPUT_LABEL = '输入文件';
@@ -48,6 +49,18 @@ type AttachmentReadResult = {
   text: string;
 };
 
+// {标记} P1-ATTACHMENT-ANCHOR-TRUTH:
+// “输入文件: 路径” 只有在 projectRoot 内才会被承认为当前回合附件引用。
+// 这里不是通用文件浏览器，也不是给 agent 越界读绝对路径用的。
+function ensureWithinProjectRoot(candidatePath: string): string | null {
+  const projectRoot = path.resolve(getProjectRoot());
+  const normalized = path.resolve(candidatePath);
+  if (normalized === projectRoot || normalized.startsWith(`${projectRoot}${path.sep}`)) {
+    return normalized;
+  }
+  return null;
+}
+
 export function extractReferencedFilePaths(content: string): { promptText: string; filePaths: string[] } {
   const lines = String(content || '').split(/\r?\n/);
   const filePaths: string[] = [];
@@ -72,10 +85,16 @@ export function extractReferencedFilePaths(content: string): { promptText: strin
 }
 
 export function buildAttachmentRuntimeContext(content: string): AttachmentRuntimeContext {
+  // {标记} P1-ATTACHMENT-PARSE:
+  // 本地聊天主链在这里把“输入文件: 路径”先收成工作区锚点内的附件引用，
+  // 只有锚定成功的文件，才会继续进入 attachment_manifest / attachment_read。
   const { promptText, filePaths } = extractReferencedFilePaths(content);
   const attachments = Array.from(new Set(filePaths))
     .map((filePath) => {
-      const resolvedPath = path.resolve(filePath);
+      const resolvedPath = ensureWithinProjectRoot(filePath);
+      if (!resolvedPath) {
+        return null;
+      }
       const fileName = path.basename(resolvedPath) || resolvedPath;
       return {
         path: filePath,
@@ -83,7 +102,8 @@ export function buildAttachmentRuntimeContext(content: string): AttachmentRuntim
         fileName,
         descriptor: parseGeneratedTextChunkName(fileName),
       } satisfies AttachmentReference;
-    });
+    })
+    .filter((attachment): attachment is AttachmentReference => Boolean(attachment));
 
   const groupsByKey = new Map<string, AttachmentGroup>();
   for (const attachment of attachments) {
