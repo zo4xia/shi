@@ -434,6 +434,7 @@ export type AssistantContentBlock =
 const TOOL_TRACE_START_RE = /^Tool call:/i;
 const TOOL_TRACE_DETAIL_RE = /^(?:[\u2022*-]\s+|Path:|•\s+|[-*]\s+)/i;
 const HTML_BLOCK_TAG_RE = /<\/?(?:br|hr|h[1-6]|table|thead|tbody|tr|td|th|p|blockquote|ul|ol|li|div|section|article|details|summary)\b/i;
+const FENCED_CODE_BLOCK_RE = /^\s{0,3}(```+|~~~+)/;
 
 function normalizeAssistantSection(section: string): string {
   return section.replace(/\r\n/g, '\n').trim();
@@ -461,14 +462,58 @@ export function isHtmlSection(section: string): boolean {
   return HTML_BLOCK_TAG_RE.test(normalized);
 }
 
+function splitNormalizedAssistantSections(content: string): string[] {
+  const lines = content.split('\n');
+  const sections: string[] = [];
+  let currentLines: string[] = [];
+  let fenceMarker: string | null = null;
+  let pendingBlankLines = 0;
+
+  const flushCurrentSection = () => {
+    const section = currentLines.join('\n').trim();
+    if (section) {
+      sections.push(section);
+    }
+    currentLines = [];
+    pendingBlankLines = 0;
+  };
+
+  for (const line of lines) {
+    const fenceMatch = line.match(FENCED_CODE_BLOCK_RE);
+    if (fenceMatch) {
+      const marker = fenceMatch[1][0];
+      if (!fenceMarker) {
+        fenceMarker = marker;
+      } else if (fenceMarker === marker) {
+        fenceMarker = null;
+      }
+    }
+
+    const isBlankLine = line.trim().length === 0;
+    if (!fenceMarker && isBlankLine) {
+      pendingBlankLines += 1;
+      currentLines.push(line);
+      continue;
+    }
+
+    if (!fenceMarker && pendingBlankLines >= 2) {
+      currentLines.splice(Math.max(0, currentLines.length - pendingBlankLines), pendingBlankLines);
+      flushCurrentSection();
+    }
+
+    pendingBlankLines = 0;
+    currentLines.push(line);
+  }
+
+  flushCurrentSection();
+  return sections;
+}
+
 export function splitAssistantContentBlocks(content: string): AssistantContentBlock[] {
   const normalized = (content || '').replace(/\r\n/g, '\n').trim();
   if (!normalized) return [];
 
-  const sections = normalized
-    .split(/\n{2,}/)
-    .map((section) => section.trim())
-    .filter(Boolean);
+  const sections = splitNormalizedAssistantSections(normalized);
 
   const blocks: AssistantContentBlock[] = [];
 
