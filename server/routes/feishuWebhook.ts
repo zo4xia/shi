@@ -296,6 +296,46 @@ function isFeishuMessageProcessed(messageId: string): boolean {
   return false;
 }
 
+function extractFeishuMentionOpenIds(mentions?: FeishuWebhookMention[]): string[] {
+  if (!Array.isArray(mentions)) {
+    return [];
+  }
+
+  return mentions
+    .map((mention) => (typeof mention?.id?.open_id === 'string' ? mention.id.open_id.trim() : ''))
+    .filter(Boolean);
+}
+
+function resolveFeishuMentionFallbackOpenId(
+  mentions: FeishuWebhookMention[] | undefined,
+  senderOpenId?: string
+): string | null {
+  const mentionOpenIds = extractFeishuMentionOpenIds(mentions);
+  const candidate = mentionOpenIds.find((openId) => openId && openId !== (senderOpenId || ''));
+  return candidate ?? mentionOpenIds[0] ?? null;
+}
+
+function shouldHandleFeishuWebhookMessage(params: {
+  chatType?: 'p2p' | 'group';
+  mentions?: FeishuWebhookMention[];
+  botOpenId?: string;
+  senderOpenId?: string;
+}): boolean {
+  if (params.chatType !== 'group') {
+    return true;
+  }
+
+  const mentionOpenIds = extractFeishuMentionOpenIds(params.mentions);
+  if (mentionOpenIds.length === 0) {
+    return false;
+  }
+
+  const preciseMentioned = Boolean(params.botOpenId && mentionOpenIds.includes(params.botOpenId));
+  const fallbackBotOpenId = resolveFeishuMentionFallbackOpenId(params.mentions, params.senderOpenId);
+  const fallbackMentioned = !params.botOpenId && Boolean(fallbackBotOpenId);
+  return preciseMentioned || fallbackMentioned;
+}
+
 function stripFeishuMentions(text: string, mentions?: FeishuWebhookMention[]): string {
   if (!text || !Array.isArray(mentions) || mentions.length === 0) {
     return text.trim();
@@ -1051,6 +1091,21 @@ export function setupFeishuWebhookRoutes(app: Router) {
       const text = normalizedInbound.text;
       const senderId = normalizedInbound.senderId;
       const chatType = event?.message?.chat_type;
+      const senderOpenId = event?.sender?.sender_id?.open_id?.trim();
+
+      if (!shouldHandleFeishuWebhookMessage({
+        chatType,
+        mentions: event?.message?.mentions,
+        botOpenId: app.botOpenId?.trim(),
+        senderOpenId,
+      })) {
+        console.log('[Feishu] Ignore group webhook message without bot mention:', {
+          appName: app.name,
+          chatId,
+          messageId,
+        });
+        return res.sendStatus(200);
+      }
 
       console.log('[Feishu] Message received:', {
         appName: app.name,
