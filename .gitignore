@@ -23,6 +23,9 @@ SKILLs/**/node_modules/
 .uclaw/
 release/
 deploy/generated/
+archive/
+review-bundles/
+.tmp-run/
 
 # Temp files
 .cowork-temp/
