@@ -326,14 +326,15 @@ function shouldHandleFeishuWebhookMessage(params: {
   }
 
   const mentionOpenIds = extractFeishuMentionOpenIds(params.mentions);
-  if (mentionOpenIds.length === 0) {
+  const hasAnyMention = Array.isArray(params.mentions) && params.mentions.length > 0;
+  if (!hasAnyMention) {
     return false;
   }
 
   const preciseMentioned = Boolean(params.botOpenId && mentionOpenIds.includes(params.botOpenId));
   const fallbackBotOpenId = resolveFeishuMentionFallbackOpenId(params.mentions, params.senderOpenId);
   const fallbackMentioned = !params.botOpenId && Boolean(fallbackBotOpenId);
-  return preciseMentioned || fallbackMentioned;
+  return preciseMentioned || fallbackMentioned || hasAnyMention;
 }
 
 function stripFeishuMentions(text: string, mentions?: FeishuWebhookMention[]): string {

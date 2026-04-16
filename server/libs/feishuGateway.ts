@@ -568,6 +568,7 @@ export class FeishuGateway extends EventEmitter {
     // Group chat: require @bot, but degrade gracefully if probe did not return botOpenId.
     if (msg.chat_type === 'group') {
       const mentionOpenIds = extractMentionOpenIds(msg.mentions);
+      const hasAnyMention = Array.isArray(msg.mentions) && msg.mentions.length > 0;
       if (!this.botOpenId) {
         const learnedBotOpenId = resolveMentionFallbackOpenId(msg.mentions, sender);
         if (learnedBotOpenId) {
@@ -576,8 +577,8 @@ export class FeishuGateway extends EventEmitter {
       }
 
       const preciseMentioned = Boolean(this.botOpenId && mentionOpenIds.includes(this.botOpenId));
-      const fallbackMentioned = !this.botOpenId && Array.isArray(msg.mentions) && msg.mentions.length > 0;
-      const mentioned = preciseMentioned || fallbackMentioned;
+      const fallbackMentioned = !this.botOpenId && hasAnyMention;
+      const mentioned = preciseMentioned || fallbackMentioned || hasAnyMention;
       if (!mentioned) {
         this.log('[Feishu WS] Ignore group message without bot mention');
         return;
